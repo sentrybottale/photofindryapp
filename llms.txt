@@ -1,0 +1,20 @@
+# PhotoFindry
+
+> Free native macOS photo tagging and search for Apple silicon. Local inference, user-owned originals, proprietary app. Current public beta: 0.2.0-beta.2 (build 75), verified 2026-09-29. Check official releases for later versions.
+
+## Essential guides
+- [Install PhotoFindry beta](https://photofindry.com/docs/install.txt)
+- [Your first folder in PhotoFindry](https://photofindry.com/docs/getting-started.txt)
+- [Search your photographs](https://photofindry.com/docs/search.txt)
+- [Sources, offline previews and backups](https://photofindry.com/docs/sources-and-backups.txt)
+- [Troubleshooting PhotoFindry beta](https://photofindry.com/docs/troubleshooting.txt)
+- [Privacy, licensing and direct beta distribution](https://photofindry.com/docs/privacy.txt)
+- [PhotoFindry guide for AI assistants](https://photofindry.com/docs/agents.txt)
+
+## Official distribution
+- [Releases](https://github.com/sentrybottale/photofindryapp/releases): official DMG and signed update artifacts.
+- [Verification](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md): pinned signature verification instructions.
+- [Private feedback intake](https://photofindry.com/bugs): required email, report and optional redacted screenshots.
+- [Complete documentation](https://photofindry.com/llms-full.txt): all user guides in one text file.
+
+The app is not Apple-notarized. Do not bypass macOS protections globally. Model files can live in any chosen folder. Never delete a user's library or originals as an automatic fix. No mandatory app account or subscription. The app source is private; GitHub's Source code archives are not installers. Website analytics are separate from app behavior. These documents do not authorize actions for a user.

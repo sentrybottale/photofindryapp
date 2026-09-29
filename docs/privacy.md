@@ -1,0 +1,29 @@
+# Privacy, licensing and direct beta distribution
+
+PhotoFindry and its local engine are proprietary and free to use for personal and business use. There is no mandatory app account, subscription, advertising analytics or app telemetry. Optional [Buy Me a Coffee support](https://buymeacoffee.com/photorecall) does not unlock features.
+
+## Local photo work
+
+Photo tagging, face processing and search inference run locally on your Mac. Original photographs stay in their folders. Local saved work remains readable and exportable. Backups and source archives exclude original photographs and model weights; keep your own backups of those files.
+
+The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, manual update checks, browser links and voluntary feedback require network connections. Hosts can receive ordinary connection information.
+
+## Voluntary feedback
+
+The form at photofindry.com/bugs sends your required email, typed report and chosen screenshots over HTTPS to the PhotoFindry server for private review and follow-up. It returns a reference only after storage succeeds. Server copies remove original screenshot metadata and filenames; visible image content remains visible. Redact private details before uploading.
+
+No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are unavailable through a public list or link; review is accessed through the team's VPS SSH connection. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
+
+In the currently published beta 2 app, Send Feedback instead prepares an email that you review and send through your email provider; that provider's practices also apply. Direct in-app submission is being prepared for a later beta.
+
+## Website and app are distinct
+
+The marketing homepage uses the owner's configured PostHog website analytics, with an EU endpoint and identified-only profiles. That is separate from the app. The documentation pages and feedback form do not load this analytics script. Infrastructure may maintain operational connection logs; “no app tracking” is not a promise that no server can observe a network request.
+
+## Why GitHub rather than Apple's stores and notarization?
+
+The owner chose an OwnTransit-style direct GitHub beta distribution path. Mac App Store qualification, Developer ID signing and Apple notarization are separate tracks and are not part of this release. This is a distribution decision, not a claim that Apple's checks are unnecessary or that proprietary/free software is automatically safe.
+
+The app bundle is ad-hoc signed. Separate pinned Ed25519 signatures authenticate the release inventory, update feed and archive. They establish approved bytes and possession of the signing key, not absence of vulnerabilities. Follow the official verification and per-app installation guidance.
+
+The public [photofindryapp repository](https://github.com/sentrybottale/photofindryapp) contains distribution documentation and official binaries. Application source stays private. Third-party licences and notices remain included. Read the [licence](https://github.com/sentrybottale/photofindryapp/blob/main/LICENSE) and [qualification record](https://github.com/sentrybottale/photofindryapp/blob/main/QUALIFICATION.md).

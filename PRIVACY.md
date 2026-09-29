@@ -44,3 +44,24 @@ shared copies use private temporary storage until handoff completes or you choos
 Done with Email after sending/closing the message. Abrupt exit can leave copies
 in macOS temporary storage. Exported email drafts remain where you save them.
 The app does not inspect your mailbox or confirm inbox delivery.
+
+## Private website feedback
+
+The current form at https://photofindry.com/bugs sends your required contact email,
+report text and chosen screenshots over HTTPS to the PhotoFindry server. Reports
+are stored for private review through SSH and retained until the team explicitly
+removes them. There is no public report lookup. Screenshots are re-encoded without
+original metadata or filenames; visible private content remains visible. Redact it
+before submitting. Abuse controls retain keyed network identifiers for at most
+24 hours. Infrastructure can maintain operational connection logs. The form has
+no analytics. No email is sent automatically by the intake service.
+
+This website flow is available now. The email behavior above describes the
+published beta 2 app; direct native submission is not yet a published release.
+
+## Marketing website
+
+The photofindry.com homepage uses the owner's PostHog EU website analytics with
+identified-only person profiles. Documentation and feedback pages do not load
+that script. Website analytics are separate from the app, which has no advertising
+analytics or app telemetry.
