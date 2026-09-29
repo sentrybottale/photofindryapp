@@ -1,7 +1,10 @@
-# PhotoFindry 0.2.0 beta 2
+# PhotoFindry 0.2.0 beta 3 (build 76)
 
-Send Feedback from the toolbar or Help menu. Describe a bug or suggestion, choose where it happened, add optional steps and expected behaviour, and attach up to three screenshots. Review and send a ready-made email to photofindry@lyubenov.com through your email app.
+Send Feedback now submits directly to the private PhotoFindry bug tracker over HTTPS, without opening an email app. Your email is required for follow-up. Describe what happened and where, add optional reproduction steps and screenshots, then keep the returned report reference.
 
-Shared screenshot copies remove original metadata and filenames. App/macOS details are optional and visible before sharing. No logs or library data are attached automatically. A portable email draft and copyable report are available if email sharing is unavailable.
+Only the report and screenshots you choose are shared. Screenshot copies remove original metadata and filenames; visible content remains visible. App/macOS details are optional. No logs, photo library or saved searches are attached automatically. Failed submissions preserve your draft, and retrying an unchanged report avoids duplicates.
 
-This update replaces the app bundle only. It does not migrate or retag the library, change chosen model paths, or edit original photographs. Free to use; no account or tracking. Apple silicon, macOS 14+. Not Apple-notarized.
+This update replaces the app bundle only. It does not migrate or retag your library, change model paths or edit original photographs. Free to use, with no mandatory account or app tracking. Apple silicon, macOS 14 or later; bundled Core ML semantic ranking requires macOS 15. Not Apple Developer ID signed or notarized.
+
+User guides: https://photofindry.com/docs/
+Website feedback: https://photofindry.com/bugs

@@ -1,72 +1,69 @@
 # Beta qualification
 
-**Release:** 0.2.0-beta.2 · **Application:** 0.2.0 · **Build:** 75 · **Architecture:** arm64
+**Release:** 0.2.0-beta.3 · **Application:** 0.2.0 · **Build:** 76 · **Architecture:** arm64
 
 The application declares macOS 14.0 or later; qualification used macOS 27.0
 (26A428), Apple silicon and 8 GiB memory. Other OS/hardware combinations are not
 claimed tested. Bundled Core ML semantic ranking requires macOS 15 or later.
 
-## Feedback and release checks
+## Feedback and packaging
 
-- Swift build and 14 focused feedback/updater checks passed. Native render review
-  covered empty, bug, suggestion, screenshot and unavailable-mail states.
-- A real Apple Mail draft contained the intended recipient, report fields and a
-  generic PNG attachment. Two synthetic drafts were discarded without sending.
-  Returning to the form after Mail omits its cancellation callback was verified.
-  Inbox delivery has not been tested; the user's email provider handles delivery.
-- An independent MIME parser verified exported email text and attachments.
-  Selected screenshot bytes remained unchanged; shared copies excluded original
-  EXIF/GPS/comments and filenames. Visible image content is not automatically redacted.
-- The exact app has 416 classified payload entries in 179 components, valid
-  nested ad-hoc signatures and no unresolved packaging findings. The DMG was
-  verified read-only against the exact candidate. The signed inventory, full
-  update ZIP and update feed passed pinned-public-key verification.
+- Full production bundle build and strict nested signature verification passed.
+  All 416 payload entries are classified in 179 components, with no unresolved
+  packaging findings. Read-only DMG inspection matched the signed app inventory.
+- Focused feedback/updater checks: 16 passed, one opt-in render test skipped in
+  the ordinary run. The separate five-state native render check passed.
+- Compatibility regression suite: 1,164 passed, 27 opt-in skipped, zero failures.
+- Eight service tests passed locally and on the VPS: required email, validation,
+  screenshot cleanup, private route isolation, CSRF, escaped text, resource limits
+  and concurrent idempotent storage.
+- Synthetic website and native reports reached the live HTTPS API. A selected
+  screenshot was verified in the SSH-only reviewer. The actual build-76 app
+  submitted from an isolated empty library with optional environment disabled;
+  that context was absent from the stored report. Test reports were resolved.
+- The release's canonical UI executable matches that live-submission-tested build.
+  All 20 other native binaries and executable entitlements match beta 2.
+- The installer, update ZIP, feed and signed release inventory passed verification
+  with the existing pinned public key. Signatures authenticate bytes, not safety.
 
 ## Signed update and saved data
 
-A real Sparkle trial installed the exact beta-2 candidate over isolated beta-1
-build 74. All 21 fixture-library file entries stayed unchanged during installation.
+A real Sparkle trial installed the exact beta-3 candidate over isolated beta-2
+build 75. All 21 fixture-library files remained unchanged during installation.
 Reopening the installed worker preserved all 17 authoritative source tables,
-accepted photo details, People edits and review history. Fixture originals and
-selected model paths stayed unchanged. The installed customer app and library
-were not targets of this test.
+accepted details, People edits and review history. Fixture originals and model
+paths stayed unchanged. The customer application and library were not targets.
 
-This new trial used a loopback-only HTTP server with real Ed25519 signatures. It
-made no production server or feed changes. An initial test harness under Documents
-failed to start its installer helper; the successful harness used a disposable
-temporary directory and a framework inside its app bundle, without changing
-system security settings. This is an external updater harness. Production UI
-save/drain safeguards have separate automated coverage.
+This trial used loopback-only HTTP with real Ed25519-signed feed and archive.
+It used an external updater harness; production UI save/drain gates have separate
+coverage. Beta 1 previously qualified HTTPS delivery, compatible manual rollback,
+insufficient space, bad signatures, corrupt archive, incompatible version/data
+contract, unavailable feed and check/download cancellation. Those cases were not
+all repeated for beta 3. Authorization denial, wrong bundle identity and
+interruption during final replacement remain unqualified. No automatic downgrade
+is supported.
 
-Beta 1 previously qualified the signed HTTPS delivery path, compatible manual
-rollback, actual insufficient-space handling, bad feed/archive signatures,
-corrupt archive, incompatible version/data contract, unavailable feed and check/
-download cancellation. Those checks were not all repeated for beta 2. Authorization
-denial, wrong bundle identity and interruption during final replacement remain
-unqualified. An automatic downgrade is not supported.
+## Reused evidence and limits
 
-## Reused runtime evidence and limits
+The engine, models, source schemas, saved-data formats and updater code are
+unchanged by beta 3. Prior real-model tagging/refinement and positive face checks
+are reused on the identical runtime; they do not establish broad model accuracy.
+The rebuilt face-policy manifest updates only its static-archive provenance hash;
+the final face helper executable is identical. Build and privacy metadata reflect
+the new explicit feedback delivery route.
 
-All 20 native binaries other than the main app, bundled models and executable
-entitlements match the qualified beta-1 runtime. Only the main UI executable,
-build number, privacy manifest and source-build metadata changed. No inference,
-store, schema, model-setting or updater installation code changed.
+Bounded prior process observations saw loopback TCP only and can miss brief
+connections. There is no OS-enforced network/filesystem sandbox or absolute
+no-internet guarantee. Explicit downloads, updates, browser links and voluntary
+feedback use the network. No app advertising analytics or telemetry is added.
 
-Prior bounded real-model tagging/refinement and positive face-fixture checks
-are reused on that unchanged runtime; they do not establish broad model quality.
-Bounded process observations saw loopback TCP only and may miss brief connections.
-There is no OS-enforced network/filesystem sandbox or absolute offline guarantee.
-Downloads, updates, browser links and voluntary feedback delivery use the internet.
+This beta is ad-hoc signed, not Apple Developer ID signed or notarized. Successful
+quarantined first launch under a fresh macOS user remains unqualified. The owner
+reports a signing-key backup; independent recovery has not been tested.
 
-The beta is not Apple Developer ID signed or notarized. Beta 1's browser-quarantine
-trial recorded expected Gatekeeper refusal without executing the app or removing
-quarantine. Successful first launch under a fresh macOS user remains unqualified.
-The owner reports a signing-key backup; independent recovery has not been tested.
-
-Component review is an AI-assisted packaging review, not an independent security
-audit. The owner manages Codex Security for the private application-source
-repository; its review of the beta-2 release commit completed on 29 September
-2026. This does not certify security or future PR coverage. GitHub Actions jobs
-could not start because of the account billing/spending limit; the build and
-checks described above ran locally. This public repository contains distribution files; GitHub's automatic source archives contain those
-files, not the application implementation.
+The private PR's Codex Security review completed on 29 September 2026 on the
+feedback code commit, with no findings reported. The following changes only
+clarified documentation and merged the same code. This is not a security
+certification. GitHub Actions could not start because of account billing/spending
+limits; the validation listed here ran locally. Application source remains private;
+this repository and GitHub's automatic source archives contain distribution files.

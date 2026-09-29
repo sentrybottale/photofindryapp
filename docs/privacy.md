@@ -14,7 +14,7 @@ The form at photofindry.com/bugs sends your required email, typed report and cho
 
 No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are unavailable through a public list or link; review is accessed through the team's VPS SSH connection. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
 
-In the currently published beta 2 app, Send Feedback instead prepares an email that you review and send through your email provider; that provider's practices also apply. Direct in-app submission is being prepared for a later beta.
+In beta 3, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
 
 ## Website and app are distinct
 

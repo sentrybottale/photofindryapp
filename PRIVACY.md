@@ -29,35 +29,26 @@ Reports are voluntary. Review diagnostics for filenames, queries, names and phot
 details before sharing. Do not attach photo libraries, model weights, original
 photographs or raw private traces to public issues or pull requests.
 
-## Voluntary feedback by email
+## Voluntary private feedback
 
-Send Feedback prepares an email to `photofindry@lyubenov.com`. You review and send
-it through your email app. The report contains what you type, optional app/macOS
-version and CPU architecture, and only screenshots you choose. The recipient also
-receives your sender address. Your email provider handles delivery. No logs,
-photo records, names, saved searches or library files are attached automatically.
+In beta 3, Send Feedback submits your required contact email, report text and
+chosen screenshots over HTTPS to https://photofindry.com/bugs. Optional app/macOS
+version and CPU architecture are shown before sharing. The website form uses the
+same private service. Nothing is sent until you choose Submit Feedback. No logs,
+photo records, names, saved queries or library files are attached automatically.
 
-Screenshot copies remove original file metadata and filenames, but visible
-photographs, names and queries remain visible. Redact them before attaching.
-Copies may be resized. The form keeps a draft in memory while the app is open;
-shared copies use private temporary storage until handoff completes or you choose
-Done with Email after sending/closing the message. Abrupt exit can leave copies
-in macOS temporary storage. Exported email drafts remain where you save them.
-The app does not inspect your mailbox or confirm inbox delivery.
+Reports and screenshots are stored for private review through SSH and retained
+until the team explicitly removes them. There is no public report lookup. Copies
+are re-encoded without original metadata or filenames; visible private content
+remains visible. Redact it before submitting. Drafts stay in app memory until exit;
+failed or cancelled submissions retain the draft. A cancelled request may already
+have arrived; retrying unchanged content reuses its submission identity.
 
-## Private website feedback
-
-The current form at https://photofindry.com/bugs sends your required contact email,
-report text and chosen screenshots over HTTPS to the PhotoFindry server. Reports
-are stored for private review through SSH and retained until the team explicitly
-removes them. There is no public report lookup. Screenshots are re-encoded without
-original metadata or filenames; visible private content remains visible. Redact it
-before submitting. Abuse controls use keyed network identifiers. Counters expire after at most
-24 hours; expired rows are removed on the next submission attempt. Infrastructure can maintain operational connection logs. The form has
-no analytics. No email is sent automatically by the intake service.
-
-This website flow is available now. The email behavior above describes the
-published beta 2 app; direct native submission is not yet a published release.
+Abuse controls use keyed network identifiers. Counters expire after at most
+24 hours; expired rows are removed on the next submission attempt. Infrastructure
+can maintain operational connection logs. The form has no analytics. No email is
+sent automatically by the intake service. Earlier beta 2 builds used an email
+draft and the selected email provider's delivery and retention practices.
 
 ## Marketing website
 
