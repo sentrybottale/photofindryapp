@@ -52,8 +52,8 @@ report text and chosen screenshots over HTTPS to the PhotoFindry server. Reports
 are stored for private review through SSH and retained until the team explicitly
 removes them. There is no public report lookup. Screenshots are re-encoded without
 original metadata or filenames; visible private content remains visible. Redact it
-before submitting. Abuse controls retain keyed network identifiers for at most
-24 hours. Infrastructure can maintain operational connection logs. The form has
+before submitting. Abuse controls use keyed network identifiers. Counters expire after at most
+24 hours; expired rows are removed on the next submission attempt. Infrastructure can maintain operational connection logs. The form has
 no analytics. No email is sent automatically by the intake service.
 
 This website flow is available now. The email behavior above describes the
