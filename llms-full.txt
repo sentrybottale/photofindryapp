@@ -1,6 +1,6 @@
 # PhotoFindry public documentation
 
-Updated 2026-09-29. Current published beta: 0.2.0-beta.2, build 75.
+Updated 2026-09-29. Current published beta: 0.2.0-beta.3, build 76.
 
 
 ---

@@ -1,6 +1,6 @@
 # PhotoFindry
 
-> Free native macOS photo tagging and search for Apple silicon. Local inference, user-owned originals, proprietary app. Current public beta: 0.2.0-beta.2 (build 75), verified 2026-09-29. Check official releases for later versions.
+> Free native macOS photo tagging and search for Apple silicon. Local inference, user-owned originals, proprietary app. Current public beta: 0.2.0-beta.3 (build 76), verified 2026-09-29. Check official releases for later versions.
 
 ## Essential guides
 - [Install PhotoFindry beta](https://photofindry.com/docs/install.txt)
