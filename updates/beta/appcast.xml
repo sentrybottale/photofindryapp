@@ -4,29 +4,26 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
   <channel>
     <title>PhotoFindry beta updates</title>
     <item>
-      <title>PhotoFindry 0.2.0-beta.1</title>
-      <sparkle:version>74</sparkle:version>
-      <sparkle:shortVersionString>0.2.0-beta.1</sparkle:shortVersionString>
+      <title>PhotoFindry 0.2.0-beta.2</title>
+      <sparkle:version>75</sparkle:version>
+      <sparkle:shortVersionString>0.2.0-beta.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
       <sparkle:channel>beta</sparkle:channel>
       <photofindry:dataContract>photofindry-library-compatible-v1</photofindry:dataContract>
       <photofindry:coreProtocol>1</photofindry:coreProtocol>
-      <description>&lt;pre&gt;PhotoFindry 0.2.0-beta.1 (build 74)
+      <description>&lt;pre&gt;PhotoFindry 0.2.0 beta 2 (build 75)
 
-First public beta for Apple-silicon Macs. Local photo tagging, people and search;
-portable saved work; explicit signed updates; optional coffee support in Getting Started.
+Send Feedback from the toolbar or Help menu. Describe a bug or suggestion, choose where it happened, add optional steps and expected behaviour, and attach up to three screenshots. Review and send a ready-made email to photofindry@lyubenov.com through your email app.
 
-Updates replace the application bundle and preserve saved library data, originals
-and selected model paths. Keep independent backups before trying beta software.
+Shared screenshot copies remove original metadata and filenames. App/macOS details are optional and visible before sharing. No logs or library data are attached automatically. A portable email draft and copyable report are available if email sharing is unavailable.
 
-Ad-hoc signed; not Apple Developer ID signed or notarized. macOS 14.0 minimum;
-qualified on macOS 27.0. Main vision model and matching projector selected separately.
+This update replaces the app bundle only. It does not migrate or retag the library, change chosen model paths, or edit original photographs. Free to use; no account or tracking. Apple silicon, macOS 14+. Not Apple-notarized.
 &lt;/pre&gt;</description>
-      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.1/PhotoFindry-0.2.0-beta.1-arm64-update.zip" length="390091392" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="XZWOWbIwY7VZzADORGRT+cjNzS0/amJaIJELck9CyLuJa8liQNnlJ3bU51dUN9GPkXh0LMJXovJEXyEEfRQiBg=="></enclosure>
+      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.2/PhotoFindry-0.2.0-beta.2-arm64-update.zip" length="390179361" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="/1WeSqiDQfmXa9viTR0EfNshPe+kwzW008nKJXmitjPtWRScaGbkIhqe//+qEwMmbeZAbLuth1JOeozgOzzhBg=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: tCWwoilrom4z0/ulgrY0h+x5JpkfWWUVCyEJSnhAfTLd+NcCIXkHNToHRkMiTMaZ/lvzXIGTpyjOlIXIPi0qAA==
-length: 2028
+edSignature: K1HaoUN5IK3+bbkjs0FkOMO6pMOJ0JGdWJ6HxzkQkljdTl5/VGKsSHB+VmrebIEQl/ZH3r3WyOblhBfDNU7NAw==
+length: 2286
 -->

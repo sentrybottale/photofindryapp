@@ -6,9 +6,9 @@ PhotoFindry is a native macOS app for local photo tagging, people and search.
 Browse your folders, find photographs from saved details, and choose local AI
 search when you need a closer look. Your originals stay in place.
 
-[Download the first beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.1) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
+[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.2) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
 
-## First beta: 0.2.0-beta.1
+## Current beta: 0.2.0-beta.2
 
 For **Apple-silicon Macs**. The application declares **macOS 14 or later**; current
 qualification was performed on macOS 27.0. Bundled Core ML semantic ranking
@@ -25,7 +25,8 @@ keep independent backups of your originals and saved library work.
 - **Updates when you choose.** Use **Check for Updates…**. Signed updates replace
   the app bundle while preserving the library, originals and chosen model paths.
 
-Internet is needed for explicit downloads, update checks and opened web links.
+Internet is needed for explicit downloads, update checks, opened web links and
+feedback delivery through your email provider.
 The app has no advertising analytics or app telemetry. Read the complete
 [privacy explanation](PRIVACY.md); local processing is not a claim of an OS network sandbox.
 
@@ -51,9 +52,13 @@ repository does not establish that the app has passed a security scan.
 
 ## Help shape the beta
 
-[Report a problem](https://github.com/sentrybottale/photofindryapp/issues) with your
-app version, macOS version, Mac model and short reproduction steps. Avoid posting
-private photographs, libraries, model weights, names, queries or unreviewed logs.
+Use **Send Feedback** in the toolbar or Help menu to describe a bug or suggestion,
+add optional screenshots and open a reviewed email draft to `photofindry@lyubenov.com`.
+Finish sending in your email app. **More → Save Email Draft** keeps a portable
+message with attachments; **Copy Report Text** also works with webmail. Remove
+private details from screenshots before attaching. No logs or library records
+are attached automatically. Public [issues](https://github.com/sentrybottale/photofindryapp/issues)
+remain available for reports that contain no private information.
 
 If PhotoFindry helps you find something worth remembering, you can
 [buy us a coffee](https://buymeacoffee.com/photorecall). ☕ Completely optional.

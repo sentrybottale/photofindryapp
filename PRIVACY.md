@@ -28,3 +28,19 @@ notices are included in the app. You can read and export your saved work freely.
 Reports are voluntary. Review diagnostics for filenames, queries, names and photo
 details before sharing. Do not attach photo libraries, model weights, original
 photographs or raw private traces to public issues or pull requests.
+
+## Voluntary feedback by email
+
+Send Feedback prepares an email to `photofindry@lyubenov.com`. You review and send
+it through your email app. The report contains what you type, optional app/macOS
+version and CPU architecture, and only screenshots you choose. The recipient also
+receives your sender address. Your email provider handles delivery. No logs,
+photo records, names, saved searches or library files are attached automatically.
+
+Screenshot copies remove original file metadata and filenames, but visible
+photographs, names and queries remain visible. Redact them before attaching.
+Copies may be resized. The form keeps a draft in memory while the app is open;
+shared copies use private temporary storage until handoff completes or you choose
+Done with Email after sending/closing the message. Abrupt exit can leave copies
+in macOS temporary storage. Exported email drafts remain where you save them.
+The app does not inspect your mailbox or confirm inbox delivery.
