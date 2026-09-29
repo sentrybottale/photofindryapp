@@ -1,0 +1,10 @@
+# Binary deliverables belong in reviewed release assets, not source history.
+*.app/
+*.dmg
+*.zip
+*.tar*
+*.key
+*.pem
+*.p12
+*.p8
+.DS_Store

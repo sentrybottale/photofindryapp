@@ -1,0 +1,45 @@
+PhotoFindry Proprietary License
+Effective for this revision and subsequent distributions under these terms.
+
+Copyright (c) 2026 PhotoFindry copyright holders. All rights reserved.
+
+1. Scope
+
+These terms apply to first-party PhotoFindry source code, assets, documentation
+and application components, except material identified under a separate license
+in the notices included with the application or in the material itself.
+Bundled third-party components retain their own licenses. These terms apply only
+to rights that the PhotoFindry copyright holders own or are authorized to grant.
+
+2. Free use of official application builds
+
+You may install and run unmodified PhotoFindry application builds obtained from
+the copyright holders or their authorized distributors, without charge, for
+personal or business use. You may make copies necessary for installation and
+backup. This permission does not require publication of the application source.
+
+3. Reserved source and distribution rights
+
+Except for the permission above, a separate written authorization from the
+applicable copyright holder, rights granted under a component's separate
+license, or rights required by applicable law, no permission is granted to
+publish, distribute, sublicense, modify, create derivative works from, or
+otherwise exploit first-party PhotoFindry source code or application components.
+Access to this distribution repository does not itself grant those permissions.
+
+4. Third-party software and separate permissions
+
+Third-party components retain their own licenses and applicable notices, as
+identified in the notices included with the application and the component files.
+These terms apply
+only to the first-party rights within section 1 and do not override separate
+valid permissions or licenses. Retain all required component notices.
+
+5. No warranty
+
+To the maximum extent permitted by applicable law, the software is provided
+"AS IS", without warranties of any kind, express or implied, including
+merchantability, fitness for a particular purpose and noninfringement. The
+copyright holders shall not be liable for claims, damages or other liability
+arising from the software or its use. Nothing in these terms excludes rights
+or liability that cannot lawfully be excluded.
