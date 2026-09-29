@@ -19,7 +19,7 @@ HTTPS update feed and honest supported-platform/known-limitations record.
 | Local installation over an existing library | Passed for the development candidate; closed-library snapshot and authoritative source records preserved; real manual update check accepted the empty feed |
 | Real-model and supported hardware qualification | Bundled tagging/refinement and positive face-helper smokes passed on the current Mac; broader hardware qualification pending |
 | Runtime network observation | Bounded TCP sampling of owned model-smoke processes observed loopback only; this is not OS-enforced network isolation |
-| Automatic PR-open/every-push security review | Not enabled |
+| Automatic PR-open/every-push security review | Owner reports Codex Security connected to this repository; completed PR-open/every-push coverage remains to be verified |
 | Exact final payload disclosure/licence review | Local payload review complete; the final frozen release requires its own exact payload review |
 | Explicit official binary publication instruction | Pending; public release-repository setup is authorized |
 
