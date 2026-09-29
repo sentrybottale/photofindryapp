@@ -1,28 +1,42 @@
-# Installing a qualified beta
+# Install PhotoFindry beta
 
-No release is available yet. Once a qualified beta is
-published, verify its final artifact signature using the published trusted key.
-A checksum alone does not authenticate a publisher. Do not install a draft or
-unsigned candidate merely because its filename resembles an official release.
+Use the **DMG** on the [official release page](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.1).
+The update ZIP is for PhotoFindry's updater. Verify the download using [the release verification instructions](VERIFY.md).
 
-Open the downloaded DMG, drag PhotoFindry to Applications, eject the image and
-open the app. Vision models are separate: select a supported vision GGUF and its
-matching projector from any chosen folder. Keep original-photo backups separately
-from the app's library backup and cached previews.
+1. Open the DMG and drag **PhotoFindry.app** to **Applications**.
+2. Eject the disk image and open PhotoFindry.
+3. If macOS blocks this specific app, use Apple's per-app [Open Anyway instructions](https://support.apple.com/en-us/102445)
+   after verifying the release and deciding to trust it. Do not disable Gatekeeper
+   globally or recursively remove quarantine.
+4. Follow Getting Started, select your supported vision **GGUF** and matching
+   **multimodal projector**, and begin with a small photo folder.
 
-The planned beta uses direct GitHub distribution to establish and test the project's
-own release and update process before pursuing the separate Apple distribution
-tracks. It is distributed outside the Mac App Store.
-It uses ad-hoc bundle signatures and independently signed release/update artifacts.
-It is not Apple-notarized or Developer ID verified. These distribution choices do
-not establish a security guarantee. App Store qualification and notarization are
-separate tracks; neither is being claimed by this beta.
+Models can be stored in any folder. There is no required `~/Models` location.
+The app bundles its search and face models; the main vision model and matching
+projector are selected separately. An optional search reranker is selected or
+explicitly downloaded separately.
 
-macOS may block first launch. If you have verified and trust the specific release,
-use Apple's per-app [Open Anyway instructions](https://support.apple.com/en-us/102445).
-Do not disable Gatekeeper globally or recursively remove quarantine.
+## Requirements and signing
 
-Updates will be explicit through Check for Updates. They replace only the app and
-bundled runtime. Library databases, originals, retained previews, user edits and
-selected model folders are not installer targets. Real signed update and compatible
-rollback qualification are required before the first beta is released.
+Apple silicon (arm64) is required. The binary minimum is macOS 14.0; the first
+beta's actual test platform and limits are recorded in [QUALIFICATION.md](QUALIFICATION.md).
+Bundled Core ML semantic ranking requires macOS 15 or later; it is unavailable
+on macOS 14.
+
+This GitHub beta is ad-hoc signed and independently signed for download/update
+verification. It is not Developer ID signed, Apple notarized or distributed through
+the Mac App Store. Ad-hoc signing checks code integrity; the separately pinned
+Ed25519 key authenticates the signed release inventory. Neither is a guarantee of security.
+
+## Keep your work safe
+
+Original photographs stay in their source folders. Library previews are reduced
+cached copies, not original-photo backups. Keep independent backups of originals.
+Use **Library Backup & Storage** for a library backup, or **Sources** for source
+archives. An exported source archive is a snapshot; export again after later edits.
+
+**Check for Updates…** is manual. Updates replace the app and bundled runtime;
+customer databases, retained previews, originals and selected model paths are not
+installer targets. Keep a library backup before trying a beta update or downgrade.
+Only use a rollback version whose saved-data compatibility is confirmed in the
+release record.

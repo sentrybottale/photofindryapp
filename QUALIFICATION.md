@@ -1,41 +1,81 @@
-# Candidate qualification
+# Beta qualification
 
-This source-free repository contains distribution documentation only. No first-party
-application code, private development history, production key or release artifact
-is included. This repository's publication is authorized; official app-binary
-publication remains pending.
+**Release:** 0.2.0-beta.1 · **Application:** 0.2.0 · **Build:** 74 · **Architecture:** arm64
 
-The first release must supply an exact version/build, artifact/component inventory,
-third-party notices, signature verification key, authenticated checksums, official
-HTTPS update feed and honest supported-platform/known-limitations record.
+The application declares macOS 14.0 or later. Qualification on this Mac used
+macOS 27.0 (26A428), Apple silicon and 8 GiB memory. Declaring an older minimum
+is not proof of testing every supported OS or hardware configuration. Bundled
+Core ML semantic ranking requires macOS 15 or later and is unavailable on macOS 14.
 
-| Release gate | Status in this preparation snapshot |
+| Check | Result |
 | --- | --- |
-| Frozen app version and monotonic build | Pending for the official release; local qualification used 0.1.54 build 73 |
-| Owner-controlled signing identity | Created in Keychain; signed payload/feed verification and tamper rejection passed |
-| HTTPS feed | Live signed empty feed; HTTPS 200 and exact bytes verified; no release items |
-| Real signed update and compatible rollback | Not performed |
-| Downloaded/quarantined clean-machine installation | Not performed |
-| Local installation over an existing library | Passed for the development candidate; closed-library snapshot and authoritative source records preserved; real manual update check accepted the empty feed |
-| Real-model and supported hardware qualification | Bundled tagging/refinement and positive face-helper smokes passed on the current Mac; broader hardware qualification pending |
-| Runtime network observation | Bounded TCP sampling of owned model-smoke processes observed loopback only; this is not OS-enforced network isolation |
-| Automatic PR-open/every-push security review | Owner reports Codex Security connected to this repository; completed PR-open/every-push coverage remains to be verified |
-| Exact final payload disclosure/licence review | Local payload review complete; the final frozen release requires its own exact payload review |
-| Explicit official binary publication instruction | Pending; public release-repository setup is authorized |
+| Exact release build and component/disclosure review | Passed: 416 payload entries classified in 179 components, with no unresolved packaging findings |
+| Ad-hoc bundle integrity and nested signatures | Passed for all 21 native binaries; read-only mounted DMG contains the exact reviewed app |
+| Maintainer-signed DMG/archive inventory and signed feed | Passed independent public-key verification; modified inventory, artifact and signed payload checks were rejected |
+| Signing-key recovery | Owner confirms a backup; independent restore verification has not been performed |
+| Real signed application update | Real Sparkle installation from isolated build 74 to compatible test build 75 passed over HTTPS |
+| Compatible rollback and fixture data | Manual app-only rollback to 74 passed; 17 authoritative source tables and fixture originals/model paths remained unchanged |
+| Insufficient installation space | Actual target-volume exhaustion was handled without changing the existing app; the old worker reopened the unchanged fixture successfully |
+| Browser download and quarantine | Exact DMG downloaded in a browser; quarantine retained through read-only mounting and private installation copy; Gatekeeper refused execution as expected |
+| Successful fresh-user first launch | Not performed; the quarantine trial intentionally stopped before executing app code |
+| Main vision tagging/refinement and positive face fixture | Prior bounded real-model smokes passed; all 20 native binaries other than the main app, model bytes and executable entitlements match the exact final release |
+| Existing-library preservation | Development candidate replacement preserved a closed-library snapshot and all authoritative source records |
+| Public repository security integration | Owner reports Codex Security connected to this release repository; completed PR-open/every-push reviews have not been independently verified |
+| Application-source security review | Owner manages the separate private-repository integration; no completed scan or PR coverage has been independently verified |
 
-Local model qualification used one pinned upstream fruit photo. Tagging saved an
-accepted result; refinement completed one round and two inspections with an
-unresolved outcome while preserving the accepted record. A separate pinned face
-sample produced one face and a normalized embedding. These checks do not establish
-general model accuracy. Broader hardware and clean-install/update testing remain
-required.
+## Update and rollback scope
 
-Network observation comprised 172 bounded samples, taken after state polls with
-two-second pauses. Only loopback TCP sockets were observed. Short outbound attempts
-can be missed; the observation does not prove offline operation or network isolation.
+The update trial used the real Sparkle framework, signed HTTPS feed and signed
+application archive. Its private fixture applications used the release's compiled
+code with isolated preference metadata; test build 75 changed only its build
+number and that isolation metadata. No test build is offered as an official release.
 
-Do not publish unfinished candidates or claim the remaining gates passed from unit
-tests. An asset-only repository security review does not examine the private
-application or engine implementation. Their review and findings remain in
-authorized private workflows. Signing credentials must never enter PR jobs or this
-repository.
+Before the first worker launch after installation and rollback, all 34 fixture
+filesystem entries matched their baseline. Running the bundled worker after each
+replacement preserved 17 authoritative tables and retained a real accepted result,
+preview, user-authored People name and undo history, and review history. Fixture
+originals and selected external model paths stayed unchanged. The existing installed
+app and its updater preferences also remained unchanged.
+
+Rollback was an explicit, compatible manual app replacement. The updater rejects
+older builds; this was not an automatic downgrade. The trial covered rejection of
+a tampered feed, older build, future macOS requirement, incompatible data contract,
+a signed corrupt ZIP, an incorrect archive signature and unavailable feed, plus
+cancellation of a check and a partial download. The incorrect signature was
+rejected after the full download and before extraction; the existing fixture app
+was unchanged. A bounded target volume then ran out of space during the actual
+new-app copy: installation stopped, the existing app retained all 667 compared
+entries and valid signatures, and its worker reopened the same fixture with all
+17 source tables unchanged. The reported outer Sparkle error was generic; detailed
+diagnostics recorded insufficient space. The external harness is not evidence
+that the production application's complete updater UI, save fencing, active-job deferral or shutdown
+path was exercised. Those paths have separate automated coverage.
+
+Authorization denial, an incorrect bundle identity and interruption during final
+replacement have not been tested in this trial. Broader hardware, large-library,
+quality and recovery testing remain ongoing beta work.
+
+## Model and privacy scope
+
+Prior model qualification used one public fruit image: tagging saved an accepted
+result and one refinement round completed with an unresolved outcome while retaining
+the accepted result. A separate public face sample produced one face and a normalized
+embedding. These checks do not establish broad model accuracy.
+
+Bounded observation of those owned processes saw only loopback TCP connections.
+Short connections may be missed. This is not proof of an OS-enforced network sandbox
+or an absolute offline guarantee. Downloads, updates and user-opened browser links
+require internet.
+
+The beta is not Apple Developer ID signed or notarized. Browser-downloaded bytes
+matched the authenticated release inventory; macOS quarantine remained present.
+The expected Gatekeeper refusal was recorded without running the app, removing
+quarantine or changing global security settings. Successful launch after a user's
+per-app exception is a separate check and has not been qualified on a fresh user account.
+
+The disclosure/component review is an AI-assisted packaging review, not an
+independent security audit. Security scanning of this release-only repository
+cannot inspect private application source. GitHub's automatic source ZIP/tar.gz
+links snapshot this repository's public files, not the application implementation.
+They are not a substitute for connecting the private source repository to the
+review integration.
