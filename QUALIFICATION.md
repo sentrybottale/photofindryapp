@@ -1,6 +1,6 @@
 # Beta qualification
 
-**Release:** 0.2.0-beta.4 · **Application:** 0.2.0 · **Build:** 84 · **Architecture:** arm64
+**Release:** 0.2.0-beta.5 · **Application:** 0.2.0 · **Build:** 85 · **Architecture:** arm64
 
 The app declares macOS 14 or later; this qualification used Apple silicon on
 macOS 27.0. Bundled Core ML semantic ranking requires macOS 15 or later. Other
@@ -8,36 +8,36 @@ OS/hardware combinations are not claimed tested.
 
 ## Build and regression evidence
 
-- Compatibility suite: 1,176 passed, 29 opt-in tests skipped, zero failures.
-- Rust suite: 146 passed, two ignored. Focused Swift source/metadata checks: 59
-  passed; 15 execution checks passed after the final cleanup adjustment.
-- A real bundled model test confirmed 16 test originals in 0.218 seconds, opened
-  originals before EXIF completion, collected GPS during tagging, and passed
-  location-search checks. The fixture originals remained unchanged.
-- All native executable bytes and executable entitlements in this release match
-  that tested build after removal of code signatures. Release changes are bundle
-  version/updater metadata, clean build provenance and normalized notice modes.
-- All 418 distributable payload entries are classified with no unresolved audit
-  blockers. Read-only DMG inspection matched the exact signed candidate.
-- The optional-diagnostics intake service matches the reviewed and tested service
-  already deployed. Ten service checks previously passed; its public and SSH-only
-  review processes were verified active for this release.
+- Compatibility suite: 1,178 passed, 28 opt-in tests skipped, zero failures.
+- Native-mode comparison suite: 1,188 passed, 18 opt-in tests skipped, zero failures.
+- Swift suite: 310 tests, five opt-in checks skipped, zero failures. This includes
+  an actual native text-editor identity/cursor test across compact/pinned layouts.
+- Rust unit/integration suite: 175 passed, two ignored, zero failures.
+- The saved-text search regression reproduces “Invalid saved photograph” with
+  beta 4 and passes with the repaired worker while retaining the exact saved body.
+- The exact bundled worker passed two GPS/capture-time search checks with a real
+  local Qwen reranker, including queued candidate scoring and saved-result reopen.
+- All 418 distributable payload entries retain their reviewed classifications;
+  read-only DMG inspection matched the exact signed candidate. Third-party bytes,
+  public datasets and notices are unchanged from beta 4.
+- A fresh 4B tagging smoke exceeded its four-minute test budget and shut down
+  cleanly, preserving its original. It is not counted as a successful tagging run.
+  Prior tagging qualification is reused; these repairs do not change tagging.
 
 ## Signed update and saved data
 
-A real Sparkle trial installed the exact beta-4 candidate over an isolated beta-3
-build 76 copy. The old copy used a private updater preferences domain. All 21
-fixture-library files stayed unchanged during installation. Reopening the new
-worker preserved all 17 authoritative source tables, including accepted details,
-People edits and review history. Fixture originals were unchanged. Customer data
-was not a trial target.
+A real Sparkle trial installed the exact build-85 candidate over an isolated
+beta-4 build-84 copy. All 21 fixture-library files stayed unchanged during
+installation. Reopening the new worker preserved all 17 authoritative source
+tables, including accepted details, People edits and review history. Fixture
+originals were unchanged. Customer data was not a trial target.
 
 The trial used loopback-only HTTP with real Ed25519-signed feed and archive and
-an external updater harness. Production UI save/drain gates have separate tests.
-Public HTTPS artifact verification is performed during publication. Beta 1's
-prior negative update tests and compatible manual rollback are reused; they were
-not all repeated. Authorization denial, wrong bundle identity and interruption
-during final replacement remain unqualified. No automatic downgrade is supported.
+an external updater harness. The old app used a private updater preferences domain
+and was re-signed; the installed new app exactly matched the release candidate.
+Production UI save/drain gates have separate tests. Public HTTPS artifact
+verification is performed during publication. Prior negative update/rollback
+checks were not all repeated. No automatic downgrade is supported.
 
 ## Limits
 

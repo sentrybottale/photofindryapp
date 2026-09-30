@@ -31,7 +31,7 @@ photographs or raw private traces to public issues or pull requests.
 
 ## Voluntary private feedback
 
-In beta 4, Send Feedback submits your required contact email, report text and
+In beta 5, Send Feedback submits your required contact email, report text and
 chosen screenshots over HTTPS to https://photofindry.com/bugs. Optional app/macOS
 version and CPU architecture are shown before sharing. The website form uses the
 same private service. Nothing is sent until you choose Submit Feedback. No logs,
@@ -52,7 +52,7 @@ draft and the selected email provider's delivery and retention practices.
 
 ## Optional diagnostic attachment
 
-Beta 4 offers an unchecked diagnostic-log option in the app feedback form. It
+Beta 5 offers an unchecked diagnostic-log option in the app feedback form. It
 contains at most 200 recent operational events from the current session, covering
 up to 30 minutes. The bounded fields exclude raw messages, queries, names, paths,
 photo IDs and image content. You can review the frozen attachment, refresh it or
