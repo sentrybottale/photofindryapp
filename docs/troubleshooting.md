@@ -8,7 +8,7 @@ Confirm the download is from the official GitHub release and verify its signed i
 
 ## No update appears
 
-Use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 6 is app version 0.2.0, build 86; the beta label is visible in the update notes. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
+Use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 7 is app version 0.2.0, build 87; the beta label is visible in the update notes. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
 
 ## Model stopped, unavailable or insufficient memory
 
@@ -16,7 +16,9 @@ Stopped is normal when the saved model is not needed; tagging restarts it automa
 
 ## A job is paused or waiting
 
-Open Jobs & Activity and read its specific reason. A reopened queue stays paused until you resume or start work. Drive, permission, memory and disk holds require their own resolution. Reconnect a source before retrying work that needs its original files. Overnight schedules require the app open and Mac awake.
+Open Jobs & Activity and read its specific reason. If a job says **Waiting for originals**, choose **Reconnect originals…** in the tagging strip or Jobs. PhotoFindry checks that job’s folder and resumes when its originals are verified. If confirmation is needed, review the folder and choose **Confirm and resume** only when it is the same originals collection. Cancelling keeps the job paused; you can retry. A later Pause or Stop prevents automatic continuation.
+
+A reopened queue stays paused until you resume or start work. Permission, memory and disk holds still require their specific resolution. Overnight schedules require the app open and Mac awake. Model **Start** can load your saved model while a job waits for originals, but it cannot resolve an unconfirmed folder.
 
 ## Search or a preview is missing
 
@@ -30,14 +32,14 @@ Send Feedback submits directly, without an email app. Keep the receipt for follo
 
 Read [privacy and distribution](https://photofindry.com/docs/privacy.html) for what is sent.
 
-For beta 6 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
+For beta 7 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
 
 ## Legacy saved-photo search error
 
-Beta 6 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
+Beta 7 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
 
 ## Tagging pauses after a drive reconnects
 
-Open **Sources**, check the affected source and review its folder match. A cloud drive remount can change file identities even when the photographs are still in the same folder. Confirm only a folder you recognize as the original collection, then resume the affected job in Jobs & Activity. Saved tags and pending targets are retained. Do not delete the library or bypass the confirmation.
+Choose **Reconnect originals…** on the affected job. A cloud drive remount can change file identities even when the photographs remain in the same folder. The app checks that folder and offers **Confirm and resume** when confirmation is needed. Confirm only a folder you recognize as the original collection. Saved tags and pending targets are retained. Do not delete the library or bypass the confirmation.
 
-Starting **Tag photographs** puts that new request first and releases an ordinary queue pause. Individually paused jobs and source, memory or disk holds still require their own recovery. The tagging strip shows the current hold and offers **Open Sources** when needed.
+Starting **Tag photographs** puts that new request first and releases an ordinary queue pause. Individually paused jobs and source, memory or disk holds still require their own recovery. Cancelling a recovery leaves work paused and can be retried.

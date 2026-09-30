@@ -31,3 +31,7 @@ After attaching a source from another Mac, open Sources, select it and choose th
 Confirmed local originals become openable without waiting for the camera and location scan. Sources shows connection progress and readiness separately from **Camera & location · background enrichment**. Pause or resume that scan independently. Tagging also collects camera metadata from the original it reads. Saved archive metadata remains available without rereading the whole drive.
 
 Cloud-only, missing and permission-blocked originals still require their respective resolution. Checking a source does not deliberately download known cloud placeholders. Previously unconfirmed photos are not silently approved by an app update.
+
+## Recover a blocked job
+
+Choose **Reconnect originals…** in the tagging strip or Jobs. PhotoFindry checks the affected folder and, when needed, offers **Confirm and resume**. Only confirm a folder you recognize as the same originals collection. Cancel leaves work paused and can be retried. A later Pause or Stop prevents automatic continuation.
