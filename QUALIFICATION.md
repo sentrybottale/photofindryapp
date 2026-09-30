@@ -1,69 +1,64 @@
 # Beta qualification
 
-**Release:** 0.2.0-beta.3 · **Application:** 0.2.0 · **Build:** 76 · **Architecture:** arm64
+**Release:** 0.2.0-beta.4 · **Application:** 0.2.0 · **Build:** 84 · **Architecture:** arm64
 
-The application declares macOS 14.0 or later; qualification used macOS 27.0
-(26A428), Apple silicon and 8 GiB memory. Other OS/hardware combinations are not
-claimed tested. Bundled Core ML semantic ranking requires macOS 15 or later.
+The app declares macOS 14 or later; this qualification used Apple silicon on
+macOS 27.0. Bundled Core ML semantic ranking requires macOS 15 or later. Other
+OS/hardware combinations are not claimed tested.
 
-## Feedback and packaging
+## Build and regression evidence
 
-- Full production bundle build and strict nested signature verification passed.
-  All 416 payload entries are classified in 179 components, with no unresolved
-  packaging findings. Read-only DMG inspection matched the signed app inventory.
-- Focused feedback/updater checks: 16 passed, one opt-in render test skipped in
-  the ordinary run. The separate five-state native render check passed.
-- Compatibility regression suite: 1,164 passed, 27 opt-in skipped, zero failures.
-- Eight service tests passed locally and on the VPS: required email, validation,
-  screenshot cleanup, private route isolation, CSRF, escaped text, resource limits
-  and concurrent idempotent storage.
-- Synthetic website and native reports reached the live HTTPS API. A selected
-  screenshot was verified in the SSH-only reviewer. The actual build-76 app
-  submitted from an isolated empty library with optional environment disabled;
-  that context was absent from the stored report. Test reports were resolved.
-- The release's canonical UI executable matches that live-submission-tested build.
-  All 20 other native binaries and executable entitlements match beta 2.
-- The installer, update ZIP, feed and signed release inventory passed verification
-  with the existing pinned public key. Signatures authenticate bytes, not safety.
+- Compatibility suite: 1,176 passed, 29 opt-in tests skipped, zero failures.
+- Rust suite: 146 passed, two ignored. Focused Swift source/metadata checks: 59
+  passed; 15 execution checks passed after the final cleanup adjustment.
+- A real bundled model test confirmed 16 test originals in 0.218 seconds, opened
+  originals before EXIF completion, collected GPS during tagging, and passed
+  location-search checks. The fixture originals remained unchanged.
+- All native executable bytes and executable entitlements in this release match
+  that tested build after removal of code signatures. Release changes are bundle
+  version/updater metadata, clean build provenance and normalized notice modes.
+- All 418 distributable payload entries are classified with no unresolved audit
+  blockers. Read-only DMG inspection matched the exact signed candidate.
+- The optional-diagnostics intake service matches the reviewed and tested service
+  already deployed. Ten service checks previously passed; its public and SSH-only
+  review processes were verified active for this release.
 
 ## Signed update and saved data
 
-A real Sparkle trial installed the exact beta-3 candidate over isolated beta-2
-build 75. All 21 fixture-library files remained unchanged during installation.
-Reopening the installed worker preserved all 17 authoritative source tables,
-accepted details, People edits and review history. Fixture originals and model
-paths stayed unchanged. The customer application and library were not targets.
+A real Sparkle trial installed the exact beta-4 candidate over an isolated beta-3
+build 76 copy. The old copy used a private updater preferences domain. All 21
+fixture-library files stayed unchanged during installation. Reopening the new
+worker preserved all 17 authoritative source tables, including accepted details,
+People edits and review history. Fixture originals were unchanged. Customer data
+was not a trial target.
 
-This trial used loopback-only HTTP with real Ed25519-signed feed and archive.
-It used an external updater harness; production UI save/drain gates have separate
-coverage. Beta 1 previously qualified HTTPS delivery, compatible manual rollback,
-insufficient space, bad signatures, corrupt archive, incompatible version/data
-contract, unavailable feed and check/download cancellation. Those cases were not
-all repeated for beta 3. Authorization denial, wrong bundle identity and
-interruption during final replacement remain unqualified. No automatic downgrade
-is supported.
+The trial used loopback-only HTTP with real Ed25519-signed feed and archive and
+an external updater harness. Production UI save/drain gates have separate tests.
+Public HTTPS artifact verification is performed during publication. Beta 1's
+prior negative update tests and compatible manual rollback are reused; they were
+not all repeated. Authorization denial, wrong bundle identity and interruption
+during final replacement remain unqualified. No automatic downgrade is supported.
 
-## Reused evidence and limits
+## Limits
 
-The engine, models, source schemas, saved-data formats and updater code are
-unchanged by beta 3. Prior real-model tagging/refinement and positive face checks
-are reused on the identical runtime; they do not establish broad model accuracy.
-The rebuilt face-policy manifest updates only its static-archive provenance hash;
-the final face helper executable is identical. Build and privacy metadata reflect
-the new explicit feedback delivery route.
+Location labels are approximate GeoNames matches, not verified street addresses.
+Search needs saved GPS/capture evidence and respects metadata preferences.
+A matching filename or selected root alone does not establish original identity;
+explicit confirmation may still be required. Cloud files can remain unavailable.
+Small-fixture checks do not establish broad model accuracy or performance on every
+library and cloud provider.
 
-Bounded prior process observations saw loopback TCP only and can miss brief
-connections. There is no OS-enforced network/filesystem sandbox or absolute
-no-internet guarantee. Explicit downloads, updates, browser links and voluntary
-feedback use the network. No app advertising analytics or telemetry is added.
+This beta is ad-hoc signed, not Apple Developer ID signed or notarized. A fresh
+quarantined first launch under a new macOS user remains unqualified. Signatures
+authenticate the downloaded bytes, not their safety. Signing-key backup is owner
+reported; independent recovery has not been tested.
 
-This beta is ad-hoc signed, not Apple Developer ID signed or notarized. Successful
-quarantined first launch under a fresh macOS user remains unqualified. The owner
-reports a signing-key backup; independent recovery has not been tested.
+There is no OS-enforced network/filesystem sandbox or absolute no-internet
+guarantee. Explicit downloads, updates, links and voluntary feedback use the
+network. No app advertising analytics or telemetry is added.
 
-The private PR's Codex Security review completed on 29 September 2026 on the
-feedback code commit, with no findings reported. The following changes only
-clarified documentation and merged the same code. This is not a security
-certification. GitHub Actions could not start because of account billing/spending
-limits; the validation listed here ran locally. Application source remains private;
-this repository and GitHub's automatic source archives contain distribution files.
+GitHub Actions could not start because of account billing/spending limits; the
+checks above ran locally. No new completed Codex Security scan is claimed for
+this release. App-source review belongs in the private development repository.
+This public repository and GitHub's automatic source archives contain distribution
+documentation and verification tooling, not application source.
