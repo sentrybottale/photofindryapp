@@ -14,7 +14,7 @@ The form at photofindry.com/bugs sends your required email, typed report and cho
 
 No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are unavailable through a public list or link; review is accessed through the team's VPS SSH connection. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
 
-In beta 3, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
+In beta 4, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
 
 ## Website and app are distinct
 
@@ -27,3 +27,9 @@ The owner chose an OwnTransit-style direct GitHub beta distribution path. Mac Ap
 The app bundle is ad-hoc signed. Separate pinned Ed25519 signatures authenticate the release inventory, update feed and archive. They establish approved bytes and possession of the signing key, not absence of vulnerabilities. Follow the official verification and per-app installation guidance.
 
 The public [photofindryapp repository](https://github.com/sentrybottale/photofindryapp) contains distribution documentation and official binaries. Application source stays private. Third-party licences and notices remain included. Read the [licence](https://github.com/sentrybottale/photofindryapp/blob/main/LICENSE) and [qualification record](https://github.com/sentrybottale/photofindryapp/blob/main/QUALIFICATION.md).
+
+## Optional diagnostic attachment
+
+Beta 4 adds an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
+
+Opting in freezes the attachment for review. Refresh log captures a newer copy; unchecking removes it. Only Submit Feedback sends the reviewed attachment. Retries reuse that copy. Earlier sessions and historical disk logs are not collected. Diagnostic attachments stay with the private report and follow the same retention policy.

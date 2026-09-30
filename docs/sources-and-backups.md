@@ -23,3 +23,11 @@ Sources offers scoped source snapshots and additive attachment. Archives can car
 Library cleanup is separate from original-file deletion. Review scope and warnings before removing records, clearing previews or permanently deleting Removed entries. A preview might be the only remaining image copy. Assistants should never perform cleanup, restore or deletion as an automatic repair.
 
 Routine app updates replace the app bundle. They do not target customer libraries, originals or model paths. [Installation and updates](https://photofindry.com/docs/install.html) explains the signed beta channel.
+
+## Reconnect first, enrich afterward
+
+After attaching a source from another Mac, open Sources, select it and choose the originals folder on this Mac. PhotoFindry checks locations first. If matching files need your confirmation, choose **Review folder match…**, verify that it is the same originals folder, then confirm. Matching names, sizes and dates alone are not proof of identical pixels. Uncertain files remain for review.
+
+Confirmed local originals become openable without waiting for the camera and location scan. Sources shows connection progress and readiness separately from **Camera & location · background enrichment**. Pause or resume that scan independently. Tagging also collects camera metadata from the original it reads. Saved archive metadata remains available without rereading the whole drive.
+
+Cloud-only, missing and permission-blocked originals still require their respective resolution. Checking a source does not deliberately download known cloud placeholders. Previously unconfirmed photos are not silently approved by an app update.

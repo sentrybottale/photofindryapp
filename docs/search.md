@@ -19,3 +19,9 @@ Ranked candidates are leads, not confirmed matches or probabilities. Best so far
 Pause retains continuation. Stop cancels the remaining AI work and drains its owned model while keeping reviewed matches. A stopped search is not resumable; start a new search when ready. Results saved earlier can become stale after library facts change.
 
 If a search appears empty, first review filters and whether saved evidence is ready. Do not retag an entire library as the first troubleshooting step. See [Troubleshooting](https://photofindry.com/docs/troubleshooting.html).
+
+## Offline GPS and capture time
+
+Beta 4 can use recorded GPS coordinates for place and proximity searches, including Local AI Search. For example, search for Milan or combine a place with a time-of-day description. Nearby-city labels are approximate GeoNames labels, not exact addresses. No maps API or coordinate upload is used. A visual resemblance to Italy is not proof that a photo was taken there.
+
+Open a photograph's Camera & location section to see its saved metadata. In Sources, camera and location scanning is separate from confirming originals. Scan or resume the source there if GPS has not been read yet. Photos without recorded GPS cannot gain a verified location from this scan. Recorded capture time is used as stored; unknown time zones remain unknown. Metadata preferences control display and search indexing.
