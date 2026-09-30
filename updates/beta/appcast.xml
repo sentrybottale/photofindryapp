@@ -4,29 +4,32 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
   <channel>
     <title>PhotoFindry beta updates</title>
     <item>
-      <title>PhotoFindry 0.2.0-beta.3</title>
-      <sparkle:version>76</sparkle:version>
-      <sparkle:shortVersionString>0.2.0-beta.3</sparkle:shortVersionString>
+      <title>PhotoFindry 0.2.0-beta.5</title>
+      <sparkle:version>85</sparkle:version>
+      <sparkle:shortVersionString>0.2.0-beta.5</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
       <sparkle:channel>beta</sparkle:channel>
       <photofindry:dataContract>photofindry-library-compatible-v1</photofindry:dataContract>
       <photofindry:coreProtocol>1</photofindry:coreProtocol>
-      <description>&lt;pre&gt;PhotoFindry 0.2.0 beta 3 (build 76)
+      <description>&lt;pre&gt;# PhotoFindry 0.2.0 beta 5 (build 85)
 
-Send Feedback now submits directly to the private PhotoFindry bug tracker over HTTPS, without opening an email app. Your email is required for follow-up. Describe what happened and where, add optional reproduction steps and screenshots, then keep the returned report reference.
+- Ignore location, place selection and radius changes keep Local AI Search active. The previous search keeps its saved results while a new search uses the changed constraints.
+- Live refinement no longer presents a resumable checkpoint as a paused search between scoring batches.
+- Typing keeps the search cursor when progress, location or diagnostic controls change height. Gallery keyboard shortcuts respect native text editing.
+- Legacy saved text no longer causes “Invalid saved photograph” in direct or metadata-filtered related search. Stored records are preserved; no retagging or migration is needed.
 
-Only the report and screenshots you choose are shared. Screenshot copies remove original metadata and filenames; visible content remains visible. App/macOS details are optional. No logs, photo library or saved searches are attached automatically. Failed submissions preserve your draft, and retrying an unchanged report avoids duplicates.
+The update replaces the application bundle. Your photo library, original photographs, accepted tags and selected model paths are preserved.
 
-This update replaces the app bundle only. It does not migrate or retag your library, change model paths or edit original photographs. Free to use, with no mandatory account or app tracking. Apple silicon, macOS 14 or later; bundled Core ML semantic ranking requires macOS 15. Not Apple Developer ID signed or notarized.
+Free to use, with optional coffee support and no mandatory account or app tracking. Photo processing stays local; update checks, feedback submission and links are explicit network actions. This is an ad-hoc signed beta, not Apple Developer ID signed or notarized. Apple silicon and macOS 14 or newer are required; bundled Core ML semantic ranking requires macOS 15.
 
-User guides: https://photofindry.com/docs/
-Website feedback: https://photofindry.com/bugs
+Guides: https://photofindry.com/docs/
+Feedback: https://photofindry.com/bugs
 &lt;/pre&gt;</description>
-      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.3/PhotoFindry-0.2.0-beta.3-arm64-update.zip" length="390194454" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="V3+GadXuQBLXz+tIt9fHT3+ri0+0e7VaBNhXI457+wmz6O9p5cRwJHZnsb+G50aXhw9phZiZT5ugyAERNkasAA=="></enclosure>
+      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.5/PhotoFindry-0.2.0-beta.5-arm64-update.zip" length="392773417" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="DP24mSQ9JN3BVMFOnKgPUItFK4YvsxXRFbrZJproUmdh5hCdGoQHqmd6qsLpegMX9qBPtYpLuibIJ4pZ0cL/Dg=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: SanigcZNAVQMJsDfp3/4d7Ic7s9H7aAITAL7eX6TpIy2DWGkbxHAOy7LurVG9A+lOPMfDUvGhAIWE8GYmL/TAA==
-length: 2556
+edSignature: UzAy7hUmeGzsUUFnQEehgwQd4xH0om2AKioEwWxHmCdnZnmjgDI2eACkL2ULU1eZvaFTn+0NjkOQxQmaLTCuDw==
+length: 2727
 -->
