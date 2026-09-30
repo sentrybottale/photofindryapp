@@ -51,8 +51,7 @@ There is no OS-enforced network/filesystem sandbox or absolute no-internet
 guarantee. Explicit downloads, updates, links and voluntary feedback use the
 network. No app advertising analytics or telemetry is added.
 
-GitHub Actions could not start because of account billing/spending limits; the
-checks above ran locally. No new completed Codex Security scan is claimed for
-this release. App-source review belongs in the private development repository.
+The checks above ran locally; this release does not claim a passing GitHub Actions
+run or a new completed Codex Security scan. App-source review belongs in the private development repository.
 This public repository and GitHub's automatic source archives contain distribution
 documentation and verification tooling, not application source.
