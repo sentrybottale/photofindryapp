@@ -1,13 +1,12 @@
-# PhotoFindry 0.2.0 beta 5 (build 85)
+# PhotoFindry 0.2.0 beta 6 (build 86)
 
-- Ignore location, place selection and radius changes keep Local AI Search active. The previous search keeps its saved results while a new search uses the changed constraints.
-- Live refinement no longer presents a resumable checkpoint as a paused search between scoring batches.
-- Typing keeps the search cursor when progress, location or diagnostic controls change height. Gallery keyboard shortcuts respect native text editing.
-- Legacy saved text no longer causes “Invalid saved photograph” in direct or metadata-filtered related search. Stored records are preserved; no retagging or migration is needed.
+- Clicking Tag photographs starts the requested job first, including when the queue was paused. Individually paused jobs retain their controls.
+- Tagging now shows its actual paused or stopped state immediately, with an Open Sources action when originals need attention.
+- Folder confirmation works again after a cloud drive remount invalidates saved file identities. Check the source, review its folder match, then resume the affected job; saved tags and pending work are retained.
+- The last tagged photograph keeps its saved preview beside the Findrydal story.
+- Filename searches can finish while background camera and location updates continue.
 
-The update replaces the application bundle. Your photo library, original photographs, accepted tags and selected model paths are preserved.
+This update replaces the application only. Your library, original photographs and selected model folders are preserved.
 
-Free to use, with optional coffee support and no mandatory account or app tracking. Photo processing stays local; update checks, feedback submission and links are explicit network actions. This is an ad-hoc signed beta, not Apple Developer ID signed or notarized. Apple silicon and macOS 14 or newer are required; bundled Core ML semantic ranking requires macOS 15.
-
-Guides: https://photofindry.com/docs/
+Installation and help: https://photofindry.com/docs/
 Feedback: https://photofindry.com/bugs

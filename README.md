@@ -6,12 +6,13 @@ PhotoFindry is a native macOS app for local photo tagging, people and search.
 Browse your folders, find photographs from saved details, and choose local AI
 search when you need a closer look. Your originals stay in place.
 
-[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.5) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
+[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.6) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
 
-## Current beta: 0.2.0-beta.5
+## Current beta: 0.2.0-beta.6
 
-Beta 5 fixes location changes during Local AI Search, refinement status flicker,
-search cursor loss and legacy saved-text search errors. No retagging is needed.
+Beta 6 fixes starting tagging from a paused queue, folder confirmation after a
+cloud drive remount, last-tagged previews and filename search during background
+metadata work. Existing saved tags are preserved.
 
 For **Apple-silicon Macs**. The application declares **macOS 14 or later**; current
 qualification was performed on macOS 27.0. Bundled Core ML semantic ranking
@@ -62,9 +63,9 @@ Reports and screenshots are private and accessible only to the PhotoFindry team.
 Remove private details from screenshots before sharing. No logs or library records
 are attached automatically.
 
-In **beta 5**, Send Feedback in the toolbar or Help menu submits directly to the
+Send Feedback in the toolbar or Help menu submits directly to the
 private tracker, without an email app. Failed submissions preserve the draft;
-retrying an unchanged report avoids duplicates. Keep the returned reference. Beta 5 also
+retrying an unchanged report avoids duplicates. Keep the returned reference. The form also
 offers an unchecked optional diagnostic attachment. Review its contents before submitting.
 
 ## Guides for people and AI assistants

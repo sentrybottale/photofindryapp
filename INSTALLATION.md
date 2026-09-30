@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-Use the **DMG** on the [official release page](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.5).
+Use the **DMG** on the [official release page](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.6).
 The update ZIP is for PhotoFindry's updater. Verify the download using [the release verification instructions](VERIFY.md).
 
 1. Open the DMG and drag **PhotoFindry.app** to **Applications**.

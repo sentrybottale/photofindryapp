@@ -1,6 +1,6 @@
 # Beta qualification
 
-**Release:** 0.2.0-beta.5 · **Application:** 0.2.0 · **Build:** 85 · **Architecture:** arm64
+**Release:** 0.2.0-beta.6 · **Application:** 0.2.0 · **Build:** 86 · **Architecture:** arm64
 
 The app declares macOS 14 or later; this qualification used Apple silicon on
 macOS 27.0. Bundled Core ML semantic ranking requires macOS 15 or later. Other
@@ -8,26 +8,30 @@ OS/hardware combinations are not claimed tested.
 
 ## Build and regression evidence
 
-- Compatibility suite: 1,178 passed, 28 opt-in tests skipped, zero failures.
-- Native-mode comparison suite: 1,188 passed, 18 opt-in tests skipped, zero failures.
-- Swift suite: 310 tests, five opt-in checks skipped, zero failures. This includes
-  an actual native text-editor identity/cursor test across compact/pinned layouts.
-- Rust unit/integration suite: 175 passed, two ignored, zero failures.
-- The saved-text search regression reproduces “Invalid saved photograph” with
-  beta 4 and passes with the repaired worker while retaining the exact saved body.
-- The exact bundled worker passed two GPS/capture-time search checks with a real
-  local Qwen reranker, including queued candidate scoring and saved-result reopen.
+- Compatibility suite: 1,177 passed, 29 opt-in tests skipped, zero failures.
+- Native-mode comparison suite: 1,187 passed, 19 opt-in tests skipped, zero failures.
+- Swift suite: 313 tests, five opt-in checks skipped, zero failures; release build succeeded.
+- Rust unit/integration suites: 180 passed, two ignored, zero failures.
+- Regressions cover foreground tagging from a paused queue, retaining individually
+  paused jobs, a later Pause winning, stale progress state, remount recovery,
+  retained pending targets, accepted thumbnail identity and filename refresh.
 - All 418 distributable payload entries retain their reviewed classifications;
-  read-only DMG inspection matched the exact signed candidate. Third-party bytes,
-  public datasets and notices are unchanged from beta 4.
-- A fresh 4B tagging smoke exceeded its four-minute test budget and shut down
-  cleanly, preserving its original. It is not counted as a successful tagging run.
-  Prior tagging qualification is reused; these repairs do not change tagging.
+  read-only DMG inspection matches the exact signed candidate. Third-party bytes,
+  public datasets and notices are unchanged from beta 5.
+
+The exact bundled app also passed an isolated end-to-end remount recovery test
+using the owner's separately selected local 4B Qwen vision model. A stale identity
+paused without consuming the target; checking and explicitly reconfirming the
+fixture folder restored access. A new Tag action started from a paused queue,
+retained the unrelated held job, committed accepted tags and supplied the same
+saved thumbnail to the last-tagged Findrydal event. The original was unchanged and
+all owned processes drained cleanly. This was one pinned sample photo, not a
+large-library or general model-quality benchmark.
 
 ## Signed update and saved data
 
-A real Sparkle trial installed the exact build-85 candidate over an isolated
-beta-4 build-84 copy. All 21 fixture-library files stayed unchanged during
+A real Sparkle trial installed the exact build-86 candidate over an isolated
+beta-5 build-85 copy. All 21 fixture-library files stayed unchanged during
 installation. Reopening the new worker preserved all 17 authoritative source
 tables, including accepted details, People edits and review history. Fixture
 originals were unchanged. Customer data was not a trial target.
