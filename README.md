@@ -57,8 +57,8 @@ repository does not establish that the app has passed a security scan.
 
 Report bugs or suggestions privately at [photofindry.com/bugs](https://photofindry.com/bugs).
 Email is required for follow-up. Describe what happened, where, and optionally add
-steps and screenshots. A successful submission returns a report reference. The
-team reviews reports through SSH; there is no public report list or login page.
+steps and screenshots. A successful submission returns a report reference.
+Reports and screenshots are private and accessible only to the PhotoFindry team.
 Remove private details from screenshots before sharing. No logs or library records
 are attached automatically.
 

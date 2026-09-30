@@ -37,8 +37,8 @@ version and CPU architecture are shown before sharing. The website form uses the
 same private service. Nothing is sent until you choose Submit Feedback. No logs,
 photo records, names, saved queries or library files are attached automatically.
 
-Reports and screenshots are stored for private review through SSH and retained
-until the team explicitly removes them. There is no public report lookup. Copies
+Reports and screenshots are private and accessible only to the PhotoFindry team.
+They are retained until the team explicitly removes them. There is no public report lookup. Copies
 are re-encoded without original metadata or filenames; visible private content
 remains visible. Redact it before submitting. Drafts stay in app memory until exit;
 failed or cancelled submissions retain the draft. A cancelled request may already

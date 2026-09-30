@@ -205,13 +205,13 @@ The current app is not an OS-enforced network sandbox, and local processing is n
 
 The form at photofindry.com/bugs sends your required email, typed report and chosen screenshots over HTTPS to the PhotoFindry server for private review and follow-up. It returns a reference only after storage succeeds. Server copies remove original screenshot metadata and filenames; visible image content remains visible. Redact private details before uploading.
 
-No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are unavailable through a public list or link; review is accessed through the team's VPS SSH connection. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
+No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are private and accessible only to the PhotoFindry team. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
 
 In beta 5, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
 
 ## Website and app are distinct
 
-The marketing homepage uses the owner's configured PostHog website analytics, with an EU endpoint and identified-only profiles. That is separate from the app. The documentation pages and feedback form do not load this analytics script. Infrastructure may maintain operational connection logs; “no app tracking” is not a promise that no server can observe a network request.
+The marketing homepage uses optional PostHog website analytics only after you accept analytics cookies. PostHog uses an EU endpoint and identified-only profiles. Session recording and automatic interaction capture are disabled. That is separate from the app. The documentation pages and feedback form do not load this analytics script. Infrastructure may maintain operational connection logs; “no app tracking” is not a promise that no server can observe a network request.
 
 ## Why GitHub rather than Apple's stores and notarization?
 
@@ -226,6 +226,14 @@ The public [photofindryapp repository](https://github.com/sentrybottale/photofin
 Beta 5 adds an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
 
 Opting in freezes the attachment for review. Refresh log captures a newer copy; unchecking removes it. Only Submit Feedback sends the reviewed attachment. Retries reuse that copy. Earlier sessions and historical disk logs are not collected. Diagnostic attachments stay with the private report and follow the same retention policy.
+
+## Cookies and storage
+
+The homepage offers **Accept all**, **Reject optional** and **Settings**. Optional analytics stays off until you accept it; rejecting it does not affect downloads or other site features. Change or withdraw your choice using **Cookie settings** in the homepage footer or [open cookie settings](https://photofindry.com/#cookie-settings).
+
+A necessary first-party cookie, `photofindry_consent_v1`, remembers your choice for 180 days on this site only. If you accept analytics, PostHog may store a first-party browser identifier in cookies and local storage to measure visits. Its cookies last up to 180 days; local storage persists until cleared. Rejecting analytics removes this site's PostHog cookies and browser storage and stops further collection; it does not erase information already sent. Do Not Track is respected.
+
+If JavaScript is disabled, optional analytics does not load. Documentation and the feedback form do not load analytics. These website choices do not enable tracking in the Mac app.
 
 
 ---
