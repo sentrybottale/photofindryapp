@@ -1,16 +1,14 @@
 {
-  "passed": true,
-  "fromBuild": "87",
-  "toBuild": "89",
-  "exactInstalledCandidate": true,
-  "libraryEntriesUnchangedDuringInstall": 21,
-  "authoritativeTablesUnchangedAfterWorkerReopen": 17,
-  "fixtureOriginalsUnchanged": true,
-  "ownerAppInfoUnchanged": true,
-  "transport": "127.0.0.1-only HTTP with real Ed25519-signed feed and archive; no server/VPS/production feed changes",
-  "limitations": [
-    "External SPUUpdater harness; production UI save/drain gate covered by AppUpdateTests.",
-    "Does not requalify public HTTPS transport; beta-1 HTTPS trial already passed.",
-    "No customer library is opened; production feedback submission was qualified separately with synthetic reports."
-  ]
+  "schema": 1,
+  "channel": "beta",
+  "feedURL": "https://photofindry.com/updates/beta/appcast.xml",
+  "publicKey": "G363x/YCT07qbJyyI5minQjp3v+6SEw9sB7dU3pL6cM=",
+  "lastVerifiedRelease": {
+    "version": "0.2.0-beta.8",
+    "build": 89,
+    "feedSignatureVerified": true,
+    "archiveSignatureVerified": true,
+    "feedSHA256": "99d5fe6ecd187f30071a0ccf4514cccb1ef6627b6d64374e29ec87d229c5ef96",
+    "verifiedReleaseAssets": 12
+  }
 }

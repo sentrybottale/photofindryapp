@@ -32,6 +32,6 @@ Confirmed local originals become openable without waiting for the camera and loc
 
 Cloud-only, missing and permission-blocked originals still require their respective resolution. Checking a source does not deliberately download known cloud placeholders. Previously unconfirmed photos are not silently approved by an app update.
 
-## Recover a blocked job
+## Recover a job waiting for originals
 
-Choose **Reconnect originals…** in the tagging strip or Jobs. PhotoFindry checks the affected folder and, when needed, offers **Confirm and resume**. Only confirm a folder you recognize as the same originals collection. Cancel leaves work paused and can be retried. A later Pause or Stop prevents automatic continuation.
+Choose **Reconnect originals…** on the affected tagging job. The app opens the relevant source, checks its folder and offers **Confirm and resume** when it needs your confirmation. Only confirm a folder you recognize as the same originals collection. Successful recovery continues that job; unrelated source-held or individually paused jobs stay paused. Cancel is safe and recovery can be retried.

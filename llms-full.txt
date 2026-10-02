@@ -1,6 +1,6 @@
 # PhotoFindry public documentation
 
-Updated 2026-10-01. Current published beta: 0.2.0-beta.8, build 89.
+Updated 2026-10-02. Current published beta: 0.2.0-beta.8, build 89.
 
 
 ---
@@ -40,6 +40,7 @@ An update replaces the application bundle, not your photo folders, library datab
 
 Next: [Getting started](https://photofindry.com/docs/getting-started.html) · [Troubleshooting](https://photofindry.com/docs/troubleshooting.html)
 
+
 ---
 
 # Your first folder in PhotoFindry
@@ -74,6 +75,7 @@ People lets you name confirmed reference faces and review uncertain matches. Con
 
 The Help menu offers Getting Started and Privacy & Distribution. [Search](https://photofindry.com/docs/search.html), [sources and backups](https://photofindry.com/docs/sources-and-backups.html), and [troubleshooting](https://photofindry.com/docs/troubleshooting.html) explain the next steps.
 
+
 ---
 
 # Search your photographs
@@ -107,6 +109,7 @@ Open a photograph's Camera & location section to see its saved metadata. In Sour
 ## Changing location during AI Search
 
 Beta 8 keeps Local AI Search active when you choose Ignore location, another place or another radius. The old search keeps its saved results; a fresh search uses the changed GPS constraints. Typing a different query returns to ordinary search until you explicitly choose Local AI Search again. A live saved checkpoint does not mean refinement is paused.
+
 
 ---
 
@@ -144,9 +147,10 @@ Confirmed local originals become openable without waiting for the camera and loc
 
 Cloud-only, missing and permission-blocked originals still require their respective resolution. Checking a source does not deliberately download known cloud placeholders. Previously unconfirmed photos are not silently approved by an app update.
 
-## Recover a blocked job
+## Recover a job waiting for originals
 
-Choose **Reconnect originals…** in the tagging strip or Jobs. PhotoFindry checks the affected folder and, when needed, offers **Confirm and resume**. Only confirm a folder you recognize as the same originals collection. Cancel leaves work paused and can be retried. A later Pause or Stop prevents automatic continuation.
+Choose **Reconnect originals…** on the affected tagging job. The app opens the relevant source, checks its folder and offers **Confirm and resume** when it needs your confirmation. Only confirm a folder you recognize as the same originals collection. Successful recovery continues that job; unrelated source-held or individually paused jobs stay paused. Cancel is safe and recovery can be retried.
+
 
 ---
 
@@ -196,6 +200,13 @@ Choose **Reconnect originals…** on the affected job. A cloud drive remount can
 
 Starting **Tag photographs** puts that new request first and releases an ordinary queue pause. Individually paused jobs and source, memory or disk holds still require their own recovery. Cancelling a recovery leaves work paused and can be retried.
 
+## Original verification stops or finishes without continuing tagging
+
+When reconnecting a blocked job, choose **Verify original files** if the review offers saved checksums. A drive or cloud folder must remain available until verification finishes. If the check pauses, reconnect the source and choose **Resume check**. Pausing the verification check retains the requested continuation; successful verification then resumes the selected tagging job from its saved progress. A later Pause or Stop of tagging, or a pause of the whole queue, prevents automatic continuation.
+
+After reopening the app, jobs stay paused. Start recovery again from **Reconnect originals…** on the blocked job so the check is linked to that job. A standalone source check does not resume every paused job. Changed originals and cloud-only files remain unresolved; PhotoFindry does not silently accept different photographs or download an archive to make verification succeed.
+
+
 ---
 
 # Privacy, licensing and direct beta distribution
@@ -241,6 +252,7 @@ The homepage offers **Accept all**, **Reject optional** and **Settings**. Option
 A necessary first-party cookie, `photofindry_consent_v1`, remembers your choice for 180 days on this site only. If you accept analytics, PostHog may store a first-party browser identifier in cookies and local storage to measure visits. Its cookies last up to 180 days; local storage persists until cleared. Rejecting analytics removes this site's PostHog cookies and browser storage and stops further collection; it does not erase information already sent. Do Not Track is respected.
 
 If JavaScript is disabled, optional analytics does not load. Documentation and the feedback form do not load analytics. These website choices do not enable tracking in the Mac app.
+
 
 ---
 
@@ -291,3 +303,5 @@ Beta 8's in-app form and the website both support direct private intake. Email i
 ## Beta 8 source and location troubleshooting
 
 Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, guide the user to Reconnect originals → Confirm and resume; for other source reconnection, use Sources → Review folder match when identity confirmation is required; never confirm unknown folders for them or erase the library to clear a warning. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Use the source's explicit camera and location scan if fields have not been read. Ask before including optional diagnostic logs in a feedback report.
+
+Checksum-verification recovery retains the selected tagging continuation through a paused check or source outage. Reconnect the source and resume the check explicitly; do not automatically resume unrelated held jobs or override a later Pause/Stop of tagging. Reopened queues remain paused.
