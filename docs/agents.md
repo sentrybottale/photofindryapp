@@ -47,3 +47,7 @@ Beta 9's in-app form and the website both support direct private intake. Email i
 Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, guide the user to Reconnect originals → Confirm and resume; for other source reconnection, use Sources → Review folder match when identity confirmation is required; never confirm unknown folders for them or erase the library to clear a warning. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Use the source's explicit camera and location scan if fields have not been read. Ask before including optional diagnostic logs in a feedback report.
 
 Checksum-verification recovery retains the selected tagging continuation through a paused check or source outage. Reconnect the source and resume the check explicitly; do not automatically resume unrelated held jobs or override a later Pause/Stop of tagging. Reopened queues remain paused.
+
+Ordinary people wording such as boy, girl, man and woman can match supported apparent-age and appearance descriptions from saved tags without retagging. Treat these as estimates, never verified identity, gender or exact age. Keep uncertainty and folder scope; do not recommend full-library retagging for a wording mismatch.
+
+Empty originals remain pending, while other usable photos can continue. Failed tagging jobs offer a scoped Retry action in Queue. Help recover that selected job rather than clearing library data or restarting unrelated held work.

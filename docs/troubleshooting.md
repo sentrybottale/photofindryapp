@@ -49,3 +49,9 @@ Starting **Tag photographs** puts that new request first and releases an ordinar
 When reconnecting a blocked job, choose **Verify original files** if the review offers saved checksums. A drive or cloud folder must remain available until verification finishes. If the check pauses, reconnect the source and choose **Resume check**. Pausing the verification check retains the requested continuation; successful verification then resumes the selected tagging job from its saved progress. A later Pause or Stop of tagging, or a pause of the whole queue, prevents automatic continuation.
 
 After reopening the app, jobs stay paused. Start recovery again from **Reconnect originals…** on the blocked job so the check is linked to that job. A standalone source check does not resume every paused job. Changed originals and cloud-only files remain unresolved; PhotoFindry does not silently accept different photographs or download an archive to make verification succeed.
+
+## Empty or corrupt original files
+
+Beta 9 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
+
+Failed tagging jobs appear in Queue with **Retry**. Read the final error before retrying. Retry applies to that selected job; unrelated source holds and schedules stay in place.

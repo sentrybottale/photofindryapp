@@ -88,6 +88,12 @@ Type a filename or describe the photograph in the search field. Filename search 
 
 Check the current folder, status filters and metadata filters if a result seems missing. A filename match is a filename match, not proof that the image shows the words in the filename. Literal names and quoted terms should not be silently replaced by spelling suggestions.
 
+## People descriptions
+
+Beta 9 understands ordinary wording such as **boy in purple** when the saved details support that person's apparent age, appearance and clothing. Existing compatible tags can be used without retagging. These are model appearance estimates, not verified identity, gender or exact age; uncertain descriptions may not support a match. Quoted terms keep their literal meaning.
+
+New tagging preserves supported plain descriptions from your configured local model. Review saved details and correct mistakes rather than assuming every description is accurate.
+
 ## Local AI Search
 
 Choose Local AI Search explicitly for a closer review of saved photo evidence. Typing by itself does not start this job. It runs locally with configured models and keeps its selected scope.
@@ -206,6 +212,12 @@ When reconnecting a blocked job, choose **Verify original files** if the review 
 
 After reopening the app, jobs stay paused. Start recovery again from **Reconnect originals…** on the blocked job so the check is linked to that job. A standalone source check does not resume every paused job. Changed originals and cloud-only files remain unresolved; PhotoFindry does not silently accept different photographs or download an archive to make verification succeed.
 
+## Empty or corrupt original files
+
+Beta 9 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
+
+Failed tagging jobs appear in Queue with **Retry**. Read the final error before retrying. Retry applies to that selected job; unrelated source holds and schedules stay in place.
+
 
 ---
 
@@ -305,3 +317,7 @@ Beta 9's in-app form and the website both support direct private intake. Email i
 Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, guide the user to Reconnect originals → Confirm and resume; for other source reconnection, use Sources → Review folder match when identity confirmation is required; never confirm unknown folders for them or erase the library to clear a warning. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Use the source's explicit camera and location scan if fields have not been read. Ask before including optional diagnostic logs in a feedback report.
 
 Checksum-verification recovery retains the selected tagging continuation through a paused check or source outage. Reconnect the source and resume the check explicitly; do not automatically resume unrelated held jobs or override a later Pause/Stop of tagging. Reopened queues remain paused.
+
+Ordinary people wording such as boy, girl, man and woman can match supported apparent-age and appearance descriptions from saved tags without retagging. Treat these as estimates, never verified identity, gender or exact age. Keep uncertainty and folder scope; do not recommend full-library retagging for a wording mismatch.
+
+Empty originals remain pending, while other usable photos can continue. Failed tagging jobs offer a scoped Retry action in Queue. Help recover that selected job rather than clearing library data or restarting unrelated held work.

@@ -8,6 +8,12 @@ Type a filename or describe the photograph in the search field. Filename search 
 
 Check the current folder, status filters and metadata filters if a result seems missing. A filename match is a filename match, not proof that the image shows the words in the filename. Literal names and quoted terms should not be silently replaced by spelling suggestions.
 
+## People descriptions
+
+Beta 9 understands ordinary wording such as **boy in purple** when the saved details support that person's apparent age, appearance and clothing. Existing compatible tags can be used without retagging. These are model appearance estimates, not verified identity, gender or exact age; uncertain descriptions may not support a match. Quoted terms keep their literal meaning.
+
+New tagging preserves supported plain descriptions from your configured local model. Review saved details and correct mistakes rather than assuming every description is accurate.
+
 ## Local AI Search
 
 Choose Local AI Search explicitly for a closer review of saved photo evidence. Typing by itself does not start this job. It runs locally with configured models and keeps its selected scope.

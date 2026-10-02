@@ -22,7 +22,7 @@ The previously qualified empty/corrupt-original recovery and scoped Queue Retry 
 
 A real Sparkle trial installed the exact build-91 candidate over an isolated beta-8 build-89 copy. All 21 library files stayed unchanged during installation; all 17 authoritative source tables matched after worker reopen. Fixture originals and the owner's installed app were unchanged.
 
-The trial uses loopback-only HTTP, real Ed25519-signed feed/archive bytes and an external updater harness. The old app copy uses private updater preferences and is re-signed; the installed new app exactly matched the signed release candidate. Production UI save/drain gates have separate tests. Public download and signed HTTPS feed verification are performed during publication. Earlier negative update and rollback cases are not all repeated; automatic downgrade is unsupported.
+The trial uses loopback-only HTTP, real Ed25519-signed feed/archive bytes and an external updater harness. The old app copy uses private updater preferences and is re-signed; the installed new app exactly matched the signed release candidate. Production UI save/drain gates have separate tests. All 12 published assets were downloaded and matched the authenticated inventory. The live HTTPS feed matched the approved signed candidate; independent pinned-key verification passed for the feed and downloaded update ZIP. Earlier negative update and rollback cases are not all repeated; automatic downgrade is unsupported.
 
 ## Limits
 
