@@ -1,12 +1,11 @@
-# PhotoFindry 0.2.0 beta 8 (build 89)
+# PhotoFindry 0.2.0 beta 9 (build 91)
 
-- Verify original files now keeps its link to the paused tagging job through a source outage or a paused check. Reconnect the source and resume verification; successful verification continues the selected job from its saved progress. A later Pause or Stop of tagging still wins.
-- Recovery also handles a check finishing before its reply arrives and choosing a replacement originals folder. Closing Sources no longer prevents a successful requested recovery from continuing.
-- Deleted originals in a connected folder no longer prevent other available photographs from being processed. Saved tags and unresolved targets are retained for an explicit retry.
-- Source review offers checksum verification when folder confirmation has no eligible matches. Cloud-only, changed and unavailable files remain unresolved.
-- Updated the bundled database runtime to fix a concurrent database-opening/closing deadlock.
+- Ordinary searches such as "boy in purple" now find supported descriptions of the same person in existing saved tags. Boy, girl, man and woman wording uses the model's apparent age and appearance estimates; it does not verify identity, gender or exact age. No retagging is required.
+- New tagging preserves the configured local model's supported plain descriptions, including ordinary people labels and factual sensitive-scene observations. Unsupported details still remain uncertain.
+- Empty and corrupt original files no longer stop other usable photos from being tagged. Pending targets and saved tags are retained; reconnect originals and explicitly Resume or Retry to recover them.
+- Failed tagging jobs now appear in Queue with a scoped Retry action ahead of scheduled or source-held work.
 
-This update replaces the application only. Your library, original photographs, saved tags and selected model folders are preserved. No automatic retagging or database migration is introduced. An unavailable drive or cloud folder must be reconnected before verification can finish.
+This update replaces the application only. Your library, original photographs, saved tags and selected model folders are preserved. No automatic retagging or source-data migration is introduced. Search indexes may refresh from saved observations.
 
 Free to use. Apple silicon and macOS 14 or later are required; bundled Core ML ranking requires macOS 15. This is an ad-hoc signed beta, not Apple Developer ID signed or notarized.
 
