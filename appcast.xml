@@ -4,31 +4,33 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
   <channel>
     <title>PhotoFindry beta updates</title>
     <item>
-      <title>PhotoFindry 0.2.0-beta.6</title>
-      <sparkle:version>86</sparkle:version>
-      <sparkle:shortVersionString>0.2.0-beta.6</sparkle:shortVersionString>
+      <title>PhotoFindry 0.2.0-beta.8</title>
+      <sparkle:version>89</sparkle:version>
+      <sparkle:shortVersionString>0.2.0-beta.8</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
       <sparkle:channel>beta</sparkle:channel>
       <photofindry:dataContract>photofindry-library-compatible-v1</photofindry:dataContract>
       <photofindry:coreProtocol>1</photofindry:coreProtocol>
-      <description>&lt;pre&gt;# PhotoFindry 0.2.0 beta 6 (build 86)
+      <description>&lt;pre&gt;# PhotoFindry 0.2.0 beta 8 (build 89)
 
-- Clicking Tag photographs starts the requested job first, including when the queue was paused. Individually paused jobs retain their controls.
-- Tagging now shows its actual paused or stopped state immediately, with an Open Sources action when originals need attention.
-- Folder confirmation works again after a cloud drive remount invalidates saved file identities. Check the source, review its folder match, then resume the affected job; saved tags and pending work are retained.
-- The last tagged photograph keeps its saved preview beside the Findrydal story.
-- Filename searches can finish while background camera and location updates continue.
+- Verify original files now keeps its link to the paused tagging job through a source outage or a paused check. Reconnect the source and resume verification; successful verification continues the selected job from its saved progress. A later Pause or Stop of tagging still wins.
+- Recovery also handles a check finishing before its reply arrives and choosing a replacement originals folder. Closing Sources no longer prevents a successful requested recovery from continuing.
+- Deleted originals in a connected folder no longer prevent other available photographs from being processed. Saved tags and unresolved targets are retained for an explicit retry.
+- Source review offers checksum verification when folder confirmation has no eligible matches. Cloud-only, changed and unavailable files remain unresolved.
+- Updated the bundled database runtime to fix a concurrent database-opening/closing deadlock.
 
-This update replaces the application only. Your library, original photographs and selected model folders are preserved.
+This update replaces the application only. Your library, original photographs, saved tags and selected model folders are preserved. No automatic retagging or database migration is introduced. An unavailable drive or cloud folder must be reconnected before verification can finish.
+
+Free to use. Apple silicon and macOS 14 or later are required; bundled Core ML ranking requires macOS 15. This is an ad-hoc signed beta, not Apple Developer ID signed or notarized.
 
 Installation and help: https://photofindry.com/docs/
 Feedback: https://photofindry.com/bugs
 &lt;/pre&gt;</description>
-      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.6/PhotoFindry-0.2.0-beta.6-arm64-update.zip" length="392778326" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="LyKmU7V3fgymGksdYzQDA7rqDhN8xhaw5UoLGgUNYlIU2MmROmZ5rvo0YoC63CvjAQBwku6S36e50/mtxbdHCg=="></enclosure>
+      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.8/PhotoFindry-0.2.0-beta.8-arm64-update.zip" length="392824018" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="GZdzJF9i3z8b02lLsXMbPCHaQxMbgLbbJqKFwOSdu04MpVQUpnz8F7e55FRkEx00ae4wy55p7h7edYtH0C2mBg=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 2+oeY/hNp2C2d+DoO2Sl+TJbv70ERsvMrR3QX+zt7jB4WALvOjOeLmhyPcMloYuybD8X4iJA6zabC5sd+QJDBg==
-length: 2392
+edSignature: 7RsxBQy1hlPj8fWcffRqX84Tmvhla6UPy9aP+jNBdd9eCTAk9E+uD701lA2rtmM2dhnRuZt5/e0GD+/MnDU0Aw==
+length: 2990
 -->

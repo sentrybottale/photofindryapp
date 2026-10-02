@@ -6,11 +6,11 @@ PhotoFindry is a native macOS app for local photo tagging, people and search.
 Browse your folders, find photographs from saved details, and choose local AI
 search when you need a closer look. Your originals stay in place.
 
-[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.7) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
+[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.8) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
 
-## Current beta: 0.2.0-beta.7
+## Current beta: 0.2.0-beta.8
 
-Beta 7 adds guided originals recovery with confirmation and automatic continuation,
+Beta 8 adds guided originals recovery with confirmation and automatic continuation,
 fixes manual model Start while jobs are held, and prevents gallery preview caching
 from interrupting accepted tag saves. Existing saved tags and pending work are preserved.
 
