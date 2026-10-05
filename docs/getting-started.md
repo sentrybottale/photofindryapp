@@ -15,7 +15,7 @@ The app includes its local runtime, search models and face models. You do not ne
 1. Choose **File → Add Photo Folder…** or the toolbar folder button.
 2. Select a small folder and allow the access macOS asks you to grant.
 3. Browse filenames immediately. Choose Tag library or a scoped tagging action when you want local descriptions.
-4. Watch Jobs & Activity for progress. Pause retains work. Stop cancels remaining work and keeps accepted saved results.
+4. Watch Jobs & Activity for progress. Pause retains the job and its saved progress. Resume continues it without requiring source reconnection merely because it was paused. Stop cancels remaining work and keeps accepted saved results.
 5. Review an individual photograph's details and correct names when needed. AI observations and uncertain matches can be wrong.
 
 Finding new files adds records; it does not rewrite or delete the original photographs. Large archives take time. Keep the app open and Mac awake for scheduled processing; schedules do not wake a sleeping Mac.

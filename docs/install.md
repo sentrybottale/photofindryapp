@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free native macOS photo tagging and search app for Apple silicon. The current public release is **0.2.0-beta.9, build 91**. This guide was updated on 2 October 2026.
+PhotoFindry is a free native macOS photo tagging and search app for Apple silicon. The current public release is **0.2.0-beta.10, build 93**. This guide was updated on 5 October 2026.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ PhotoFindry is a free native macOS photo tagging and search app for Apple silico
 
 ## Official download
 
-Use the [official beta 9 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.9). The installer is [PhotoFindry-0.2.0-beta.9-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.9/PhotoFindry-0.2.0-beta.9-arm64-community-beta.dmg), 397,234,722 bytes (about 397 MB).
+Use the [official beta 10 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.10). The installer is [PhotoFindry-0.2.0-beta.10-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.10/PhotoFindry-0.2.0-beta.10-arm64-community-beta.dmg), 397,315,058 bytes (about 397 MB).
 
 The update ZIP is for the built-in updater. GitHub's automatic “Source code” archives contain distribution documentation, not the application. Do not install those archives.
 

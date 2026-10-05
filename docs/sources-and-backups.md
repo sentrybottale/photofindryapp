@@ -34,4 +34,4 @@ Cloud-only, missing and permission-blocked originals still require their respect
 
 ## Recover a job waiting for originals
 
-Choose **Reconnect originals…** on the affected tagging job. The app opens the relevant source, checks its folder and offers **Confirm and resume** when it needs your confirmation. Only confirm a folder you recognize as the same originals collection. Successful recovery continues that job; unrelated source-held or individually paused jobs stay paused. Cancel is safe and recovery can be retried.
+Make the original drive or files available, then choose **Resume** on the affected job. Resume retries saved locations and can verify returning files against saved checksums. Choose **Reconnect originals…** for a moved folder, an explicit source disconnect, or identity confirmation. Only confirm a folder you recognize as the same originals collection. Successful verification continues the linked job; unrelated held jobs remain paused. **Continue with available photos** retains unavailable targets and survives ordinary Pause/Resume and app restart.

@@ -20,7 +20,7 @@ All 418 payload entries were reviewed against beta 9. Only the compiled app/work
 
 A real Sparkle trial installed exact build 93 over an isolated beta-9 build-91 copy. All 21 fixture library files stayed unchanged during installation; all 17 authoritative source tables matched after worker reopen. Fixture originals and the owner's installed app were unchanged. A missing dependency in the external test harness was restored before the successful trial; no app changes were needed.
 
-The trial uses loopback-only HTTP, real Ed25519-signed feed/archive bytes and an external updater harness. The old copy uses private updater preferences and is re-signed; the installed new app exactly matched the signed release candidate. Production UI save/drain gates have separate tests. Published-download and live-feed verification are recorded after publication in update-verification.json. Earlier negative update and rollback cases are not all repeated; automatic downgrade is unsupported.
+The trial uses loopback-only HTTP, real Ed25519-signed feed/archive bytes and an external updater harness. The old copy uses private updater preferences and is re-signed; the installed new app exactly matched the signed release candidate. Production UI save/drain gates have separate tests. All 12 public release assets were downloaded and matched the authenticated inventory. Independent pinned-key verification passed for the exact live HTTPS feed and downloaded update archive. The required website hook verified all 43 live files and preserved the signed appcast. The current verification record is in update-verification.json. Earlier negative update and rollback cases are not all repeated; automatic downgrade is unsupported.
 
 ## Limits
 
