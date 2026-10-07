@@ -6,15 +6,15 @@ PhotoFindry is a native macOS app for local photo tagging, people and search.
 Browse your folders, find photographs from saved details, and choose local AI
 search when you need a closer look. Your originals stay in place.
 
-[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.10) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
+[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.11) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
 
-## Current beta: 0.2.0-beta.10
+## Current beta: 0.2.0-beta.11
 
-Beta 10 keeps tagging progress and your available-photos choice through Pause,
-Resume and app restart. Returning originals can be verified from saved checksums
-without reconnecting the entire source. Repeated requests reuse unfinished jobs,
-and source recovery returns control to the intended work. Moved or unverifiable
-originals still need explicit confirmation.
+Beta 11 adds automatic update reminders with a persistent Settings opt-out,
+repairs automatic face discovery and off-page People review, adds Cancel all for
+the complete job queue, and fixes large source archive exports while preserving
+People undo history. Imported archives remain opt-in for face scanning. Saved
+results and original photographs are preserved; recognition thresholds are unchanged.
 
 For **Apple-silicon Macs**. The application declares **macOS 14 or later**; current
 qualification was performed on macOS 27.0. Bundled Core ML semantic ranking
@@ -28,10 +28,10 @@ keep independent backups of your originals and saved library work.
 - **Saved work stays yours.** Browse, read and export your tags, names and evidence.
 - **Free to use.** Personal and business use, with no mandatory PhotoFindry account,
   subscription or feature gates.
-- **Updates when you choose.** Use **Check for Updates…**. Signed updates replace
+- **Updates when you choose.** Automatic reminders can be disabled in Settings; download and installation remain your choice. **Check for Updates…** remains available. Signed updates replace
   the app bundle while preserving the library, originals and chosen model paths.
 
-Internet is needed for explicit downloads, update checks, opened web links and
+Internet is needed for downloads, automatic or manual update checks, opened web links and
 voluntary feedback delivery.
 The app has no advertising analytics or app telemetry. Read the complete
 [privacy explanation](PRIVACY.md); local processing is not a claim of an OS network sandbox.

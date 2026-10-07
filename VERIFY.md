@@ -49,8 +49,7 @@ That command alone does **not** check the signature or publisher.
 ## Application updates
 
 PhotoFindry verifies the signed beta feed and the full update ZIP with the same
-pinned Ed25519 key before installing. Updates are manual through **Check for
-Updates…**. The feed is `https://photofindry.com/updates/beta/appcast.xml`.
+pinned Ed25519 key before installing. From beta 11, automatic checks are enabled on launch and about every six hours while the app runs. Settings → App updates has a persistent opt-out. Downloads and installation require your choice. Earlier betas need one manual upgrade using **Check for Updates…** to obtain reminders. The feed is `https://photofindry.com/updates/beta/appcast.xml`.
 
 The app bundle uses ad-hoc macOS signatures. These are distinct from the
 maintainer's Ed25519 download/update signatures and do not provide Apple publisher

@@ -6,7 +6,7 @@ PhotoFindry and its local engine are proprietary and free to use for personal an
 
 Photo tagging, face processing and search inference run locally on your Mac. Original photographs stay in their folders. Local saved work remains readable and exportable. Backups and source archives exclude original photographs and model weights; keep your own backups of those files.
 
-The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, manual update checks, browser links and voluntary feedback require network connections. Hosts can receive ordinary connection information.
+The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, automatic or manual update checks, browser links and voluntary feedback require network connections. Automatic checks are enabled by default from beta 11 and can be disabled in Settings → App updates. Checks send no library or model data; download and installation remain user choices. Hosts can receive ordinary connection information.
 
 ## Voluntary feedback
 
@@ -14,7 +14,7 @@ The form at photofindry.com/bugs sends your required email, typed report and cho
 
 No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are private and accessible only to the PhotoFindry team. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
 
-In beta 10, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
+In beta 11, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
 
 ## Website and app are distinct
 
@@ -30,7 +30,7 @@ The public [photofindryapp repository](https://github.com/sentrybottale/photofin
 
 ## Optional diagnostic attachment
 
-Beta 10 adds an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
+Beta 11 adds an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
 
 Opting in freezes the attachment for review. Refresh log captures a newer copy; unchecking removes it. Only Submit Feedback sends the reviewed attachment. Retries reuse that copy. Earlier sessions and historical disk logs are not collected. Diagnostic attachments stay with the private report and follow the same retention policy.
 

@@ -1,13 +1,13 @@
 # PhotoFindry public documentation
 
-Updated 2026-10-05. Current published beta: 0.2.0-beta.10, build 93.
+Updated 2026-10-07. Current published beta: 0.2.0-beta.11, build 97.
 
 
 ---
 
 # Install PhotoFindry beta
 
-PhotoFindry is a free native macOS photo tagging and search app for Apple silicon. The current public release is **0.2.0-beta.10, build 93**. This guide was updated on 5 October 2026.
+PhotoFindry is a free native macOS photo tagging and search app for Apple silicon. The current public release is **0.2.0-beta.11, build 97**. This guide was updated on 7 October 2026.
 
 ## Requirements
 
@@ -18,7 +18,7 @@ PhotoFindry is a free native macOS photo tagging and search app for Apple silico
 
 ## Official download
 
-Use the [official beta 10 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.10). The installer is [PhotoFindry-0.2.0-beta.10-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.10/PhotoFindry-0.2.0-beta.10-arm64-community-beta.dmg), 397,315,058 bytes (about 397 MB).
+Use the [official beta 11 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.11). The installer is [PhotoFindry-0.2.0-beta.11-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.11/PhotoFindry-0.2.0-beta.11-arm64-community-beta.dmg), 397,375,163 bytes (about 397 MB).
 
 The update ZIP is for the built-in updater. GitHub's automatic “Source code” archives contain distribution documentation, not the application. Do not install those archives.
 
@@ -34,7 +34,7 @@ The app is ad-hoc signed, with separate Ed25519 signatures for downloads and upd
 
 ## Update an existing installation
 
-Choose **PhotoFindry → Check for Updates…**. Checks are manual. The official feed is [photofindry.com/updates/beta/appcast.xml](https://photofindry.com/updates/beta/appcast.xml). The app authenticates the feed and update ZIP before installation and waits for work and saves to drain.
+Choose **PhotoFindry → Check for Updates…**. From beta 11, automatic update reminders are enabled by default on launch and about every six hours while the app runs. Settings → App updates has a persistent opt-out. Downloads and installation remain your choice. Earlier betas need one manual update to obtain reminders. The official feed is [photofindry.com/updates/beta/appcast.xml](https://photofindry.com/updates/beta/appcast.xml). The app authenticates the feed and update ZIP before installation and waits for work and saves to drain.
 
 An update replaces the application bundle, not your photo folders, library databases or selected model paths. Keep a library backup before testing a beta update. Use only a rollback version with documented data compatibility; never delete the library to fix an update problem.
 
@@ -90,7 +90,7 @@ Check the current folder, status filters and metadata filters if a result seems 
 
 ## People descriptions
 
-Beta 10 understands ordinary wording such as **boy in purple** when the saved details support that person's apparent age, appearance and clothing. Existing compatible tags can be used without retagging. These are model appearance estimates, not verified identity, gender or exact age; uncertain descriptions may not support a match. Quoted terms keep their literal meaning.
+Beta 11 understands ordinary wording such as **boy in purple** when the saved details support that person's apparent age, appearance and clothing. Existing compatible tags can be used without retagging. These are model appearance estimates, not verified identity, gender or exact age; uncertain descriptions may not support a match. Quoted terms keep their literal meaning.
 
 New tagging preserves supported plain descriptions from your configured local model. Review saved details and correct mistakes rather than assuming every description is accurate.
 
@@ -108,13 +108,13 @@ If a search appears empty, first review filters and whether saved evidence is re
 
 ## Offline GPS and capture time
 
-Beta 10 can use recorded GPS coordinates for place and proximity searches, including Local AI Search. For example, search for Milan or combine a place with a time-of-day description. Nearby-city labels are approximate GeoNames labels, not exact addresses. No maps API or coordinate upload is used. A visual resemblance to Italy is not proof that a photo was taken there.
+Beta 11 can use recorded GPS coordinates for place and proximity searches, including Local AI Search. For example, search for Milan or combine a place with a time-of-day description. Nearby-city labels are approximate GeoNames labels, not exact addresses. No maps API or coordinate upload is used. A visual resemblance to Italy is not proof that a photo was taken there.
 
 Open a photograph's Camera & location section to see its saved metadata. In Sources, camera and location scanning is separate from confirming originals. Scan or resume the source there if GPS has not been read yet. Photos without recorded GPS cannot gain a verified location from this scan. Recorded capture time is used as stored; unknown time zones remain unknown. Metadata preferences control display and search indexing.
 
 ## Changing location during AI Search
 
-Beta 10 keeps Local AI Search active when you choose Ignore location, another place or another radius. The old search keeps its saved results; a fresh search uses the changed GPS constraints. Typing a different query returns to ordinary search until you explicitly choose Local AI Search again. A live saved checkpoint does not mean refinement is paused.
+Beta 11 keeps Local AI Search active when you choose Ignore location, another place or another radius. The old search keeps its saved results; a fresh search uses the changed GPS constraints. Typing a different query returns to ordinary search until you explicitly choose Local AI Search again. A live saved checkpoint does not mean refinement is paused.
 
 
 ---
@@ -169,7 +169,7 @@ Confirm the download is from the official GitHub release and verify its signed i
 
 ## No update appears
 
-Use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 10 is app version 0.2.0, build 93; the beta label is visible in the update notes. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
+Use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 11 is app version 0.2.0, build 97; the beta label is visible in the update notes. From beta 11, automatic update reminders are on by default; check Settings → App updates if you opted out. Earlier betas require one manual upgrade. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
 
 ## Model stopped, unavailable or insufficient memory
 
@@ -193,11 +193,11 @@ Send Feedback submits directly, without an email app. Keep the receipt for follo
 
 Read [privacy and distribution](https://photofindry.com/docs/privacy.html) for what is sent.
 
-For beta 10 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
+For beta 11 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
 
 ## Legacy saved-photo search error
 
-Beta 10 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
+Beta 11 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
 
 ## Tagging pauses after a drive reconnects
 
@@ -213,9 +213,21 @@ After reopening the app, jobs stay paused. Use **Resume** to retry a job at its 
 
 ## Empty or corrupt original files
 
-Beta 10 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
+Beta 11 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
 
 Failed tagging jobs appear in Queue with **Retry**. Read the final error before retrying. Retry applies to that selected job; unrelated source holds and schedules stay in place.
+
+## People discovery and review
+
+Beta 11 automatically scans eligible new, retagged and restored native photographs without requiring an existing person name. Imported archives stay opt-in through Scan scope. Scanning reads originals and may download cloud-provider files; it does not retag photographs with an LLM. People shows coverage and activity. Pause survives reopening; Resume retains the scope and completed compatible scans are reused. Needs review can open photos beyond the current gallery page. Uncertain matches remain for review; recognition thresholds are unchanged.
+
+## Stop every queued job
+
+Jobs & Activity → Cancel all cancels unfinished jobs across the complete queue. Saved tags, names and reviewed results remain. Cancelled work is distinct from Pause and cannot be resumed.
+
+## Large source archive export
+
+Beta 11 fixes oversized People undo-history shards in large source exports. Export again using the same source; saved history, names and vectors are preserved. Source archives remain snapshots and exclude original photographs and vision model weights.
 
 
 ---
@@ -228,7 +240,7 @@ PhotoFindry and its local engine are proprietary and free to use for personal an
 
 Photo tagging, face processing and search inference run locally on your Mac. Original photographs stay in their folders. Local saved work remains readable and exportable. Backups and source archives exclude original photographs and model weights; keep your own backups of those files.
 
-The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, manual update checks, browser links and voluntary feedback require network connections. Hosts can receive ordinary connection information.
+The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, automatic or manual update checks, browser links and voluntary feedback require network connections. Automatic checks are enabled by default from beta 11 and can be disabled in Settings → App updates. Checks send no library or model data; download and installation remain user choices. Hosts can receive ordinary connection information.
 
 ## Voluntary feedback
 
@@ -236,7 +248,7 @@ The form at photofindry.com/bugs sends your required email, typed report and cho
 
 No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are private and accessible only to the PhotoFindry team. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
 
-In beta 10, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
+In beta 11, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
 
 ## Website and app are distinct
 
@@ -252,7 +264,7 @@ The public [photofindryapp repository](https://github.com/sentrybottale/photofin
 
 ## Optional diagnostic attachment
 
-Beta 10 adds an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
+Beta 11 adds an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
 
 Opting in freezes the attachment for review. Refresh log captures a newer copy; unchecking removes it. Only Submit Feedback sends the reviewed attachment. Retries reuse that copy. Earlier sessions and historical disk logs are not collected. Diagnostic attachments stay with the private report and follow the same retention policy.
 
@@ -276,10 +288,10 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 - PhotoFindry is a native Apple-silicon macOS app for local photo tagging, people and search.
 - It is proprietary and free to use. No mandatory app account or subscription. Third-party components keep their own licences.
 - The public repository is a distribution repository, not the application source repository.
-- Latest published release at this document's date: 0.2.0-beta.10, app 0.2.0 build 93. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- Latest published release at this document's date: 0.2.0-beta.11, app 0.2.0 build 97. Check the release page before recommending a version; do not assume an unreleased branch is published.
 - Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
-- No app telemetry; explicit downloads, updates, browser links and feedback use internet. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
+- No app telemetry; downloads, automatic or manual update checks, browser links and feedback use internet. Automatic checks default on from beta 11 with a Settings opt-out; downloads and installation require a user choice. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
 
 ## Install safely
 
@@ -299,7 +311,7 @@ For missing results, inspect scope, filters, evidence readiness and source avail
 
 Direct website feedback: https://photofindry.com/bugs. Require a contact email and obtain the user's deliberate submission. Review text/screenshots for private information. No automatic library or log upload. Do not claim a report was received without the server reference. An unchanged retry is designed to avoid duplicate reports.
 
-Beta 10's in-app form and the website both support direct private intake. Email is mandatory; no email app is needed. Never invent remote review access, API credentials, response deadlines, security certifications or endorsements.
+Beta 11's in-app form and the website both support direct private intake. Email is mandatory; no email app is needed. Never invent remote review access, API credentials, response deadlines, security certifications or endorsements.
 
 ## Canonical reading
 
@@ -311,7 +323,7 @@ Beta 10's in-app form and the website both support direct private intake. Email 
 - [Privacy and distribution](https://photofindry.com/docs/privacy.html)
 - [Release verification](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md)
 
-## Beta 10 source and location troubleshooting
+## Beta 11 source and location troubleshooting
 
 Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, first guide the user to make the files available and choose Resume. Reconnect originals is for moved or explicitly disconnected folders and unresolved identity confirmation; never confirm unknown folders for them. Pause alone does not require reconnection. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Ask before including optional diagnostic logs in a feedback report.
 

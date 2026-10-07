@@ -4,21 +4,21 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
   <channel>
     <title>PhotoFindry beta updates</title>
     <item>
-      <title>PhotoFindry 0.2.0-beta.10</title>
-      <sparkle:version>93</sparkle:version>
-      <sparkle:shortVersionString>0.2.0-beta.10</sparkle:shortVersionString>
+      <title>PhotoFindry 0.2.0-beta.11</title>
+      <sparkle:version>97</sparkle:version>
+      <sparkle:shortVersionString>0.2.0-beta.11</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
       <sparkle:channel>beta</sparkle:channel>
       <photofindry:dataContract>photofindry-library-compatible-v1</photofindry:dataContract>
       <photofindry:coreProtocol>1</photofindry:coreProtocol>
-      <description>&lt;pre&gt;# PhotoFindry 0.2.0 beta 10 (build 93)
+      <description>&lt;pre&gt;# PhotoFindry 0.2.0 beta 11 (build 97)
 
-- Pause and Resume keep the same tagging job, saved progress and your Continue with available photos choice, including after reopening the app.
-- Resume retries originals at their saved locations. Returning files can be verified against saved checksums without reconnecting the whole source. Moved folders and originals without enough identity evidence still need confirmation.
-- Repeated tagging and source-location requests reuse unfinished work instead of creating duplicate jobs. Successful source checks return control to the intended jobs, while a later Pause still wins.
-- Foreground work hands off correctly from background jobs. Memory and disk recovery recheck the relevant holds before processing resumes, and cancellation drains owned helpers.
-- Tagging restarts retain foreground priority, and failed jobs keep an explicit scoped Retry action.
+- Automatic update reminders check for a compatible signed beta on launch and about every six hours while the app runs. Turn them off in Settings → App updates. Downloading and installing remain your choice. Earlier betas need one manual update to gain reminders.
+- Automatic face discovery now checks eligible new, retagged and restored native photographs without first naming a person. Imported archives remain opt-in. People shows scan coverage and progress, preserves Pause across reopening and reuses completed scans.
+- People review opens photographs independently of the current gallery page, with bounded candidate pages and ordinary previews. Recognition models and naming thresholds are unchanged; uncertain matches remain for review.
+- Cancel all stops unfinished jobs across the entire queue while keeping saved tags, face names and results.
+- Large source archive exports preserve full People undo history while staying within archive size limits. Existing archive formats remain compatible.
 
 This update replaces the application only. Your library, original photographs, saved tags and selected model folders are preserved. It introduces no automatic retagging or source-data migration.
 
@@ -27,10 +27,10 @@ Free to use. Apple silicon and macOS 14 or later are required; bundled Core ML r
 Installation and help: https://photofindry.com/docs/
 Feedback: https://photofindry.com/bugs
 &lt;/pre&gt;</description>
-      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.10/PhotoFindry-0.2.0-beta.10-arm64-update.zip" length="392877097" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="0N9+iIluecAfwBlVLNXa87yfwjpP4EA4qrGvYaMzVJTcEgHYh+E4eb/kWHPk5l/L0ddqWpkry2O8KosUlhEFBQ=="></enclosure>
+      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.11/PhotoFindry-0.2.0-beta.11-arm64-update.zip" length="392966478" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="93AT7pRu8GJJ1RUhzHxi+nE2BtGCboZQ3thhsJ10EdZ+ejsMx3WwVgIm+DUy/DxwrFipKv/IWEQx9O8ClgPpCA=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: dN68eCJaoBqvT2qAl8+rFVoSLVPBd1fB+uYhL6oZWFPNwLblU5Vj71YRtvhOpQCGCU5HZpH1+mtSX0O7mOI4Bg==
-length: 2871
+edSignature: KdDmZcNPqf3axC/40bRpHwTpZDBzvXYqbLXJWcVkeeC9Nawp2czJCc4PFIvAur8/sh73KSACfBDL0Q9yHXvqCg==
+length: 3021
 -->

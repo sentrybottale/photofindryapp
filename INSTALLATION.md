@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-Use the **DMG** on the [official release page](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.10).
+Use the **DMG** on the [official release page](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.11).
 The update ZIP is for PhotoFindry's updater. Verify the download using [the release verification instructions](VERIFY.md).
 
 1. Open the DMG and drag **PhotoFindry.app** to **Applications**.
@@ -35,7 +35,7 @@ cached copies, not original-photo backups. Keep independent backups of originals
 Use **Library Backup & Storage** for a library backup, or **Sources** for source
 archives. An exported source archive is a snapshot; export again after later edits.
 
-**Check for Updates…** is manual. Updates replace the app and bundled runtime;
+**Check for Updates…** remains available. From beta 11, automatic reminders are enabled on launch and about every six hours while running. Settings → App updates has a persistent opt-out. Download and installation require your choice. Earlier betas need one manual update to gain reminders. Updates replace the app and bundled runtime;
 customer databases, retained previews, originals and selected model paths are not
 installer targets. Keep a library backup before trying a beta update or downgrade.
 Only use a rollback version whose saved-data compatibility is confirmed in the

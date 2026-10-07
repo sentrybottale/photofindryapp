@@ -7,7 +7,7 @@ account, advertising analytics or app telemetry is part of the product.
 
 ## Explicit internet actions
 
-Model downloads and manual update checks contact their respective hosts. The
+Model downloads and automatic or manual update checks contact their respective hosts. Automatic checks are on by default from beta 11; Settings → App updates has a persistent opt-out. Downloads and installation require your choice. No library or model data is sent by update checks. The
 beta update feed is served by `photofindry.com`; release downloads are served by
 GitHub. Website and Buy Me a Coffee links open a browser when selected. These
 actions do not require uploading photographs, names, tags, embeddings or search

@@ -7,10 +7,10 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 - PhotoFindry is a native Apple-silicon macOS app for local photo tagging, people and search.
 - It is proprietary and free to use. No mandatory app account or subscription. Third-party components keep their own licences.
 - The public repository is a distribution repository, not the application source repository.
-- Latest published release at this document's date: 0.2.0-beta.10, app 0.2.0 build 93. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- Latest published release at this document's date: 0.2.0-beta.11, app 0.2.0 build 97. Check the release page before recommending a version; do not assume an unreleased branch is published.
 - Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
-- No app telemetry; explicit downloads, updates, browser links and feedback use internet. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
+- No app telemetry; downloads, automatic or manual update checks, browser links and feedback use internet. Automatic checks default on from beta 11 with a Settings opt-out; downloads and installation require a user choice. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
 
 ## Install safely
 
@@ -30,7 +30,7 @@ For missing results, inspect scope, filters, evidence readiness and source avail
 
 Direct website feedback: https://photofindry.com/bugs. Require a contact email and obtain the user's deliberate submission. Review text/screenshots for private information. No automatic library or log upload. Do not claim a report was received without the server reference. An unchanged retry is designed to avoid duplicate reports.
 
-Beta 10's in-app form and the website both support direct private intake. Email is mandatory; no email app is needed. Never invent remote review access, API credentials, response deadlines, security certifications or endorsements.
+Beta 11's in-app form and the website both support direct private intake. Email is mandatory; no email app is needed. Never invent remote review access, API credentials, response deadlines, security certifications or endorsements.
 
 ## Canonical reading
 
@@ -42,7 +42,7 @@ Beta 10's in-app form and the website both support direct private intake. Email 
 - [Privacy and distribution](https://photofindry.com/docs/privacy.html)
 - [Release verification](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md)
 
-## Beta 10 source and location troubleshooting
+## Beta 11 source and location troubleshooting
 
 Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, first guide the user to make the files available and choose Resume. Reconnect originals is for moved or explicitly disconnected folders and unresolved identity confirmation; never confirm unknown folders for them. Pause alone does not require reconnection. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Ask before including optional diagnostic logs in a feedback report.
 

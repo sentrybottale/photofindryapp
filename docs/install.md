@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free native macOS photo tagging and search app for Apple silicon. The current public release is **0.2.0-beta.10, build 93**. This guide was updated on 5 October 2026.
+PhotoFindry is a free native macOS photo tagging and search app for Apple silicon. The current public release is **0.2.0-beta.11, build 97**. This guide was updated on 7 October 2026.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ PhotoFindry is a free native macOS photo tagging and search app for Apple silico
 
 ## Official download
 
-Use the [official beta 10 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.10). The installer is [PhotoFindry-0.2.0-beta.10-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.10/PhotoFindry-0.2.0-beta.10-arm64-community-beta.dmg), 397,315,058 bytes (about 397 MB).
+Use the [official beta 11 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.11). The installer is [PhotoFindry-0.2.0-beta.11-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.11/PhotoFindry-0.2.0-beta.11-arm64-community-beta.dmg), 397,375,163 bytes (about 397 MB).
 
 The update ZIP is for the built-in updater. GitHub's automatic “Source code” archives contain distribution documentation, not the application. Do not install those archives.
 
@@ -27,7 +27,7 @@ The app is ad-hoc signed, with separate Ed25519 signatures for downloads and upd
 
 ## Update an existing installation
 
-Choose **PhotoFindry → Check for Updates…**. Checks are manual. The official feed is [photofindry.com/updates/beta/appcast.xml](https://photofindry.com/updates/beta/appcast.xml). The app authenticates the feed and update ZIP before installation and waits for work and saves to drain.
+Choose **PhotoFindry → Check for Updates…**. From beta 11, automatic update reminders are enabled by default on launch and about every six hours while the app runs. Settings → App updates has a persistent opt-out. Downloads and installation remain your choice. Earlier betas need one manual update to obtain reminders. The official feed is [photofindry.com/updates/beta/appcast.xml](https://photofindry.com/updates/beta/appcast.xml). The app authenticates the feed and update ZIP before installation and waits for work and saves to drain.
 
 An update replaces the application bundle, not your photo folders, library databases or selected model paths. Keep a library backup before testing a beta update. Use only a rollback version with documented data compatibility; never delete the library to fix an update problem.
 
