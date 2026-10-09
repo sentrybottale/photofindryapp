@@ -1,14 +1,14 @@
-# PhotoFindry 0.2.0 beta 11 (build 97)
+# PhotoFindry 0.2.0 beta 12 (build 107)
 
-- Automatic update reminders check for a compatible signed beta on launch and about every six hours while the app runs. Turn them off in Settings → App updates. Downloading and installing remain your choice. Earlier betas need one manual update to gain reminders.
-- Automatic face discovery now checks eligible new, retagged and restored native photographs without first naming a person. Imported archives remain opt-in. People shows scan coverage and progress, preserves Pause across reopening and reuses completed scans.
-- People review opens photographs independently of the current gallery page, with bounded candidate pages and ordinary previews. Recognition models and naming thresholds are unchanged; uncertain matches remain for review.
-- Cancel all stops unfinished jobs across the entire queue while keeping saved tags, face names and results.
-- Large source archive exports preserve full People undo history while staying within archive size limits. Existing archive formats remain compatible.
+- Photo queues continue across individual original-file failures while keeping unavailable targets for explicit retry. Decision review recovers from expired local connections and safely reuses its owned model between photos.
+- Photo detail review has independent model settings, an optional Intern-Decision 4B reviewer and experimental CLEF Flash support. Experimental answers are suggestions, not automatic changes to accepted facts or people names. Model weights remain separately downloaded or selected in your own folders.
+- Intern review includes corrected ternary scoring and an explicit low-memory trial. Actual 8 GB hardware qualification remains limited; memory protection still applies.
+- Improvement activity shows the current prepared photo, real progress and last committed review. The inspector shows the saved detail behind suggestions, and Recently improved orders by committed review time.
+- The model sidebar follows the actual loaded model and task. Activity reports measured usage across tagging, search and decision review, preserving session totals across model restarts. Unload pauses its model task and keeps work for Resume.
 
-This update replaces the application only. Your library, original photographs, saved tags and selected model folders are preserved. It introduces no automatic retagging or source-data migration.
+Updates replace the application bundle and preserve your library, originals, accepted tags, names and selected model paths. No automatic retagging or source-data cleanup is introduced.
 
-Free to use. Apple silicon and macOS 14 or later are required; bundled Core ML ranking requires macOS 15. This is an ad-hoc signed community beta, not Apple Developer ID signed or notarized.
+Free to use. Apple silicon and macOS 14 or later are required; bundled Core ML ranking requires macOS 15. This community beta uses ad-hoc bundle signatures and independently signed release/update artifacts. It is not Apple Developer ID signed or notarized.
 
 Installation and help: https://photofindry.com/docs/
 Feedback: https://photofindry.com/bugs

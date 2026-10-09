@@ -6,15 +6,16 @@ PhotoFindry is a native macOS app for local photo tagging, people and search.
 Browse your folders, find photographs from saved details, and choose local AI
 search when you need a closer look. Your originals stay in place.
 
-[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.11) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
+[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.12) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
 
-## Current beta: 0.2.0-beta.11
+## Current beta: 0.2.0-beta.12
 
-Beta 11 adds automatic update reminders with a persistent Settings opt-out,
-repairs automatic face discovery and off-page People review, adds Cancel all for
-the complete job queue, and fixes large source archive exports while preserving
-People undo history. Imported archives remain opt-in for face scanning. Saved
-results and original photographs are preserved; recognition thresholds are unchanged.
+Beta 12 improves queue continuation and local model recovery, adds independent
+photo-detail review choices and an explicit low-memory Intern trial, shows the
+saved evidence behind review suggestions, and follows actual loaded models with
+session-wide measured usage. Experimental review suggestions do not automatically
+change accepted tags or people names. Selected model files remain external.
+Saved work and original photographs are preserved.
 
 For **Apple-silicon Macs**. The application declares **macOS 14 or later**; current
 qualification was performed on macOS 27.0. Bundled Core ML semantic ranking
