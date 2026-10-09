@@ -20,7 +20,7 @@ All 435 payload entries were reviewed against beta 11. Seventeen added paths con
 
 A real Sparkle trial installed exact build 107 over an isolated beta-11 build-97 copy. All fifteen library files stayed unchanged during installation; all fourteen source-store checks matched after reopening the worker. Accepted evidence, a human-authored label and selected model settings survived. Fixture originals and the owner's installed application were unchanged.
 
-This is an external updater harness using loopback-only HTTP and real signed feed/archive bytes. It does not repeat a fresh-Mac installation, every negative-update case or earlier rollback coverage. Production UI save/drain gates have separate Swift tests. Live publication verification is recorded separately in update-verification.json.
+This is an external updater harness using loopback-only HTTP and real signed feed/archive bytes. It does not repeat a fresh-Mac installation, every negative-update case or earlier rollback coverage. Production UI save/drain gates have separate Swift tests. All twelve published assets were independently downloaded and matched the authenticated inventory. Pinned-key verification passed for the live HTTPS feed and downloaded update ZIP. The required website hook verified all 43 live files and preserved the appcast. The receipt is recorded in update-verification.json.
 
 ## Limits
 

@@ -8,7 +8,7 @@ Confirm the download is from the official GitHub release and verify its signed i
 
 ## No update appears
 
-Use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 11 is app version 0.2.0, build 97; the beta label is visible in the update notes. From beta 11, automatic update reminders are on by default; check Settings → App updates if you opted out. Earlier betas require one manual upgrade. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
+Use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 12 is app version 0.2.0, build 107; the beta label is visible in the update notes. From beta 11, automatic update reminders are on by default; check Settings → App updates if you opted out. Betas before beta 11 require one manual upgrade. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
 
 ## Model stopped, unavailable or insufficient memory
 
@@ -32,11 +32,11 @@ Send Feedback submits directly, without an email app. Keep the receipt for follo
 
 Read [privacy and distribution](https://photofindry.com/docs/privacy.html) for what is sent.
 
-For beta 11 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
+For beta 12 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
 
 ## Legacy saved-photo search error
 
-Beta 11 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
+Beta 12 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
 
 ## Tagging pauses after a drive reconnects
 
@@ -52,13 +52,13 @@ After reopening the app, jobs stay paused. Use **Resume** to retry a job at its 
 
 ## Empty or corrupt original files
 
-Beta 11 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
+Beta 12 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
 
 Failed tagging jobs appear in Queue with **Retry**. Read the final error before retrying. Retry applies to that selected job; unrelated source holds and schedules stay in place.
 
 ## People discovery and review
 
-Beta 11 automatically scans eligible new, retagged and restored native photographs without requiring an existing person name. Imported archives stay opt-in through Scan scope. Scanning reads originals and may download cloud-provider files; it does not retag photographs with an LLM. People shows coverage and activity. Pause survives reopening; Resume retains the scope and completed compatible scans are reused. Needs review can open photos beyond the current gallery page. Uncertain matches remain for review; recognition thresholds are unchanged.
+Beta 12 automatically scans eligible new, retagged and restored native photographs without requiring an existing person name. Imported archives stay opt-in through Scan scope. Scanning reads originals and may download cloud-provider files; it does not retag photographs with an LLM. People shows coverage and activity. Pause survives reopening; Resume retains the scope and completed compatible scans are reused. Needs review can open photos beyond the current gallery page. Uncertain matches remain for review; recognition thresholds are unchanged.
 
 ## Stop every queued job
 
@@ -66,4 +66,9 @@ Jobs & Activity → Cancel all cancels unfinished jobs across the complete queue
 
 ## Large source archive export
 
-Beta 11 fixes oversized People undo-history shards in large source exports. Export again using the same source; saved history, names and vectors are preserved. Source archives remain snapshots and exclude original photographs and vision model weights.
+Beta 12 fixes oversized People undo-history shards in large source exports. Export again using the same source; saved history, names and vectors are preserved. Source archives remain snapshots and exclude original photographs and vision model weights.
+
+
+## Review pauses or original-file failures
+
+Saved model settings remain valid when a model is stopped. Resume retained work after checking the model and available memory. An unavailable original remains pending for explicit retry; other eligible photo targets can continue. Reconnect its source when needed. Experimental review suggestions are not accepted facts, and repeating a model assessment is not independent proof.

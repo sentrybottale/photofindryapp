@@ -26,6 +26,14 @@ Single click selects a photograph. Command-click toggles selection; Shift-click 
 
 People lets you name confirmed reference faces and review uncertain matches. Confident qualified matches can inherit a user-confirmed name. Correct mistakes; a model appearance estimate is not a verified identity.
 
+## Photo detail review and model activity
+
+Settings → Photo detail review keeps review choices separate from the tagging model. The current model remains available. Optional Intern-Decision 4B and experimental CLEF Flash reviewers use separately selected local weights; downloads require an explicit action. CLEF Flash currently requires at least 24 GiB RAM. Intern normally requires 16 GiB and offers an explicit low-memory trial for 8 GiB Macs; broader 8 GiB hardware qualification remains pending.
+
+Experimental review answers remain suggestions. They do not automatically change accepted tags, people names or search evidence. The inspector shows the saved claim behind a suggestion and bounded review coverage. Review again can check eligible unanswered details. Recently improved uses the saved review time.
+
+The improvement strip shows the current prepared photograph, actual progress and the last committed review. The model sidebar follows the actual loaded model and task. Activity totals retain reported token usage across model restarts, with unavailable or incomplete measurements identified. Unload pauses that model's task and preserves pending work for Resume.
+
 ## Find help again
 
 The Help menu offers Getting Started and Privacy & Distribution. [Search](https://photofindry.com/docs/search.html), [sources and backups](https://photofindry.com/docs/sources-and-backups.html), and [troubleshooting](https://photofindry.com/docs/troubleshooting.html) explain the next steps.

@@ -14,7 +14,7 @@ The form at photofindry.com/bugs sends your required email, typed report and cho
 
 No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are private and accessible only to the PhotoFindry team. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
 
-In beta 11, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
+In beta 12, Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
 
 ## Website and app are distinct
 
@@ -30,7 +30,7 @@ The public [photofindryapp repository](https://github.com/sentrybottale/photofin
 
 ## Optional diagnostic attachment
 
-Beta 11 adds an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
+The app offers an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
 
 Opting in freezes the attachment for review. Refresh log captures a newer copy; unchecking removes it. Only Submit Feedback sends the reviewed attachment. Retries reuse that copy. Earlier sessions and historical disk logs are not collected. Diagnostic attachments stay with the private report and follow the same retention policy.
 
