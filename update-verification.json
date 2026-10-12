@@ -4,11 +4,11 @@
   "feedURL": "https://photofindry.com/updates/beta/appcast.xml",
   "publicKey": "G363x/YCT07qbJyyI5minQjp3v+6SEw9sB7dU3pL6cM=",
   "lastVerifiedRelease": {
-    "version": "0.2.0-beta.12",
-    "build": 107,
+    "version": "0.2.0-beta.13",
+    "build": 108,
     "feedSignatureVerified": true,
     "archiveSignatureVerified": true,
-    "feedSHA256": "7673608a3c377445cd0c8e901900a8c1a62acdf51b7370455174d420542ed64f",
+    "feedSHA256": "81dee784eebad46e6097fd2d4d4ecefc074fc0e43752ac8c8dcc5ce05788a9aa",
     "verifiedReleaseAssets": 12,
     "websiteVerifiedFiles": 43
   }

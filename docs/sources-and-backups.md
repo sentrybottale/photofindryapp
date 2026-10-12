@@ -24,14 +24,16 @@ Library cleanup is separate from original-file deletion. Review scope and warnin
 
 Routine app updates replace the app bundle. They do not target customer libraries, originals or model paths. [Installation and updates](https://photofindry.com/docs/install.html) explains the signed beta channel.
 
-## Reconnect first, enrich afterward
+## Review and confirm original locations
 
-After attaching a source from another Mac, open Sources, select it and choose the originals folder on this Mac. PhotoFindry checks locations first. If matching files need your confirmation, choose **Review folder match…**, verify that it is the same originals folder, then confirm. Matching names, sizes and dates alone are not proof of identical pixels. Uncertain files remain for review.
+After attaching a source from another Mac or remounting a drive, open Sources and choose the originals folder. **Review originals** checks locations, file sizes, modification dates and availability without reading every original's contents. If matching files need confirmation, review the folder match and confirm only the same originals collection. Names, sizes and dates are human-confirmed attributes, not a new comparison of photo bytes. Historical checksums remain saved; a current known byte mismatch cannot be overridden by folder confirmation.
 
-Confirmed local originals become openable without waiting for the camera and location scan. Sources shows connection progress and readiness separately from **Camera & location · background enrichment**. Pause or resume that scan independently. Tagging also collects camera metadata from the original it reads. Saved archive metadata remains available without rereading the whole drive.
+Full content comparison is a separate explicit action. Quick review and folder confirmation do not silently start a whole-folder camera and location scan. Start or resume **Camera & location** separately in Sources when wanted; tagging also collects metadata from the original it reads. Saved metadata stays usable while originals are offline.
 
-Cloud-only, missing and permission-blocked originals still require their respective resolution. Checking a source does not deliberately download known cloud placeholders. Previously unconfirmed photos are not silently approved by an app update.
+Cloud-only, missing and permission-blocked originals require their respective resolution. Source checks do not deliberately download known cloud placeholders. Previously unconfirmed photos are not silently approved by an app update.
 
 ## Recover a job waiting for originals
 
-Make the original drive or files available, then choose **Resume** on the affected job. Resume retries saved locations and can verify returning files against saved checksums. Choose **Reconnect originals…** for a moved folder, an explicit source disconnect, or identity confirmation. Only confirm a folder you recognize as the same originals collection. Successful verification continues the linked job; unrelated held jobs remain paused. **Continue with available photos** retains unavailable targets and survives ordinary Pause/Resume and app restart.
+Make the drive or files available, then choose **Resume** on the affected job. Resume retries saved targets without repeating a whole originals scan. When PhotoFindry asks for identity confirmation, use **Reconnect originals…** from the job, review the matching folder and confirm it. Confirmation continues the linked job while unrelated held jobs remain paused. A later Pause or Stop prevents automatic continuation.
+
+**Continue with available photos** keeps unavailable targets pending across ordinary Pause/Resume and app restart. After usable targets finish, explicit Resume retries the held originals. Saved tags are retained.

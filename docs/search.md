@@ -10,7 +10,7 @@ Check the current folder, status filters and metadata filters if a result seems 
 
 ## People descriptions
 
-Beta 12 understands ordinary wording such as **boy in purple** when the saved details support that person's apparent age, appearance and clothing. Existing compatible tags can be used without retagging. These are model appearance estimates, not verified identity, gender or exact age; uncertain descriptions may not support a match. Quoted terms keep their literal meaning.
+Beta 13 understands ordinary wording such as **boy in purple** when the saved details support that person's apparent age, appearance and clothing. Existing compatible tags can be used without retagging. These are model appearance estimates, not verified identity, gender or exact age; uncertain descriptions may not support a match. Quoted terms keep their literal meaning.
 
 New tagging preserves supported plain descriptions from your configured local model. Review saved details and correct mistakes rather than assuming every description is accurate.
 
@@ -28,10 +28,18 @@ If a search appears empty, first review filters and whether saved evidence is re
 
 ## Offline GPS and capture time
 
-Beta 12 can use recorded GPS coordinates for place and proximity searches, including Local AI Search. For example, search for Milan or combine a place with a time-of-day description. Nearby-city labels are approximate GeoNames labels, not exact addresses. No maps API or coordinate upload is used. A visual resemblance to Italy is not proof that a photo was taken there.
+Beta 13 can use recorded GPS coordinates for place and proximity searches, including Local AI Search. For example, search for Milan or combine a place with a time-of-day description. Nearby-city labels are approximate GeoNames labels, not exact addresses. No maps API or coordinate upload is used. A visual resemblance to Italy is not proof that a photo was taken there.
 
 Open a photograph's Camera & location section to see its saved metadata. In Sources, camera and location scanning is separate from confirming originals. Scan or resume the source there if GPS has not been read yet. Photos without recorded GPS cannot gain a verified location from this scan. Recorded capture time is used as stored; unknown time zones remain unknown. Metadata preferences control display and search indexing.
 
 ## Changing location during AI Search
 
-Beta 12 keeps Local AI Search active when you choose Ignore location, another place or another radius. The old search keeps its saved results; a fresh search uses the changed GPS constraints. Typing a different query returns to ordinary search until you explicitly choose Local AI Search again. A live saved checkpoint does not mean refinement is paused.
+Beta 13 keeps Local AI Search active when you choose Ignore location, another place or another radius. The old search keeps its saved results; a fresh search uses the changed GPS constraints. Typing a different query returns to ordinary search until you explicitly choose Local AI Search again. A live saved checkpoint does not mean refinement is paused.
+
+## Metadata filter suggestions
+
+Camera, lens and location filters suggest values already saved in the selected library scope. A camera family such as **x100** can match recorded X100S and X100F models despite case, spacing or punctuation differences. Lens model names and actual focal lengths are separate choices: **35 mm** does not match **135 mm** or imply a 35 mm-equivalent field of view. Suggestions do not start a model or read original photographs.
+
+## Photo-review evidence in search
+
+Current validated reviews can change the rebuildable search projection without rewriting accepted tags, human labels or review history. A contradicted or uncertain model claim no longer provides direct support. Supported follow-ups appear as labeled review suggestions, separate from factual AI citations and exclusion proof. Undo restores the previous projection. Appearance and age estimates remain uncertain observations rather than verified identity or exact age.
