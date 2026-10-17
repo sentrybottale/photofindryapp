@@ -33,6 +33,12 @@ jobs:
           - language: python
             runner: ubuntu-24.04
             build: none
+          - language: javascript-typescript
+            runner: ubuntu-24.04
+            build: none
+          - language: rust
+            runner: macos-15
+            build: manual
           - language: swift
             runner: macos-15
             build: manual
@@ -45,20 +51,57 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee
+      - if: matrix.language != 'rust' && matrix.language != 'javascript-typescript' || matrix.language == 'rust' && hashFiles('engine/companion/Cargo.toml') != '' || matrix.language == 'javascript-typescript' && hashFiles('web-companion/frontend/package-lock.json') != ''
+        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build }}
           queries: security-extended
       - if: matrix.language == 'swift'
-        run: swiftc verify-release.swift -o "$RUNNER_TEMP/verify-release"
-      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee
+        run: |
+          swiftc verify-release.swift -o "$RUNNER_TEMP/verify-release"
+          if test -f Package.swift; then
+            swift build --product PhotoFindryBrowserHost
+            bash scripts/build-companion-tools.sh
+          fi
+      - if: matrix.language == 'rust' && hashFiles('engine/companion/Cargo.toml') != ''
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo +1.98.1 build --locked --manifest-path engine/Cargo.toml
+      - if: matrix.language != 'rust' && matrix.language != 'javascript-typescript' || matrix.language == 'rust' && hashFiles('engine/companion/Cargo.toml') != '' || matrix.language == 'javascript-typescript' && hashFiles('web-companion/frontend/package-lock.json') != ''
+        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee
         with:
           category: /language:${{ matrix.language }}
+  client:
+    name: Client checks
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - if: hashFiles('web-companion/frontend/package-lock.json') != ''
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Qualify client only when its source is published
+        run: |
+          if test ! -f web-companion/frontend/package-lock.json; then
+            echo 'Client source is not published. No client build qualification is claimed by this run.'
+            exit 0
+          fi
+          (cd web-companion/frontend && npm ci --ignore-scripts --no-audit --no-fund && npm test && npm run check)
+          python3 scripts/verify-web-frontend.py
+          node --test tests/*.test.js
+          swift test
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo +1.98.1 test --locked --manifest-path engine/Cargo.toml
   required:
     name: Security checks
     if: always()
-    needs: [distribution, analyze]
+    needs: [distribution, analyze, client]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -66,4 +109,5 @@ jobs:
         env:
           BOUNDARY: ${{ needs.distribution.result }}
           ANALYSIS: ${{ needs.analyze.result }}
-        run: test "$BOUNDARY" = success && test "$ANALYSIS" = success
+          CLIENT: ${{ needs.client.result }}
+        run: test "$BOUNDARY" = success && test "$ANALYSIS" = success && test "$CLIENT" = success

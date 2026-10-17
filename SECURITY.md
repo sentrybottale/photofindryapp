@@ -12,8 +12,9 @@ push. Failed, cancelled or missing analysis blocks merging. These are automated
 security checks, not a claim that a human or Codex review has completed.
 
 The unpublished client and proprietary core implementation have separate review
-and release gates. Before adding the client, extend required analysis/build checks
-to its JavaScript and Rust sources and run its full client qualification. A
+and release gates. JavaScript/Rust analysis and full client builds/tests activate automatically
+when the held client source is added; their absent-source steps make no client
+qualification claim. A
 passing documentation-only probe does not qualify unseen client or engine code.
 Production releases additionally require completed exact-candidate review,
 independently authenticated artifacts and migration/update/rollback evidence.
