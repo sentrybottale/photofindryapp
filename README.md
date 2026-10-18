@@ -1,91 +1,48 @@
 # PhotoFindry
 
-**Find the photo you remember. Keep your library on your Mac.**
+**Your photographs, rediscovered. Local processing on your Mac.**
 
-PhotoFindry is a native macOS app for local photo tagging, people and search.
-Browse your folders, find photographs from saved details, and choose local AI
-search when you need a closer look. Your originals stay in place.
+The browser rewrite pairs a native macOS launcher and local companion with a
+Svelte interface. Open [app.photofindry.com](https://app.photofindry.com) to launch
+the installed workspace. The public site receives no library access; photos,
+models, tagging, people and search stay on your Mac.
 
-[Download the beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.13) · [Installation](INSTALLATION.md) · [Website](https://photofindry.com)
+The [client source](client/) is MIT licensed. It includes the browser UI, native
+launcher, generic Rust companion bridge and selected macOS interaction helpers.
+The Rust engine cores remain proprietary, supplied in official builds. Rust is a
+language, not the licensing boundary. Official builds remain free to use.
 
-## Current beta: 0.2.0-beta.13
+## Release status
 
-Beta 13 adds lightweight original-location review and direct folder confirmation,
-metadata filter suggestions, and more reliable tagging after reconnecting sources.
-Validated photo-review outcomes refine search while preserving accepted tags,
-human labels and review history. Apparent-age retrieval and interrupted cleanup
-recovery also improve. Selected model files remain external, and original
-photographs and saved work are preserved.
+The browser release is being prepared as **0.2.0-beta.14**. Until its verified
+assets and signed feed are published, the existing download remains
+[beta 13](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.13).
+Do not mistake this source publication for a newly available installer.
 
-For **Apple-silicon Macs**. The application declares **macOS 14 or later**; current
-qualification was performed on macOS 27.0. Bundled Core ML semantic ranking
-requires macOS 15 or later. See [qualification and limitations](QUALIFICATION.md)
-for the tested scope. This is early software: begin with a small photo folder and
-keep independent backups of your originals and saved library work.
+The client directory is the exact reviewed snapshot associated with the release
+candidate. Its 132 files plus CLIENT-SOURCE.json match the signed source archive.
+This root page records publication status. The private development history and engine sources
+are not part of this repository. Source changes require fresh inventory review.
 
-- **Local processing.** Tagging, faces and search inference run on your Mac.
-- **Your models, your folders.** Select a supported vision GGUF and matching projector
-  from any folder. Search and face models are bundled; optional downloads are explicit.
-- **Saved work stays yours.** Browse, read and export your tags, names and evidence.
-- **Free to use.** Personal and business use, with no mandatory PhotoFindry account,
-  subscription or feature gates.
-- **Updates when you choose.** Automatic reminders can be disabled in Settings; download and installation remain your choice. **Check for Updates…** remains available. Signed updates replace
-  the app bundle while preserving the library, originals and chosen model paths.
+## Build and contribute
 
-Internet is needed for downloads, automatic or manual update checks, opened web links and
-voluntary feedback delivery.
-The app has no advertising analytics or app telemetry. Read the complete
-[privacy explanation](PRIVACY.md); local processing is not a claim of an OS network sandbox.
+Start with [client build instructions](client/README.md); commands run inside
+`client/`. Official engine binaries are separate dependencies. A source-only build
+does not include them or become an authenticated official installation.
 
-## Direct distribution
+Required CI builds/tests the actual client and scans Actions, Python, Swift,
+JavaScript and Rust. Main requires completed build, source-boundary and security checks. The owner
+controls publication; there is no mandatory second-person approval. See [security reporting](SECURITY.md), [client trust boundaries](client/SECURITY.md),
+[transparency](client/TRANSPARENCY.md) and [download verification](VERIFY.md).
 
-PhotoFindry is distributed through GitHub Releases. This beta uses ad-hoc macOS
-bundle signatures and independently signed download/update artifacts. It is
-**not Apple Developer ID signed or notarized**, and is outside the Mac App Store.
-This keeps the first beta on the selected direct-distribution path; it does not
-replace Apple's review or establish a security guarantee. Follow the per-app
-installation instructions instead of disabling macOS protections globally.
+Existing native-app users keep their library, original photographs and selected
+model paths. Browser migration offers a verified recovery copy and a Use current
+beta alternative. Imported sources may need their originals folder confirmed on
+the current Mac. Never restore an older library just to switch interfaces.
 
-PhotoFindry and its engine are proprietary and free to use under the [licence](LICENSE).
-This public repository holds official binary releases and documentation. Application
-source and development history remain private. Third-party licences and notices
-are included in the app.
+Apple-silicon Mac, macOS 14 or newer; Core ML semantic ranking needs macOS 15.
+Community betas use ad-hoc application signatures and independently signed
+artifacts. They are not Apple Developer ID signed or notarized.
 
-GitHub's automatic **Source code (zip)** and **Source code (tar.gz)** links contain
-this release repository's documentation and verification files, not the application
-source. Install the named PhotoFindry DMG asset. App-source security reviews require
-access to the separate private development repository; scanning this public
-repository does not establish that the app has passed a security scan.
-
-## Help shape the beta
-
-Report bugs or suggestions privately at [photofindry.com/bugs](https://photofindry.com/bugs).
-Email is required for follow-up. Describe what happened, where, and optionally add
-steps and screenshots. A successful submission returns a report reference.
-Reports and screenshots are private and accessible only to the PhotoFindry team.
-Remove private details from screenshots before sharing. No logs or library records
-are attached automatically.
-
-Send Feedback in the toolbar or Help menu submits directly to the
-private tracker, without an email app. Failed submissions preserve the draft;
-retrying an unchanged report avoids duplicates. Keep the returned reference. The form also
-offers an unchecked optional diagnostic attachment. Review its contents before submitting.
-
-## Guides for people and AI assistants
-
-- [Install and update](docs/install.md)
-- [Getting started](docs/getting-started.md)
-- [Search and Local AI Search](docs/search.md)
-- [Sources, previews and backups](docs/sources-and-backups.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Privacy and distribution](docs/privacy.md)
-- [AI assistant guide](docs/agents.md)
-
-Read the [website guides](https://photofindry.com/docs/), [llms.txt](llms.txt) or
-[combined plain-text guide](llms-full.txt). These are public usage instructions;
-application and engine implementation remain private.
-
-If PhotoFindry helps you find something worth remembering, you can
-[buy us a coffee](https://buymeacoffee.com/photorecall). ☕ Completely optional.
-
-[Verify a download](VERIFY.md) · [Qualification](QUALIFICATION.md) · [Privacy](PRIVACY.md)
+[Website](https://photofindry.com) · [Private feedback](https://photofindry.com/bugs) ·
+[Optional support](https://buymeacoffee.com/photorecall)

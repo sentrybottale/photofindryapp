@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "framework": {
+    "name": "svelte",
+    "version": "5.57.2"
+  },
+  "sourceSha256": "29c5b0c9557c44944c6278972d51bb9a5ce3ea9f29be35bac9fc3ec410859f16",
+  "runtimeDependencies": [
+    {
+      "name": "clsx",
+      "version": "2.1.1",
+      "license": "MIT"
+    },
+    {
+      "name": "esm-env",
+      "version": "1.2.2",
+      "license": "MIT"
+    },
+    {
+      "name": "svelte",
+      "version": "5.57.2",
+      "license": "MIT"
+    }
+  ],
+  "assets": {
+    "ui-framework.js": {
+      "bytes": 97641,
+      "sha256": "7574cd6619bd08adda20cc1bc682de1c9c2804e388db0f932a732f94228a3f73"
+    },
+    "ui-framework.css": {
+      "bytes": 57,
+      "sha256": "5cef6b88d061d789edd01a860ba773c6c6f248d33c6d44b755002088df5d865e"
+    },
+    "ui-framework.NOTICES.txt": {
+      "bytes": 3532,
+      "sha256": "12d28004687edaab8479b4666d3186ac535a8b824d1b209bed673169f0481bae"
+    }
+  }
+}

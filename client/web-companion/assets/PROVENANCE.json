@@ -1,0 +1,20 @@
+{
+  "generator": "Built-in image_gen",
+  "date": "2026-10-16",
+  "purpose": "Decorative pending-photo placeholders; no inference about photo content.",
+  "delivery": "512px JPEG export; original PNG masters retained in generated_images.",
+  "assets": [
+    {
+      "path": "untagged-landscape.jpg",
+      "prompt": "Use case: stylized-concept. Create one finished square decorative empty-photo placeholder illustration for PhotoFindry's pale LCD / quiet editorial photo library. High level abstract open-landscape scene: overlapping low stepped horizon bands, a flat circular disc, subtle grid aligned rhythm, no specific place or identifiable subject. Flat muted sage, warm ivory, pale stone and restrained deep navy. Crisp blocky paper-cut shapes with very light printed paper texture, generous negative space, understated sophisticated graphic composition legible as a 160px thumbnail. No gradient, no photography, no camera icon, no people, no letters or words, no border, no mockup. Edge-to-edge square raster art. This is clearly decorative, never a depiction of the user's photograph."
+    },
+    {
+      "path": "untagged-spaces.jpg",
+      "prompt": "Use case: stylized-concept. Create one finished square decorative empty-photo placeholder illustration for PhotoFindry's pale LCD / quiet editorial photo library. High level abstract built-space scene: a few rectangular planes, arch-like negative space and oblique shadow shapes suggesting space and light without showing a recognizable building or place. Flat muted sage, warm ivory, pale stone and restrained deep navy. Crisp blocky paper-cut shapes with very light printed paper texture, generous negative space, understated sophisticated graphic composition legible as a 160px thumbnail. No gradient, no photography, no camera icon, no people, no letters or words, no border, no mockup. Edge-to-edge square raster art. Clearly decorative, not a depiction of a user's photo."
+    },
+    {
+      "path": "untagged-shapes.jpg",
+      "prompt": "Use case: stylized-concept. Create one finished square decorative empty-photo placeholder illustration for PhotoFindry's pale LCD / quiet editorial photo library. High level abstract everyday still-life rhythm: a few soft discs, stepped shapes and offset overlapping blocks on a simple tabletop-like horizontal plane, no identifiable objects, people or family scene. Flat muted sage, warm ivory, pale stone and restrained deep navy. Crisp blocky paper-cut shapes with very light printed paper texture, generous negative space, understated sophisticated graphic composition legible as a 160px thumbnail. No gradient, no photography, no camera icon, no letters or words, no border, no mockup. Edge-to-edge square raster art. Clearly decorative, not a depiction of a user's photo."
+    }
+  ]
+}

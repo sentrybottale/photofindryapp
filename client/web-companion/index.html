@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>PhotoFindry · Local library</title>
+    <link rel="icon" href="/brand.png" type="image/png">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/workspace.css">
+    <link rel="stylesheet" href="/panels.css">
+    <link rel="stylesheet" href="/model-monitor.css">
+    <link rel="stylesheet" href="/onboarding.css">
+    <link rel="stylesheet" href="/ui-framework.css">
+    <link rel="stylesheet" href="/design-system.css">
+    <link rel="stylesheet" href="/photo-presentation.css">
+    <link rel="stylesheet" href="/product-theme.css">
+    <script src="/ui-framework.js" defer></script>
+    <script src="/app.js" defer></script>
+    <script src="/workspace.js" defer></script>
+    <script src="/panels.js" defer></script>
+    <script src="/model-monitor.js" defer></script>
+    <script src="/onboarding.js" defer></script>
+    <script src="/support.js" defer></script>
+  </head>
+  <body>
+    <div id="photofindry-root">
+    <section id="pair-screen" class="pair-screen" aria-labelledby="pair-title">
+      <div class="pair-card">
+        <img class="pair-brand" src="/brand.png" alt="" width="80" height="80">
+        <div class="eyebrow">PHOTOFINDRY / LOCAL COMPANION</div>
+        <h1 id="pair-title">Your library.<br>Right here on your Mac.</h1>
+        <p class="pair-intro">Open your installed PhotoFindry to return to this library.</p>
+        <a class="primary-button local-open-link" href="photofindry-local://open">Open PhotoFindry <span aria-hidden="true">→</span></a>
+        <p class="field-help">Using a terminal launch? Connect below with its one-time code.</p>
+        <form id="pair-form">
+          <label for="pair-code">One-time pairing code</label>
+          <input id="pair-code" name="pair-code" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste the code from your terminal" required maxlength="256" aria-describedby="pair-help pair-error">
+          <p id="pair-help" class="field-help">Need a fresh code? Type <code>pair</code> in the running companion’s terminal.</p>
+          <p id="pair-error" class="error-text" role="alert" hidden></p>
+          <button id="pair-submit" class="primary-button" type="submit">Open local library <span aria-hidden="true">→</span></button>
+        </form>
+        <div class="pair-note"><span class="local-dot" aria-hidden="true"></span><p>This interface is served by your installed companion. No website connection is needed.</p></div>
+      </div>
+      <p class="pair-footnote">macOS development branch <span aria-hidden="true">·</span> Your local PhotoFindry engine</p>
+      <noscript>This local interface needs JavaScript enabled in your browser.</noscript>
+    </section>
+
+    <div id="app" class="app" hidden>
+      <header class="app-header">
+        <div class="brand"><img src="/brand.png" alt="" width="38" height="38"><span>PhotoFindry</span><span class="experiment-label">LOCAL PREVIEW</span></div>
+        <div class="connection-actions"><span id="connection-status" class="connection-badge"><span class="local-dot" aria-hidden="true"></span>Connected to this Mac</span><button id="disconnect" class="text-button" type="button" title="Disconnect all browsers from this running companion">Disconnect browsers</button><button id="quit-companion" class="text-button" type="button">Quit PhotoFindry</button></div>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar" aria-label="Library navigation">
+          <div class="sidebar-label">YOUR LIBRARY</div>
+          <button id="library-nav" class="nav-item active" type="button" aria-current="page"><span class="grid-icon" aria-hidden="true">▦</span><span>All photos</span></button>
+          <div id="workspace-navigation" class="workspace-navigation"></div>
+          <section class="sidebar-model-section" aria-label="Local model activity"><button id="open-model-monitor" class="pfm-sidebar-card" type="button" aria-label="Model activity" aria-haspopup="dialog" aria-expanded="false"><span class="pfm-sidebar-heading"><span class="pfm-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>Model activity</strong><span class="pfm-info" aria-hidden="true">ⓘ</span></span><span id="sidebar-model-status" class="pfm-sidebar-status">Reading model settings…</span></button><p class="sidebar-local-note">Models and photographs stay on this Mac.</p></section>
+        </aside>
+
+        <main class="library" aria-labelledby="library-title">
+          <div class="library-heading"><div><div class="eyebrow">A LITTLE LESS LOOKING. A LITTLE MORE FINDING.</div><h1 id="library-title">Your photos</h1></div><div class="library-actions"><button id="add-folder" class="secondary-button" type="button">Add folder</button><button id="tag-pending" class="primary-button" type="button">Tag pending</button><button id="refresh" class="secondary-button" type="button" title="Reload saved library">Refresh</button></div></div>
+          <section id="onboarding" class="onboarding" hidden></section>
+          <section id="job-strip" class="job-strip" aria-label="Current activity" hidden></section>
+          <form id="search-form" class="search-form" role="search">
+            <span class="search-symbol" aria-hidden="true"></span>
+            <label for="search" class="visually-hidden">Search saved photo details</label>
+            <input id="search" type="search" autocomplete="off" spellcheck="false" placeholder="Search saved details or filenames…" maxlength="1000">
+            <button class="search-submit" type="submit">Search</button>
+            <button id="ai-search" class="ai-search-button" type="button">Local AI Search</button>
+          </form>
+          <p id="search-help" class="search-help">Searches saved library evidence. No model is started.</p>
+          <div id="library-filters" class="library-filters"></div>
+          <div id="ai-results-controls" class="ai-results-controls" hidden></div>
+          <div id="selection-actions" class="selection-actions" hidden></div>
+          <div class="results-toolbar"><p id="result-count" class="result-count" role="status" aria-live="polite"></p><span id="selection-count" class="selection-count"></span></div>
+          <div id="query-notice" class="notice" hidden></div>
+          <div id="library-error" class="error-panel" role="alert" hidden><p id="library-error-text"></p><button id="retry-library" class="secondary-button" type="button">Try again</button></div>
+          <div id="empty-state" class="empty-state" hidden><div class="empty-icon" aria-hidden="true">▦</div><h2 id="empty-title"></h2><p id="empty-description"></p><button id="clear-search" class="secondary-button" type="button" hidden>Clear search</button><button id="clear-filters" class="secondary-button" type="button" hidden>Clear filters</button><div id="empty-actions" class="button-row" hidden><button id="empty-add-folder" class="primary-button" type="button">Add photo folder</button><button id="empty-restore" class="secondary-button" type="button">Import library backup</button><button id="empty-sources" class="secondary-button" type="button">Check Files</button></div></div>
+          <div id="loading-state" class="loading-state" hidden><span class="loading-dots" aria-hidden="true">▪ ▪ ▪</span><p>Reading your local library…</p></div>
+          <div id="gallery" class="gallery" role="listbox" aria-label="Photos on this page" aria-multiselectable="true" tabindex="0"></div>
+          <footer class="gallery-footer"><span class="keyboard-hint">Click to select <span aria-hidden="true">·</span> Space to preview</span><nav class="pagination" aria-label="Gallery pages"><button id="previous-page" class="page-button" type="button" aria-label="Previous page">←</button><span id="page-label"></span><button id="next-page" class="page-button" type="button" aria-label="Next page">→</button></nav></footer>
+        </main>
+
+        <aside id="inspector" class="inspector" aria-label="Saved photo details">
+          <div class="inspector-heading"><h2>Photo details</h2><button id="clear-selection" class="icon-button" type="button" aria-label="Clear selection" hidden>×</button></div>
+          <div id="inspector-content" class="inspector-content"><div class="inspector-empty"><span aria-hidden="true">⌗</span><h3>A closer look</h3><p>Select a photo to see its complete saved details.</p></div></div>
+        </aside>
+      </div>
+      <footer class="app-footer"><span><span class="local-dot" aria-hidden="true"></span> Local interface · Local library</span><span>macOS development branch</span></footer>
+      <div id="global-notice" class="global-notice" role="status" hidden></div>
+      <div id="global-error" class="global-error" role="alert" hidden></div>
+    </div>
+
+    <dialog id="preview-dialog" class="preview-dialog" aria-labelledby="preview-title">
+      <div class="preview-toolbar">
+        <div class="preview-navigation"><button id="preview-previous" type="button" aria-label="Previous photograph">←</button><button id="preview-next" type="button" aria-label="Next photograph">→</button><button id="preview-back" type="button" hidden>Full photo</button><span id="preview-position" aria-live="polite"></span></div>
+        <h2 id="preview-title">Photo preview</h2>
+        <div class="preview-zoom"><button id="preview-zoom-out" type="button" aria-label="Zoom out">−</button><button id="preview-zoom-fit" type="button">Fit</button><button id="preview-zoom-in" type="button" aria-label="Zoom in">+</button><span id="preview-zoom-level" aria-live="polite">Fit</span></div>
+        <button id="close-preview" class="icon-button" type="button" aria-label="Close preview">×</button>
+      </div>
+      <div class="preview-body"><div id="preview-content" class="preview-content"></div><aside id="preview-details" class="preview-details" aria-label="Complete saved photograph details"></aside></div>
+      <p class="preview-footnote">Saved preview · Your original is unchanged</p>
+    </dialog>
+    </div>
+  </body>
+</html>

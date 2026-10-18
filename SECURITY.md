@@ -11,14 +11,22 @@ repository's Actions, Python gate code and Swift verifier on PR creation and eve
 push. Failed, cancelled or missing analysis blocks merging. These are automated
 security checks, not a claim that a human or Codex review has completed.
 
-The unpublished client and proprietary core implementation have separate review
-and release gates. JavaScript/Rust analysis and full client builds/tests activate automatically
-when the held client source is added; their absent-source steps make no client
-qualification claim. A
-passing documentation-only probe does not qualify unseen client or engine code.
+The client and proprietary core implementation have separate review and release
+gates. JavaScript/Rust analysis and full client builds/tests run against the
+reviewed snapshot under client/. A passing source check does not qualify unseen
+engine code.
 Production releases additionally require completed exact-candidate review,
 independently authenticated artifacts and migration/update/rollback evidence.
 
 Workflow and policy changes need explicit maintainer review. Fork/Dependabot jobs
 use the same read-only checkout path; no pull_request_target job executes PR code.
 No workflow publishes a release, changes the update feed or deploys a website.
+
+The open client lives in `client/`; its inventory binds the exact reviewed source
+bytes. Public CI now builds/tests this actual source and analyzes its languages.
+Its engine dependencies remain proprietary and separate. See client/SECURITY.md
+for website-compromise, local session and update trust boundaries. Source changes
+need inventory review and exact-head security review before release.
+
+The owner does not require a second-person approver. Required CI, source-boundary
+and CodeQL checks remain enforced for current PR heads, including admins.
