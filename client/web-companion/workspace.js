@@ -175,26 +175,46 @@
     body.append(el('p', 'dialog-intro', 'This browser workspace is bundled into the installed macOS companion. The website cannot replace its code or receive its local session. Library databases, original photographs and model files stay on this Mac.'), el('p', 'dialog-intro', 'The background companion starts at login and checks for signed updates. Manage startup, updates and recovery below. The one-time migration application is no longer needed. Updates preserve your library and chosen model paths. Community betas are not Apple-notarized.'), el('p', 'dialog-intro', 'PhotoFindry is free to use, with an MIT open-source client and proprietary local engines. Third-party licences and notices are retained with the installed runtime. Your photos, human labels and saved details remain portable through backups and source archives.'), button('Privacy & distribution', openPrivacy), button('Optional Buy Me a Coffee support', () => window.PhotoFindrySupport?.open()), button('Uninstall companion…', openUninstall), lifecycleControls());
   }
   function lifecycleControls() {
-    const panel = section('Background companion', 'PhotoFindry runs locally without keeping the migration application open.');
+    const panel = section('Background companion', 'PhotoFindry runs locally without keeping the migration application open. Save pending edits before installing or switching versions.');
     const message = el('p', 'settings-live', 'Checking this installation…');
     message.setAttribute('role', 'status');
     const controls = el('div', 'button-row');
     const reopen = el('a', 'secondary-button', 'Open PhotoFindry'); reopen.href = 'photofindry-local://open';
     const refresh = button('Refresh status', load);
     let pending = false;
+    const controller = new AbortController();
+    const visible = () => panel.isConnected && panel.closest('dialog')?.open !== false;
+    queueMicrotask(() => panel.closest('dialog')?.addEventListener('close', () => controller.abort(), { once: true }));
     async function act(action) {
       if (pending) return;
       pending = true;
+      const restarting = ['update', 'rollback', 'recover'].includes(action);
       try {
-        await P.api('/api/lifecycle/action', { action });
-        message.textContent = ['update', 'rollback', 'recover'].includes(action)
-          ? 'The companion is finishing saved work and restarting. When this connection closes, choose Open PhotoFindry to return. Your library stays in place. If it cannot start, the previous version is restored automatically.'
-          : 'The request has started. Choose Refresh status in a moment to see the result.';
+        await P.api('/api/lifecycle/action', { action }, { signal: controller.signal });
+        message.textContent = restarting
+          ? 'Finishing saved work and restarting the companion. Your library stays in place. The new workspace opens automatically after an update; Open PhotoFindry below is also available.'
+          : 'Working… This panel will show the result automatically.';
+        const deadline = Date.now() + 660000;
+        while (visible() && Date.now() < deadline) {
+          let value;
+          try { value = await P.api('/api/lifecycle/status', {}, { signal: controller.signal }); }
+          catch (error) {
+            if (error?.name === 'AbortError' || !visible()) return;
+            if (!restarting) throw error;
+            message.textContent = 'The companion connection closed for the change. Use Open PhotoFindry below to return; its local helper offers recovery if needed. Your saved library is kept.';
+            return;
+          }
+          if (!visible()) return;
+          message.textContent = str(value.status?.message) || 'Waiting for the companion operation to finish…';
+          if (['ready', 'available', 'error', 'uninstalled'].includes(value.status?.phase)) { await load(); return; }
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+        if (visible()) message.textContent = 'The operation is taking longer than expected. Choose Refresh status to check it, or Open PhotoFindry for local recovery. Your library is kept.';
       } finally { pending = false; }
     }
     async function load() {
-      const value = await P.api('/api/lifecycle/status', {});
-      if (!panel.isConnected) return;
+      const value = await P.api('/api/lifecycle/status', {}, { signal: controller.signal });
+      if (!visible()) return;
       controls.replaceChildren();
       if (!value?.installed) { message.textContent = str(value?.message) || 'Open the latest verified installer once to enable background startup and signed CLI updates.'; return; }
       message.textContent = `Version ${str(value.version)} · build ${num(value.build)}. ${str(value.status?.message)}`;

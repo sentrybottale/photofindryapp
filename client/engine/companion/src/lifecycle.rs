@@ -229,7 +229,7 @@ fn plist(root: &Path, cfg: &Installation, operation: Option<&str>) -> Result<Vec
         "--install-root".into(),
         root.to_string_lossy().into_owned(),
     ];
-    if operation == Some("update") {
+    if matches!(operation, Some("update" | "rollback")) {
         args.push("--open-after".into());
     }
     let label = format!(
@@ -1341,7 +1341,19 @@ pub async fn command(args: &[String]) -> Result<()> {
     }
     if operation == "recover" {
         recover(&root, true).await?;
+        let _owner = launch::private_directory(&root, false)?;
+        let _operation=launch::try_lock(&root,"operation.lock")?.ok_or("Another companion operation is still running. Wait, then choose Recover and open again.")?;
         let cfg = read_state(&root)?;
+        checked_release(&root, cfg.current, &verifier(&self_executable()?)?)?;
+        let _state_owner = launch::private_directory(&cfg.launch_state, true)?;
+        launch::ensure_available(&cfg.launch_state)?;
+        let guard = launch::LifecycleGuard::acquire(&cfg.launch_state)?;
+        match launch::read_registration(&cfg.launch_state){
+            Ok(record) if record.executable==executable(&root,cfg.current)&&record.data_dir==cfg.data=>{},
+            Ok(_)=>return Err("Another library or companion owns the local registration. Open its workspace before changing installations.".into()),
+            Err(_)=>{publish_registration(&root,&cfg,Some(&guard))?;}
+        }
+        drop(guard);
         start_agent(&root, &cfg, false).await?;
         health(&cfg).await?;
         register_links(&root, &cfg).await?;
