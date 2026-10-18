@@ -41,6 +41,8 @@ received focused worker, native and browser recovery tests.
 - Consent recovery checks: 102 focused worker tests, 11 native source tests and
   96 browser/panel/parity checks passed. Permission holds keep accepted records
   and pending targets; Jobs exposes Open Files and explicit Retry access.
+  A further 46 queue tests and an execution retry regression verify that metadata
+  checks cannot release a permission hold before that explicit retry.
 
 The exact 136-file MIT client snapshot plus CLIENT-SOURCE.json excludes private
 engine source and repository history. Two new payload paths are the MIT native
