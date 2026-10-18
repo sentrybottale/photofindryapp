@@ -46,8 +46,9 @@ engine source, inference recipes or model weights. `CLIENT-SOURCE.json` binds it
 exact file bytes. Its hashes detect changes; authenticate the signed release
 inventory with an independently trusted publisher key before trusting a download.
 
-This staged source is an unpublished release candidate. Public download, engine
-redistribution and update-feed promotion remain separate release decisions.
+This source snapshot is separate from the official signed application download.
+Consult the distribution repository’s release page for published builds. Source
+availability does not grant redistribution rights to the proprietary engines.
 
 ## Contributions
 

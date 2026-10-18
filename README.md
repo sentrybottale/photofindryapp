@@ -21,8 +21,7 @@ Do not mistake this source publication for a newly available installer.
 
 The client directory is the exact reviewed snapshot associated with the release
 candidate. Its 132 files plus CLIENT-SOURCE.json match the signed source archive.
-Its historical README describes the candidate staging state; this root page
-records publication status. The private development history and engine sources
+This root page records publication status. The private development history and engine sources
 are not part of this repository. Source changes require fresh inventory review.
 
 ## Build and contribute
@@ -32,8 +31,8 @@ Start with [client build instructions](client/README.md); commands run inside
 does not include them or become an authenticated official installation.
 
 Required CI builds/tests the actual client and scans Actions, Python, Swift,
-JavaScript and Rust. Main requires fresh independent review as well as completed
-checks. See [security reporting](SECURITY.md), [client trust boundaries](client/SECURITY.md),
+JavaScript and Rust. Main requires completed build, source-boundary and security checks. The owner
+controls publication; there is no mandatory second-person approval. See [security reporting](SECURITY.md), [client trust boundaries](client/SECURITY.md),
 [transparency](client/TRANSPARENCY.md) and [download verification](VERIFY.md).
 
 Existing native-app users keep their library, original photographs and selected

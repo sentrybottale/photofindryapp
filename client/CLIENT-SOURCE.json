@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "b8ccc5bd1c74652b55cfddf6bdafe0d1786eaa832b428055163ddcd470c1f513",
+  "exportManifestSHA256": "12b618049644085b2db94e14d264526071e2b7fe08070aa84305fbaa1afb0458",
   "files": [
     {
       "bytes": 1182,
@@ -22,9 +22,9 @@
       "sha256": "7a102922db2d04dfe9bc557f1f0442434f53dc4f105fe9ffb7e2564df9342bbc"
     },
     {
-      "bytes": 3118,
+      "bytes": 3202,
       "path": "README.md",
-      "sha256": "3f6e8e2764ddd02ac609acd24269a496778fbddf4faa384d046c34c7050404f6"
+      "sha256": "7738246aa1a8620385363bdd80e01e390fc5e62efc3400f15b7af1f87a20e0f5"
     },
     {
       "bytes": 72487,
@@ -34,7 +34,7 @@
     {
       "bytes": 1637,
       "path": "Resources/BrowserHostInfo.plist",
-      "sha256": "387c86cd62744b4e60b20967049fcd80faf3495ce2617836c2ad2c06cdf992bf"
+      "sha256": "56c3da7572f3e9e42b9b73793453c40387ff324fef3490bad2d87244c4233708"
     },
     {
       "bytes": 58657,
@@ -49,7 +49,7 @@
     {
       "bytes": 1471,
       "path": "Resources/Info.plist",
-      "sha256": "da449d1d4ce556a6f4631f494dd0cb7f55244e2f33a86b5d48d26bb014acd703"
+      "sha256": "b4d9bd6c0aed45e48e418eee86472ec91a6064c7e5103ae301e05b4b3a5556c3"
     },
     {
       "bytes": 2536,
@@ -657,13 +657,13 @@
       "sha256": "0c76414f38e948071721183d617d1c7217261cd53887e7000d13064ace4520f8"
     },
     {
-      "bytes": 130917,
+      "bytes": 131156,
       "path": "web-companion/workspace.js",
-      "sha256": "9841faba6e6b99b612f5feee3c22dd9493a59537ff672c6986883d8e169bcf46"
+      "sha256": "2b54f4f2a9abf3194418b83c3159a77380823c22c6514c671f8fcb8ce421b8e7"
     }
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "f71445d7bd5bddfae49fc60e8c92a90b825cff30",
+  "privateBuildRevision": "8de4845f6debb44ac1838f4cca3c2e3b7e58e75d",
   "schema": 1
 }
