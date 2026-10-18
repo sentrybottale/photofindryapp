@@ -1,33 +1,54 @@
-# Beta qualification
+# PhotoFindry 0.2.0-beta.14 qualification
 
-**Release:** 0.2.0-beta.13 · **Application:** 0.2.0 · **Build:** 108 · **Architecture:** arm64
+Application 0.2.0 build 112, Apple silicon, minimum macOS 14. Core ML ranking
+requires macOS 15. The tested Mac runs macOS 27.0.
 
-Qualification used this 8 GB Apple-silicon Mac on macOS 27.0.1. The application declares macOS 14 or later; bundled Core ML ranking requires macOS 15. Other hardware and OS combinations are not newly qualified.
+The MIT client snapshot contains 132 reviewed files plus CLIENT-SOURCE.json,
+without private repository history. The Rust engine implementation remains
+proprietary. Its files, model runtimes and third-party payload are unchanged
+from the qualified build 111 candidate. Only the embedded client copy and build/
+helper metadata changed in the final app; no payload paths were added or removed.
 
-## Local checks
+- Standalone public client: 30 frontend and 184 controller tests, 39 Swift tests
+  with one optional skip, 149 Rust test executions with one optional decoder ignore.
+  Deterministic retained frontend checks pass. Builds do not require engine source.
+- Existing full compatibility baseline: 1,501 Node tests passed, 22 skipped; the
+  private core is unchanged. Final focused update/workspace/parity checks passed.
+- Actual build 112 bundled-model qualification: selected tagging, queued AI search,
+  token/model monitoring, saved results, preview, human label, backup inspection/
+  restore/restart and independent source-archive attachment passed on two synthetic
+  images. Original hashes were unchanged; an unselected photo remained untagged.
+- Exact package/licensing audit: 466 payload paths in 187 component classifications,
+  no added/removed entries, zero community-beta audit blockers. Read-only DMG mount
+  matched the complete sealed app inventory.
+- Existing publisher key: restored into its expected Keychain account; derived
+  public key matches the installed pin. No key rotation. Independent public-key-only
+  CryptoKit verification checks the signed feed and exact full-app update archive.
+- Actual pinned-key Sparkle update fixture: 108 -> 112 -> compatible 108 rollback.
+  Invalid archive signature rejected, valid retry succeeded. All 34 library files
+  and both synthetic originals remained unchanged. The fixture uses unique bundle
+  identities and a no-op relaunch target; it does not run the product against a
+  customer library or claim a fresh OS-account/Gatekeeper installation test.
+- Completed earlier client security review covered the complete exported payload.
+  The later bounded copy/version delta was separately reviewed. The GitHub Rust
+  cleartext-logging alert was statically triaged: its claimed sink is Vec::remove,
+  an in-memory ticket removal, with no logging operation. The owner approved that
+  specific false-positive dismissal; the query and required checks remain enabled.
 
-Swift built successfully and executed 436 tests with 4 optional skips and zero failures. The Rust workspace passed 379 tests with 8 intentional ignores; doctests passed using the pinned compiler. Thirteen website tests passed.
+The final public source run 39106111587 completed all required build/security
+checks for head 03689fb64718ce34019383d8411b0f2d70e4343a.
 
-The full comparison Node run passed 1257 tests with 24 skips, two failures and one timeout cancellation. Its three affected checks hit existing timing limits while competing for resources: release tooling, the 62,923-photo archive stress check and native search startup. All 25 cases in those files then passed in isolation with the original time limits and assertions. The native Node suite passed 1270 tests with 14 skips and no failures or cancellations, using two concurrent files and requiring current native executables without silent JavaScript fallback. Runtime preparation finished before Node qualification.
+Required public CI, CodeQL alert rules, secret scanning, push protection and
+private vulnerability reporting remain enabled. The owner does not require a
+second human approver. Genuine external-fork qualification is unperformed: the
+owner's attempt to fork their own repository returned the original, not a fork.
+Do not represent that as a successful external-actor test. No release credentials
+are available to PR workflows; dependency updates are separately checked.
 
-## Runtime evidence
+Community beta: ad-hoc macOS bundle signatures, independently authenticated
+release artifacts. Not Apple Developer ID signed or notarized. No claim of an
+OS-enforced network sandbox, flawless security, cross-platform desktop qualification
+or bit-for-bit reproducible native binaries. Back up original photographs separately.
 
-The final candidate's compiled UI, worker, engine, model runtimes, models, datasets and resources match the owner-accepted installed app. All 435 canonical payload entries were compared: only version/provenance metadata and distribution permissions on six unchanged upstream licence files differ. Exact signed worker, engine and model-server bytes match, and the running worker/model executable file identities were checked.
-
-A bounded read-only check of current tagging confirmed fresh accepted output with a real model request after the running model started. No photo descriptions, filenames, names, original paths or generated text were retained in the release receipt. Owner tagging continued: no model was paused or stopped and no inference request was added. A fresh isolated vision/Intern run was not repeated for this beta. The final bundled face helper independently detected and embedded a face from a pinned public sample in a disposable fixture. These checks qualify workflows and runtime continuity, not model or recognition accuracy.
-
-## Build and distribution
-
-All 435 payload entries were reviewed against beta 12. No paths were added or removed; only compiled app/worker/engine and version/provenance metadata changed. All inference runtimes, native helpers, face/Core ML resources, datasets and notices remain unchanged. First-party source, JavaScript, Node, user vision weights, customer data, traces and credentials remain excluded. First-party proprietary terms and upstream third-party terms stay separate. The final release audit has zero blockers; read-only DMG inspection matches the exact sealed candidate, and the authenticated artifact inventory passed pinned-key verification.
-
-## Signed update and saved data
-
-A real Sparkle trial installed exact build 108 over an isolated beta-12 build-107 copy. All fifteen fixture-library files stayed unchanged during installation; all fourteen source-store checks matched after worker reopening. Accepted evidence, a human-authored label and selected model settings survived. Fixture originals and the owner's installed app were unchanged.
-
-The external updater harness uses loopback-only HTTP and real signed feed/archive bytes. It does not repeat a fresh-Mac installation, every negative-update case or earlier rollback coverage. Production UI save/drain gates have separate Swift tests. Published-asset, HTTPS-feed and website verification receipts are recorded separately in update-verification.json after publication.
-
-## Limits
-
-This is an ad-hoc signed community beta, not Apple Developer ID signed or notarized. Signatures authenticate bytes; they do not certify safety. There is no OS-enforced filesystem/network sandbox or absolute no-internet guarantee. Explicit downloads, update checks, links and voluntary feedback use the network. Update reminders retain their Settings opt-out; downloads and installation require the user's choice. No app advertising analytics or telemetry is introduced.
-
-The release checks did not write customer source stores, retag customer photographs or perform cleanup. The real-model continuity check read existing accepted evidence while owner-started tagging continued. These are local checks, not a claimed GitHub Actions run or new security scan. The development repository stays private; this public repository contains distribution documentation and standalone verification tooling only.
+The exact client-source archive, component map, disclosure review, application
+artifacts and this document are bound by the signed SHA256SUMS.txt inventory.

@@ -4,13 +4,13 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 
 ## Stable product facts
 
-- PhotoFindry is a native Apple-silicon macOS app for local photo tagging, people and search.
-- It is proprietary and free to use. No mandatory app account or subscription. Third-party components keep their own licences.
-- The public repository is a distribution repository, not the application source repository.
-- Latest published release at this document's date: 0.2.0-beta.13, app 0.2.0 build 108. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- PhotoFindry uses a native Mac launcher and local browser workspace for photo tagging, people and search. app.photofindry.com opens the installed workspace without receiving library authority.
+- Its client is MIT open source; its Rust engine cores remain proprietary. Official builds are free to use. No mandatory app account or subscription. Third-party components keep their own licences.
+- The public repository holds the reviewed client snapshot and distribution files. The engine implementation and private development history remain private.
+- Latest published release at this document's date: 0.2.0-beta.14, app 0.2.0 build 112. Check the release page before recommending a version; do not assume an unreleased branch is published.
 - Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
-- No app telemetry; downloads, automatic or manual update checks, browser links and feedback use internet. Automatic checks default on from beta 11 with a Settings opt-out; downloads and installation require a user choice. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
+- No app telemetry; downloads, scheduled or manual update checks, browser links and feedback use internet. Beta 11 enables automatic checks with a Settings opt-out; downloads and installation remain user-controlled. Older betas need one manual upgrade for reminders. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
 
 ## Install safely
 
@@ -30,7 +30,7 @@ For missing results, inspect scope, filters, evidence readiness and source avail
 
 Direct website feedback: https://photofindry.com/bugs. Require a contact email and obtain the user's deliberate submission. Review text/screenshots for private information. No automatic library or log upload. Do not claim a report was received without the server reference. An unchanged retry is designed to avoid duplicate reports.
 
-Beta 13's in-app form and the website both support direct private intake. Email is mandatory; no email app is needed. Never invent remote review access, API credentials, response deadlines, security certifications or endorsements.
+The local workspace’s feedback form and the website both support direct private intake. Email is mandatory; no email app is needed. Never invent remote review access, API credentials, response deadlines, security certifications or endorsements.
 
 ## Canonical reading
 
@@ -42,7 +42,7 @@ Beta 13's in-app form and the website both support direct private intake. Email 
 - [Privacy and distribution](https://photofindry.com/docs/privacy.html)
 - [Release verification](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md)
 
-## Beta 13 source and location troubleshooting
+## Beta 14 source and location troubleshooting
 
 Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, first guide the user to make the files available and choose Resume. Reconnect originals is for moved or explicitly disconnected folders and unresolved identity confirmation; never confirm unknown folders for them. Pause alone does not require reconnection. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Ask before including optional diagnostic logs in a feedback report.
 
@@ -51,3 +51,10 @@ Checksum-verification recovery retains the selected tagging continuation through
 Ordinary people wording such as boy, girl, man and woman can match supported apparent-age and appearance descriptions from saved tags without retagging. Treat these as estimates, never verified identity, gender or exact age. Keep uncertainty and folder scope; do not recommend full-library retagging for a wording mismatch.
 
 Empty originals remain pending, while other usable photos can continue. Failed tagging jobs offer a scoped Retry action in Queue. Help recover that selected job rather than clearing library data or restarting unrelated held work.
+
+
+## People and queue controls
+
+Automatic face discovery covers eligible new and retagged photographs. Imported/catalog-only archives require explicit scope and available originals. Naming requires a user-confirmed reference; uncertain matches stay for review. Treat face recognition as fallible and keep user corrections.
+
+Cancel all acts on the full queue, including off-page jobs. It preserves saved tags and reviewed AI candidates, moves failures to Activity, and leaves the queue paused. Do not resume that queue or restart cancelled searches without a user-started action. Dismiss all notifications is a separate Activity control and does not cancel jobs.

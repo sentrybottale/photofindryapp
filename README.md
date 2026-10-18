@@ -12,12 +12,13 @@ launcher, generic Rust companion bridge and selected macOS interaction helpers.
 The Rust engine cores remain proprietary, supplied in official builds. Rust is a
 language, not the licensing boundary. Official builds remain free to use.
 
-## Release status
+## Current beta: 0.2.0-beta.14
 
-The browser release is being prepared as **0.2.0-beta.14**. Until its verified
-assets and signed feed are published, the existing download remains
-[beta 13](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.13).
-Do not mistake this source publication for a newly available installer.
+[Download the Mac browser beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.14)
+· [Install and migrate](INSTALLATION.md) · [Qualification](QUALIFICATION.md)
+
+Build 112 opens the local browser workspace while retaining the existing library,
+models and recovery path. Verify the signed release inventory before installation.
 
 The client directory is the exact reviewed snapshot associated with the release
 candidate. Its 132 files plus CLIENT-SOURCE.json match the signed source archive.
