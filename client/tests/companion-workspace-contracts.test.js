@@ -873,3 +873,18 @@ test('background companion settings expose only fixed authenticated lifecycle ac
     assert.deepEqual(ui.errors, []);
   } finally { await ui.close(); }
 });
+
+
+test('macOS read consent recovery gives an actionable Files path and explicit retry without starting work automatically', async () => {
+  const job = { id: 'consent', kind: 'tagging', state: 'paused', pauseReason: 'source-waiting', sourceLifecycleVersion: 1, sourceNextAction: { kind: 'allowAccess', sourceId: 'source-a' }, total: 2, completed: 0, failed: 0 };
+  const ui = harness({ state: { jobs: { jobs: [job], notifications: [] } } });
+  try {
+    const card = ui.window.PhotoFindryJobs.card(job);
+    assert.match(card.textContent, /choose its originals folder again/);
+    const buttons = card.children.at(-1).children;
+    assert(buttons.some(node => node.textContent === 'Open Files'));
+    assert.equal(ui.calls.length, 0);
+    await buttons.find(node => node.textContent === 'Retry access').click();
+    assert.deepEqual(ui.calls.filter(call => call.name === 'jobAction'), [{ name: 'jobAction', params: { action: 'resume', id: 'consent' } }]);
+  } finally { await ui.close(); }
+});

@@ -782,6 +782,7 @@
     else if (job.state === 'queued' && snapshot.jobs?.paused) message = 'Waiting for Resume queue. This job’s schedule still applies.';
     else if (job.state === 'queued' && job.waitingForSchedule) message = 'Waiting for its scheduled window. Choose Run now to start sooner.';
     else if (job.state === 'paused' && job.pauseReason === 'user' && (!message || /^paused[. ]*$/i.test(message))) message = 'Paused individually. Resume this job to continue.';
+    if (job.sourceNextAction?.kind === 'allowAccess') message = 'Open Files, select this source, and choose its originals folder again to allow access. Then return to this job and choose Retry access. Saved details are kept.';
     const parts = job.sourceLifecycleVersion === 1
       ? [`${fmt.format(Math.max(0, completed - skipped - (job.kind === 'tagging' ? failed : 0)))} ${job.kind === 'tagging' ? 'tagged' : 'processed'}`]
       : [`${fmt.format(completed)} of ${fmt.format(total)} ${job.kind === 'aiSearch' ? 'reviewed' : 'processed'}`];
@@ -818,7 +819,7 @@
     }
   }
   function recoveryAction(job) {
-    jobsDialog?.close(); window.PhotoFindryPanels?.show('sources', { jobId: job.id, sourceId: job.sourceId });
+    jobsDialog?.close(); window.PhotoFindryPanels?.show('sources', { jobId: job.id, sourceId: job.sourceId || job.sourceNextAction?.sourceId });
   }
   function jobActions(job, compact = false) {
     const facts = jobFacts(job), actions = [];
@@ -843,9 +844,10 @@
       }
     }
     if (facts.settled) add('retryMissing', 'Tag recovered photos', () => jobAction('retryMissing', job.id));
-    if (facts.recover) add('recoverOriginals', job.sourceNextAction?.title || 'Find originals', () => recoveryAction(job), true);
+    if (facts.recover) add('recoverOriginals', job.sourceNextAction?.kind === 'allowAccess' ? 'Open Files' : job.sourceNextAction?.title || 'Find originals', () => recoveryAction(job), true);
     else if (job.state === 'paused' && !facts.automaticWait && !facts.settled) add('resume', 'Resume', () => jobAction('resume', job.id), true);
     else if (compact && facts.sourceWait && !facts.recover) add('recoverOriginals', 'Open Files', () => recoveryAction(job));
+    if (job.state === 'paused' && job.sourceNextAction?.kind === 'allowAccess') add('retryAccess', 'Retry access', () => jobAction('resume', job.id));
     if (job.state === 'failed') {
       add('retry', 'Retry', () => jobAction('retry', job.id), true);
       if (!compact && job.dismissedFromQueue !== true) add('dismissJob', 'Dismiss from queue', () => jobAction('dismissJob', job.id));

@@ -13,11 +13,15 @@ Normal use no longer needs a permanent Mac app or an open Terminal.
   offers Recover and open when needed.
 - Uninstall disables autostart and moves the active program to Trash. Libraries,
   original photographs, model paths, backups and inactive recovery versions stay.
+- If macOS needs permission to read original photos, Jobs offers Open Files.
+  Choose the originals folder, then use Retry access. The operation times out
+  safely instead of leaving the processing lane stuck.
 - Existing library migration retains saved photos, tags, People, model paths and
   paused work. The retained native beta remains available if migration fails.
 
-This is a focused hotfix. The private engine/runtime/model payload is unchanged
-from beta 14. The MIT client remains open source; the Rust cores and private
+This is a focused hotfix. Inference policy, models and data schemas are unchanged. The private worker
+and native helper now bound macOS original-file consent checks and preserve
+permission-held work for explicit recovery. The MIT client remains open source; the Rust cores and private
 implementation history remain proprietary. Official builds remain free.
 
 Requires Apple silicon and macOS 14 or later; Core ML ranking requires macOS 15.

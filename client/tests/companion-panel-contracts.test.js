@@ -411,7 +411,7 @@ test('a failed replacement folder check restores the primary chooser instead of 
     await ui.window.PhotoFindryPanels.show('sources');await ui.findButton('Review originals').click();
     await ui.findButton('Choose another folder…').click();
     assert.match(ui.errors.at(-1),/selected folder is unavailable/);
-    assert(visiblePanelButtons(ui).includes('Choose this Mac’s originals folder…'));
+    assert(visiblePanelButtons(ui).includes('Choose originals folder…'));
     assert(!ui.calls.some(call=>call.action==='confirmSourceConnection'));
   } finally {await ui.close();}
 });
@@ -502,7 +502,7 @@ test('imported Files prioritizes choosing this Mac’s original folder, shows th
     await ui.window.PhotoFindryPanels.show('sources');
     assert.match(ui.all().find(node => node.className === 'pfp-body').textContent, /\/Users\/other-mac\/pCloud Drive\/Automatic Upload/);
     const visible = visiblePanelButtons(ui);
-    assert(visible.includes('Choose this Mac’s originals folder…'));
+    assert(visible.includes('Choose originals folder…'));
     for (const label of ['Save name', 'Review originals', 'Import library backup…', 'Attach source archive…', 'Remove source from gallery…', 'Read QR image…', 'Scan with camera…']) assert(!visible.includes(label), label);
     assert(ui.all().filter(node => node.tagName === 'DETAILS').every(node => !node.open));
     assert(!ui.calls.some(call => ['prepareSourceConnection', 'locateSource', 'checkSources', 'enqueueJob', 'ensurePreview'].includes(call.action)));
@@ -518,10 +518,10 @@ test('reconnecting multiple saved roots requires explicit root selection and use
   try {
     await ui.window.PhotoFindryPanels.show('sources');
     assert.equal(ui.field('Saved originals folder').value, '');
-    assert.equal(ui.findButton('Choose this Mac’s originals folder…').disabled, true);
-    await ui.findButton('Choose this Mac’s originals folder…').click(); assert.deepEqual(kinds, []);
+    assert.equal(ui.findButton('Choose originals folder…').disabled, true);
+    await ui.findButton('Choose originals folder…').click(); assert.deepEqual(kinds, []);
     ui.field('Saved originals folder').value = 'root-b'; await ui.field('Saved originals folder').fire('change'); await new Promise(resolve => setImmediate(resolve));
-    await ui.findButton('Choose this Mac’s originals folder…').click();
+    await ui.findButton('Choose originals folder…').click();
     assert.deepEqual(kinds, ['sourceFolder']);
     assert.deepEqual(ui.calls.filter(call => call.action === 'locateSource'), [{ action: 'locateSource', params: { sourceId: 'imported-source', rootId: 'root-b', folderGrant: 'chosen-folder' } }]);
     assert(!ui.calls.some(call => ['addFolders', 'confirmSourceConnection', 'startModel', 'enqueueJob'].includes(call.action)));
@@ -541,9 +541,9 @@ test('a chosen folder waits for its own completed check, then reviews old and ne
   ui.window.PhotoFindry.pick = async kind => ({ grantId: 'originals-grant', locationLabel: plan.rootLocationLabel });
   try {
     await ui.window.PhotoFindryPanels.show('sources'); ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
-    await ui.findButton('Choose this Mac’s originals folder…').click();
+    await ui.findButton('Choose originals folder…').click();
     assert(!ui.calls.some(call => call.action === 'prepareSourceConnection'));
-    assert.equal(ui.findButton('Choose this Mac’s originals folder…').disabled, true);
+    assert.equal(ui.findButton('Choose originals folder…').disabled, true);
     ui.state.jobs.jobs.push({ id: 'other-check', sourceId: source.id, sourceRootId: 'root-a', kind: 'sourceRecovery', state: 'running' });
     ui.window.PhotoFindryPanels.onState(structuredClone(ui.state)); ui.state.jobs.jobs[1].state = 'completed'; ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
     await new Promise(resolve => setTimeout(resolve, 240)); assert(!ui.calls.some(call => call.action === 'prepareSourceConnection'));
@@ -570,7 +570,7 @@ test('a zero-match folder offers choose folder and a disabled confirmation witho
   try {
     await ui.window.PhotoFindryPanels.show('sources'); await ui.findButton('Review originals').click();
     assert.equal(ui.findButton('Confirm matching locations').disabled, true);
-    const buttons = visiblePanelButtons(ui); assert.equal(buttons.filter(label => label === 'Choose this Mac’s originals folder…').length, 1);
+    const buttons = visiblePanelButtons(ui); assert.equal(buttons.filter(label => label === 'Choose originals folder…').length, 1);
     assert.match(ui.all().find(node => node.className.split(' ').includes('pfp-originals-review')).textContent, /No matching originals in this folder/);
     await ui.findButton('Confirm matching locations').click(); assert(!ui.calls.some(call => call.action === 'confirmSourceConnection'));
     assert.deepEqual(ui.errors, []);
@@ -583,7 +583,7 @@ test('folder chooser and match review results cannot mutate a superseded source 
     const ui = harness({ sources: [importedSource(), { id: 'other-source', label: 'Other', roots: [] }] });
     ui.window.PhotoFindry.pick = async () => chosen;
     try {
-      await ui.window.PhotoFindryPanels.show('sources'); const locating = ui.findButton('Choose this Mac’s originals folder…').click(); await new Promise(resolve => setImmediate(resolve));
+      await ui.window.PhotoFindryPanels.show('sources'); const locating = ui.findButton('Choose originals folder…').click(); await new Promise(resolve => setImmediate(resolve));
       if (interruption === 'source') { ui.field('Source').value = 'other-source'; await ui.field('Source').fire('change'); }
       else if (interruption === 'library') ui.emit('photofindry:library-restored');
       else await ui.window.PhotoFindryPanels.show('people');
@@ -664,7 +664,7 @@ test('a newer native confirmLocations job without a root ID suppresses an older 
   try {
     await ui.window.PhotoFindryPanels.show('sources');
     assert(source.needsReview > 0); assert(!visiblePanelButtons(ui).includes('Review checked folder…'));
-    assert(visiblePanelButtons(ui).includes('Choose this Mac’s originals folder…'));
+    assert(visiblePanelButtons(ui).includes('Choose originals folder…'));
     assert(!ui.calls.some(call => call.action === 'prepareSourceConnection'));
   } finally { await ui.close(); }
 });
@@ -756,7 +756,7 @@ test('Cancel review stops an in-flight native review and discards its late resul
     assert.deepEqual(ui.calls.filter(call => call.action === 'cancelSourceConnectionReview'), [{ action: 'cancelSourceConnectionReview', params: {} }]);
     finish({ planId: 'cancelled-plan', sourceId: source.id, rootId: 'root-a', count: 8 }); await reviewing;
     assert(!visiblePanelButtons(ui).includes('Confirm matching locations'));
-    assert(visiblePanelButtons(ui).includes('Choose this Mac’s originals folder…'));
+    assert(visiblePanelButtons(ui).includes('Choose originals folder…'));
     assert(!ui.calls.some(call => call.action === 'confirmSourceConnection')); assert.deepEqual(ui.errors, []);
   } finally { await ui.close(); }
 });

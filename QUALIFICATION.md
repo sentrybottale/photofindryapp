@@ -5,8 +5,9 @@ macOS CLI companion. Apple silicon, minimum macOS 14; Core ML ranking requires
 macOS 15. Qualification was performed on macOS 27.0.
 
 This is a focused hotfix, as requested by the owner. The unrelated whole-engine
-and whole-release regression suites were not repeated. The private engine,
-runtime, models and inference-provider payload entries are identical to beta 14.
+and whole-release regression suites were not repeated. Inference policy, models and data schemas are unchanged. The private worker
+and native helper additionally bound macOS file-open consent; this correction
+received focused worker, native and browser recovery tests.
 
 - Scoped companion tests: 127 passed; two opt-in cases excluded from the ordinary
   run. The signed-candidate archive/tampering case was run separately and passed.
@@ -34,8 +35,12 @@ runtime, models and inference-provider payload entries are identical to beta 14.
 - Actual model qualification on the development package covered selected tagging/
   improvement, queued AI search, saved search/results, preview and human People
   labels, backup/restore/restart, source archive attachment and unchanged originals.
-  Later client changes concern recovery and operation feedback; engine/runtime
-  bytes remain unchanged. Safari displayed the local lifecycle controls.
+  That model-loop evidence predates the final consent timeout correction.
+  A real launchd tagging run also completed after selecting its synthetic originals
+  folder in the native chooser. Safari displayed the local lifecycle controls.
+- Consent recovery checks: 102 focused worker tests, 11 native source tests and
+  96 browser/panel/parity checks passed. Permission holds keep accepted records
+  and pending targets; Jobs exposes Open Files and explicit Retry access.
 
 The exact 136-file MIT client snapshot plus CLIENT-SOURCE.json excludes private
 engine source and repository history. Two new payload paths are the MIT native

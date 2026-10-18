@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "f50df106eb3155e9a4826751fd13a5f4a36dc6a2f1d8e33e2688d74192e56420",
+  "exportManifestSHA256": "65ab08a81eecd1ff6af05debeb244ed799db8a0a634629ffc71a1df163d8b01c",
   "files": [
     {
       "bytes": 1182,
@@ -407,9 +407,9 @@
       "sha256": "243f2fce2595879bbcc9213b4f4891e337f35a31795b498e52b2b609b4ec4ed2"
     },
     {
-      "bytes": 66176,
+      "bytes": 66033,
       "path": "tests/companion-panel-contracts.test.js",
-      "sha256": "8b6c3646c69b5c643c0224c3d1722766e2effaea6a0fafe05ac4de920ff8399e"
+      "sha256": "5aac7b4e8e9d711ef6dac4b2b67424bbd8dcce3b691c5d7254c3198a83091765"
     },
     {
       "bytes": 3594,
@@ -432,9 +432,9 @@
       "sha256": "cc02bd63416f6ad6975c606897087e29ae7332222840082de55f39674ab31010"
     },
     {
-      "bytes": 69000,
+      "bytes": 69994,
       "path": "tests/companion-workspace-contracts.test.js",
-      "sha256": "3fcc55e0fe9af06efa6d6db9fc475cebf12453995a7d3285138f9cf9db91608d"
+      "sha256": "24644caecbe1a724c91f8f0bf937c57cd889fb0a69f1c69a2b43fbc212a12f71"
     },
     {
       "bytes": 5931,
@@ -627,9 +627,9 @@
       "sha256": "356be6f69c970f96f892e28eaf7fd8117cfd5d0dd7e60c5a7c06d752545aedf4"
     },
     {
-      "bytes": 115697,
+      "bytes": 115613,
       "path": "web-companion/panels.js",
-      "sha256": "34bcf920c9e890986744a06c3ba147cf429ba207b1869f966483f5c9b1977333"
+      "sha256": "c3d3e525b6ad018eae59f4104c4ff4578c1875eefbf70f7409858837935c0a23"
     },
     {
       "bytes": 9682,
@@ -677,13 +677,13 @@
       "sha256": "0c76414f38e948071721183d617d1c7217261cd53887e7000d13064ace4520f8"
     },
     {
-      "bytes": 135085,
+      "bytes": 135559,
       "path": "web-companion/workspace.js",
-      "sha256": "8862743d701c93dee7d1aa0cc33dda7c026c1efd67b501d4eaa59dae7a501767"
+      "sha256": "ebb1acac60e9e3851dbb6a5106499064c04731ac135711a5881266f89b061169"
     }
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "599d4eaef0fda5fe89d279b61ee059f4ad5ae9b8",
+  "privateBuildRevision": "110ef5586f8f61d6979b3d2007a152331de5a95c",
   "schema": 1
 }
