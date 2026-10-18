@@ -1,54 +1,61 @@
-# PhotoFindry 0.2.0-beta.14 qualification
+# PhotoFindry 0.2.0-beta.15 hotfix qualification
 
-Application 0.2.0 build 112, Apple silicon, minimum macOS 14. Core ML ranking
-requires macOS 15. The tested Mac runs macOS 27.0.
+Application 0.2.0 build 113 is a one-time migration installer for the independent
+macOS CLI companion. Apple silicon, minimum macOS 14; Core ML ranking requires
+macOS 15. Qualification was performed on macOS 27.0.
 
-The MIT client snapshot contains 132 reviewed files plus CLIENT-SOURCE.json,
-without private repository history. The Rust engine implementation remains
-proprietary. Its files, model runtimes and third-party payload are unchanged
-from the qualified build 111 candidate. Only the embedded client copy and build/
-helper metadata changed in the final app; no payload paths were added or removed.
+This is a focused hotfix, as requested by the owner. The unrelated whole-engine
+and whole-release regression suites were not repeated. The private engine,
+runtime, models and inference-provider payload entries are identical to beta 14.
 
-- Standalone public client: 30 frontend and 184 controller tests, 39 Swift tests
-  with one optional skip, 149 Rust test executions with one optional decoder ignore.
-  Deterministic retained frontend checks pass. Builds do not require engine source.
-- Existing full compatibility baseline: 1,501 Node tests passed, 22 skipped; the
-  private core is unchanged. Final focused update/workspace/parity checks passed.
-- Actual build 112 bundled-model qualification: selected tagging, queued AI search,
-  token/model monitoring, saved results, preview, human label, backup inspection/
-  restore/restart and independent source-archive attachment passed on two synthetic
-  images. Original hashes were unchanged; an unselected photo remained untagged.
-- Exact package/licensing audit: 466 payload paths in 187 component classifications,
-  no added/removed entries, zero community-beta audit blockers. Read-only DMG mount
-  matched the complete sealed app inventory.
-- Existing publisher key: restored into its expected Keychain account; derived
-  public key matches the installed pin. No key rotation. Independent public-key-only
-  CryptoKit verification checks the signed feed and exact full-app update archive.
-- Actual pinned-key Sparkle update fixture: 108 -> 112 -> compatible 108 rollback.
-  Invalid archive signature rejected, valid retry succeeded. All 34 library files
-  and both synthetic originals remained unchanged. The fixture uses unique bundle
-  identities and a no-op relaunch target; it does not run the product against a
-  customer library or claim a fresh OS-account/Gatekeeper installation test.
-- Completed earlier client security review covered the complete exported payload.
-  The later bounded copy/version delta was separately reviewed. The GitHub Rust
-  cleartext-logging alert was statically triaged: its claimed sink is Vec::remove,
-  an in-memory ticket removal, with no logging operation. The owner approved that
-  specific false-positive dismissal; the query and required checks remain enabled.
+- Scoped companion tests: 127 passed; two opt-in cases excluded from the ordinary
+  run. The signed-candidate archive/tampering case was run separately and passed.
+- Migration host: 38 passed and one existing optional test skipped. Browser
+  controls, native parser and packaging checks: 45 passed. Client export boundary:
+  seven passed. Retained frontend and parity ownership checks passed.
+- Real per-user LaunchAgent: startup from its persisted plist without a resident
+  Mac app; authenticated browser controls; rejection of unauthenticated actions
+  and caller-supplied update URLs; startup/check preferences.
+- Signed release verification: wrong signature, changed payload/archive and
+  package tampering rejected. Traversal, symlink and duplicate ZIP entries rejected.
+- Update/recovery: the updater was killed after durable version publication.
+  Verified prior software recovered without restoring an older library. Signed
+  successor installation and explicit software rollback succeeded; the highest
+  build watermark prevented older signed updates from bypassing replay protection.
+- Path-free recovery rebuilt a deliberately removed test launch registration from
+  verified installation state and reopened the service. Recovery serializes with
+  other maintenance. Browser update results refresh while the panel is visible.
+- A copied synthetic tagged library retained every photo row and selected model
+  path through migration, update and rollback; its cold recovery copy verified.
+  Confirmed uninstall disabled autostart and moved only the active program to
+  Trash while keeping the library and original-file bytes.
+- The actual installer layout handed off to an independent CLI, retired its
+  inactive disposable app copy to Trash, and left the CLI running with its library.
+- Actual model qualification on the development package covered selected tagging/
+  improvement, queued AI search, saved search/results, preview and human People
+  labels, backup/restore/restart, source archive attachment and unchanged originals.
+  Later client changes concern recovery and operation feedback; engine/runtime
+  bytes remain unchanged. Safari displayed the local lifecycle controls.
 
-The final public source run 39106111587 completed all required build/security
-checks for head 03689fb64718ce34019383d8411b0f2d70e4343a.
+The exact 136-file MIT client snapshot plus CLIENT-SOURCE.json excludes private
+engine source and repository history. Two new payload paths are the MIT native
+signature verifier and the signed CLI release envelope; all 468 payload paths
+have exact component classifications. Publisher signing uses the existing key;
+no new trust root is downloaded from the website or update server.
 
-Required public CI, CodeQL alert rules, secret scanning, push protection and
-private vulnerability reporting remain enabled. The owner does not require a
-second human approver. Genuine external-fork qualification is unperformed: the
-owner's attempt to fork their own repository returned the original, not a fork.
-Do not represent that as a successful external-actor test. No release credentials
-are available to PR workflows; dependency updates are separately checked.
+Required public client, distribution-boundary and security checks apply to
+[the hotfix PR](https://github.com/sentrybottale/photofindryapp/pull/11). Publication
+is permitted only after the release head passes those gates. Secret scanning,
+push protection, CodeQL rules and private vulnerability reporting remain enabled.
+The owner does not require an independent human approver. This hotfix is not a
+new independent security audit or a genuine external-fork qualification.
 
-Community beta: ad-hoc macOS bundle signatures, independently authenticated
-release artifacts. Not Apple Developer ID signed or notarized. No claim of an
-OS-enforced network sandbox, flawless security, cross-platform desktop qualification
-or bit-for-bit reproducible native binaries. Back up original photographs separately.
+Community beta: ad-hoc macOS signatures and separately publisher-authenticated
+artifacts; not Apple Developer ID signed or notarized. No claim of flawless
+security, an OS-enforced sandbox, other-Mac acceptance or qualified Linux/Windows
+desktop behavior. Independent photo backups remain important.
 
-The exact client-source archive, component map, disclosure review, application
-artifacts and this document are bound by the signed SHA256SUMS.txt inventory.
+The signed release inventory binds this record, the client source, component
+review, installer and CLI archive. Both the existing app migration feed and fixed
+CLI feed retain the same publisher pin. Live delivery and website verification
+are recorded separately after publication.

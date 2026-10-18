@@ -4,49 +4,44 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
   <channel>
     <title>PhotoFindry beta updates</title>
     <item>
-      <title>PhotoFindry 0.2.0-beta.14</title>
-      <sparkle:version>112</sparkle:version>
-      <sparkle:shortVersionString>0.2.0-beta.14</sparkle:shortVersionString>
+      <title>PhotoFindry 0.2.0-beta.15</title>
+      <sparkle:version>113</sparkle:version>
+      <sparkle:shortVersionString>0.2.0-beta.15</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
       <sparkle:channel>beta</sparkle:channel>
       <photofindry:dataContract>photofindry-library-compatible-v1</photofindry:dataContract>
       <photofindry:coreProtocol>1</photofindry:coreProtocol>
-      <description>&lt;pre&gt;# PhotoFindry 0.2.0-beta.14 — the browser client
+      <description>&lt;pre&gt;# PhotoFindry 0.2.0-beta.15 — CLI lifecycle hotfix
 
-PhotoFindry now opens its library in a locally served browser workspace, with a
-small native Mac launcher and authenticated companion. Start from
-app.photofindry.com or the installed PhotoFindry application. Photos, models,
-tagging, people and search stay on your Mac; the public website receives no local
-library session or engine authority.
+The Mac application is now a one-time migration installer. It installs the
+independent background companion, opens your local browser workspace and exits.
+Normal use no longer needs a permanent Mac app or an open Terminal.
 
-The client is open source under MIT: Svelte UI, native launcher, generic Rust
-companion bridge and selected Mac interaction helpers. The Rust engine cores
-remain proprietary. Official builds remain free to use.
+- The companion starts at login. Open your workspace from app.photofindry.com;
+  the website receives no library authority.
+- Settings → Background companion manages login startup, automatic update checks,
+  signed updates and recovery. Checks do not silently install updates.
+- Updates use the existing publisher key. Interrupted switches recover verified
+  prior software without restoring an older library. The native opening helper
+  offers Recover and open when needed.
+- Uninstall disables autostart and moves the active program to Trash. Libraries,
+  original photographs, model paths, backups and inactive recovery versions stay.
+- Existing library migration retains saved photos, tags, People, model paths and
+  paused work. The retained native beta remains available if migration fails.
 
-- Existing-library migration preserves saved evidence, names, edits, model paths
-  and paused work. A verified recovery copy and Use current beta alternative help
-  you recover from a failed transition without silently restoring older data.
-- Responsive navigation, richer photo details, Light/Dark/Follow System, model
-  and token monitoring, durable Jobs and source-location recovery are available
-  in the browser workspace.
-- Portable backups and source archives remain compatible. After importing from
-  another Mac, confirm where the original folders live on this Mac.
-- Uninstall removes the verified application through its local confirmation flow
-  while preserving libraries, originals, model files and backups.
+This is a focused hotfix. The private engine/runtime/model payload is unchanged
+from beta 14. The MIT client remains open source; the Rust cores and private
+implementation history remain proprietary. Official builds remain free.
 
-Requires Apple silicon and macOS 14 or newer; Core ML semantic ranking requires
-macOS 15. Vision model weights remain separate user-selected files. This is a
-community beta with ad-hoc macOS bundle signatures and separately authenticated
-release/update artifacts; it is not Apple Developer ID signed or notarized.
-
-Keep independent backups. Release verification authenticates exact bytes and the
-signing identity; it is not a claim of flawless security or an OS sandbox.
+Requires Apple silicon and macOS 14 or later; Core ML ranking requires macOS 15.
+Community beta: ad-hoc Mac signatures plus publisher-authenticated artifacts,
+not Apple Developer ID signing or notarization. Keep independent photo backups.
 &lt;/pre&gt;</description>
-      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.14/PhotoFindry-0.2.0-beta.14-arm64-update.zip" length="398791835" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="SNko4CpiBuhkId0R4+A7d4U6Vh56iExmz4HfdGj6Ew8NqpkzgUf5j2lIR02VU0LPOVQ6ZaFllKF4YrReOkCJDg=="></enclosure>
+      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.15/PhotoFindry-0.2.0-beta.15-arm64-update.zip" length="398946679" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="6OOa6joC445gCiY7/9C7GYLQMDTTpilAqkNOD2e/mk+VCf2BKjE4EMpfUcB7N67DvcMdcC4gxAn8sBixy6ITBA=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: Y52sYjn2VyjAdYlUWj8urYuSUtb6AMPNIkzY/L1E5qCrOjzVG0COCXdSzO1ylt/rIWpk1LXDvepZrXYc21RgAg==
-length: 3296
+edSignature: uiFpixrloTxVaKvyY6741BhahpACKDTHlh3hpgLOOM/1bSoahYt00QJcRcGkXfkZAKTjlyN32mH+WKXpkwEbDg==
+length: 3041
 -->

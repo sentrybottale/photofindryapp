@@ -4,7 +4,7 @@ Start with a small folder of photographs you can safely test. Your originals rem
 
 ## Open your workspace
 
-Install PhotoFindry once, then open the application or [app.photofindry.com](https://app.photofindry.com). The installed launcher opens the trusted local workspace in your browser. No cloud account is required. Photos, models and inference remain on this Mac.
+Run the verified installer once, then open [app.photofindry.com](https://app.photofindry.com). The background companion starts at login and opens the trusted local workspace in your browser. The one-time installer closes after handoff; no permanent Mac app needs to stay open. No cloud account is required. Photos, models and inference remain on this Mac.
 
 ## Set up a model
 
