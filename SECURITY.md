@@ -22,3 +22,9 @@ independently authenticated artifacts and migration/update/rollback evidence.
 Workflow and policy changes need explicit maintainer review. Fork/Dependabot jobs
 use the same read-only checkout path; no pull_request_target job executes PR code.
 No workflow publishes a release, changes the update feed or deploys a website.
+
+The open client lives in `client/`; its inventory binds the exact reviewed source
+bytes. Public CI now builds/tests this actual source and analyzes its languages.
+Its engine dependencies remain proprietary and separate. See client/SECURITY.md
+for website-compromise, local session and update trust boundaries. Source changes
+need inventory review and exact-head security review before release.

@@ -8,7 +8,8 @@ PRIVATE = ('core/', 'engine/src/', 'engine/worker/', 'engine/contracts/', 'engin
 SECRET = re.compile(rb'-----BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}')
 
 def validate(name, data):
-    if name.startswith(PRIVATE) or any(part in {'.env', '.DS_Store'} for part in PurePosixPath(name).parts):
+    scoped = name.removeprefix('client/')
+    if scoped.startswith(PRIVATE) or any(part in {'.env', '.DS_Store'} for part in PurePosixPath(name).parts):
         raise ValueError('Private implementation or local state path: ' + name)
     if PurePosixPath(name).suffix.lower() in {'.gguf', '.sqlite', '.db', '.dmg', '.zip', '.dylib', '.node'}:
         raise ValueError('Binary distribution/data must not enter the source tree: ' + name)
@@ -36,6 +37,23 @@ def main():
         path = Path(name)
         if path.is_symlink(): raise ValueError('Linked input: ' + name)
         validate(name, path.read_bytes()); count += 1
+    # The reviewed source snapshot is a complete, bounded inventory inside client/.
+    if Path('client/CLIENT-SOURCE.json').exists():
+        import hashlib
+        inventory = json.loads(Path('client/CLIENT-SOURCE.json').read_text())
+        expected = {'CLIENT-SOURCE.json'}
+        for item in inventory['files']:
+            name = item['path']
+            if name.startswith('/') or '..' in PurePosixPath(name).parts or name in expected:
+                raise ValueError('Unsafe or duplicate client inventory path')
+            expected.add(name)
+            data = (Path('client') / name).read_bytes()
+            validate('client/' + name, data)
+            if len(data) != item['bytes'] or hashlib.sha256(data).hexdigest() != item['sha256']:
+                raise ValueError('Client bytes differ from the reviewed inventory: ' + name)
+        tracked = set(subprocess.check_output(['git', 'ls-files', 'client/'], text=True).splitlines())
+        if tracked != {'client/' + name for name in expected}:
+            raise ValueError('Client file set differs from the reviewed inventory')
     probe = json.loads(Path('ci/rehearsal-probe.json').read_text())
     if probe != {'schema': 1, 'expect': 'pass'}:
         raise ValueError('Intentional rehearsal stop: this head must not merge')

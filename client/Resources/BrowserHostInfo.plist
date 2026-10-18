@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>PhotoFindry</string>
+  <key>CFBundleDisplayName</key><string>PhotoFindry</string>
+  <key>CFBundleIdentifier</key><string>com.sentrybottale.photorecall</string>
+  <key>CFBundleExecutable</key><string>PhotoFindry</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>0.2.0</string>
+  <key>CFBundleVersion</key><string>111</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.photography</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSCameraUsageDescription</key><string>Scan a PhotoFindry archive label locally. Camera images are not uploaded or saved.</string>
+  <key>CFBundleURLTypes</key><array>
+    <dict><key>CFBundleURLName</key><string>PhotoFindry local workspace</string><key>CFBundleTypeRole</key><string>Viewer</string><key>CFBundleURLSchemes</key><array><string>photofindry-local</string></array></dict>
+    <dict><key>CFBundleURLName</key><string>PhotoFindry archive labels</string><key>CFBundleTypeRole</key><string>Viewer</string><key>CFBundleURLSchemes</key><array><string>photofindry</string></array></dict>
+  </array>
+  <key>NSHumanReadableCopyright</key><string>Copyright © 2026 PhotoFindry copyright holders. All rights reserved. Third-party components retain their respective licenses.</string>
+</dict></plist>

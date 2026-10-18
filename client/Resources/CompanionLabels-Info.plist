@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.sentrybottale.photorecall.companion-labels</string>
+<key>CFBundleName</key><string>PhotoFindry archive scanner</string>
+<key>NSCameraUsageDescription</key><string>Scan a PhotoFindry archive label locally. Camera frames are never saved or sent.</string>
+</dict></plist>
