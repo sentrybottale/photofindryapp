@@ -1,66 +1,43 @@
-# Privacy and local processing
+# Privacy, licensing and direct beta distribution
 
-PhotoFindry performs tagging, face processing and search inference on the Mac.
-Original photos remain in their folders. Saved tags, names, previews, embeddings,
-queries and processing history are stored locally. No mandatory PhotoFindry
-account, advertising analytics or app telemetry is part of the product.
+PhotoFindry’s client is MIT open source; its Rust engine cores remain proprietary. Official builds are free for personal and business use. There is no mandatory app account, subscription, advertising analytics or app telemetry. Optional [Buy Me a Coffee support](https://buymeacoffee.com/photorecall) does not unlock features.
 
-## Explicit internet actions
+## Local photo work
 
-Model downloads and automatic or manual update checks contact their respective hosts. Automatic checks are on by default from beta 11; Settings → App updates has a persistent opt-out. Downloads and installation require your choice. No library or model data is sent by update checks. The
-beta update feed is served by `photofindry.com`; release downloads are served by
-GitHub. Website and Buy Me a Coffee links open a browser when selected. These
-actions do not require uploading photographs, names, tags, embeddings or search
-queries. Hosts can receive connection metadata, including an IP address, and have
-their own privacy practices.
+Photo tagging, face processing and search inference run locally on your Mac. Original photographs stay in their folders. Local saved work remains readable and exportable. Backups and source archives exclude original photographs and model weights; keep your own backups of those files.
 
-With required models available, photo workflows are designed to work offline.
-The current local child-process boundary is not an OS-enforced network/filesystem
-sandbox. The bounded observation recorded in [QUALIFICATION.md](QUALIFICATION.md)
-does not establish an absolute no-internet guarantee.
+The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, scheduled or manual update checks, browser links and voluntary feedback require network connections. From beta 11, automatic beta update checks are on by default and can be turned off in the native launcher’s PhotoFindry menu → Automatically Check for Updates. They contact the update host about every six hours while the app runs, and when opened if due. Checks do not send photos, search queries or library records; hosts receive ordinary connection information. Downloading and installing remain your choice.
 
-The app and engine are proprietary. Source availability, ad-hoc signing or a valid
-release signature alone cannot guarantee security. Third-party licences and
-notices are included in the app. You can read and export your saved work freely.
+## Voluntary feedback
 
-## Public problem reports
+The form at photofindry.com/bugs sends your required email, typed report and chosen screenshots over HTTPS to the PhotoFindry server for private review and follow-up. It returns a reference only after storage succeeds. Server copies remove original screenshot metadata and filenames; visible image content remains visible. Redact private details before uploading.
 
-Reports are voluntary. Review diagnostics for filenames, queries, names and photo
-details before sharing. Do not attach photo libraries, model weights, original
-photographs or raw private traces to public issues or pull requests.
+No photo library, saved queries or diagnostic logs are collected automatically. Reports remain until the team explicitly removes them. Reports and screenshots are private and accessible only to the PhotoFindry team. Short-lived keyed network identifiers limit abuse. The feedback form has no analytics or advertising trackers.
 
-## Voluntary private feedback
+Send Feedback submits directly to this private service and returns a report reference. Earlier beta 2 builds used an email draft; update to use direct native submission.
 
-In beta 5, Send Feedback submits your required contact email, report text and
-chosen screenshots over HTTPS to https://photofindry.com/bugs. Optional app/macOS
-version and CPU architecture are shown before sharing. The website form uses the
-same private service. Nothing is sent until you choose Submit Feedback. No logs,
-photo records, names, saved queries or library files are attached automatically.
+## Website and app are distinct
 
-Reports and screenshots are private and accessible only to the PhotoFindry team.
-They are retained until the team explicitly removes them. There is no public report lookup. Copies
-are re-encoded without original metadata or filenames; visible private content
-remains visible. Redact it before submitting. Drafts stay in app memory until exit;
-failed or cancelled submissions retain the draft. A cancelled request may already
-have arrived; retrying unchanged content reuses its submission identity.
+The marketing homepage uses optional PostHog website analytics only after you accept analytics cookies. PostHog uses an EU endpoint and identified-only profiles. Session recording and automatic interaction capture are disabled. The app.photofindry.com entry hub has its own explicit analytics consent, without replay, automatic interaction capture or person profiles. It never receives local-library authority. Neither website consent grants consent for localhost analytics. The documentation pages and feedback form do not load this analytics script. Infrastructure may maintain operational connection logs; “no app tracking” is not a promise that no server can observe a network request.
 
-Abuse controls use keyed network identifiers. Counters expire after at most
-24 hours; expired rows are removed on the next submission attempt. Infrastructure
-can maintain operational connection logs. The form has no analytics. No email is
-sent automatically by the intake service. Earlier beta 2 builds used an email
-draft and the selected email provider's delivery and retention practices.
+## Why GitHub rather than Apple's stores and notarization?
+
+The owner chose an OwnTransit-style direct GitHub beta distribution path. Mac App Store qualification, Developer ID signing and Apple notarization are separate tracks and are not part of this release. This is a distribution decision, not a claim that Apple's checks are unnecessary or that proprietary/free software is automatically safe.
+
+The app bundle is ad-hoc signed. Separate pinned Ed25519 signatures authenticate the release inventory, update feed and archive. They establish approved bytes and possession of the signing key, not absence of vulnerabilities. Follow the official verification and per-app installation guidance.
+
+The public [photofindryapp repository](https://github.com/sentrybottale/photofindryapp) contains the MIT client snapshot, distribution documentation and official binaries. The private development history and engine implementation stay private. Third-party licences and notices remain included. Read the [licence](https://github.com/sentrybottale/photofindryapp/blob/main/LICENSE) and [qualification record](https://github.com/sentrybottale/photofindryapp/blob/main/QUALIFICATION.md).
 
 ## Optional diagnostic attachment
 
-Beta 5 offers an unchecked diagnostic-log option in the app feedback form. It
-contains at most 200 recent operational events from the current session, covering
-up to 30 minutes. The bounded fields exclude raw messages, queries, names, paths,
-photo IDs and image content. You can review the frozen attachment, refresh it or
-uncheck it before submission. No log is uploaded until you submit with consent.
+The feedback form includes an unchecked **Include diagnostic log with this report** option in the app feedback form. It includes up to 200 recent operational events from the current session, covering at most 30 minutes. It contains selected job/model states and numeric progress, memory and token counters, excluding raw messages, names, filenames, queries, paths, photo identifiers and image content. It is not a full crash log.
 
-## Marketing website
+Opting in freezes the attachment for review. Refresh log captures a newer copy; unchecking removes it. Only Submit Feedback sends the reviewed attachment. Retries reuse that copy. Earlier sessions and historical disk logs are not collected. Diagnostic attachments stay with the private report and follow the same retention policy.
 
-The photofindry.com homepage uses the owner's PostHog EU website analytics with
-identified-only person profiles. Documentation and feedback pages do not load
-that script. Website analytics are separate from the app, which has no advertising
-analytics or app telemetry.
+## Cookies and storage
+
+The homepage offers **Accept all**, **Reject optional** and **Settings**. Optional analytics stays off until you accept it; rejecting it does not affect downloads or other site features. Change or withdraw your choice using **Cookie settings** in the homepage footer or [open cookie settings](https://photofindry.com/#cookie-settings).
+
+A necessary first-party cookie, `photofindry_consent_v1`, remembers your choice for 180 days on this site only. If you accept analytics, PostHog may store a first-party browser identifier in cookies and local storage to measure visits. Its cookies last up to 180 days; local storage persists until cleared. Rejecting analytics removes this site's PostHog cookies and browser storage and stops further collection; it does not erase information already sent. Do Not Track is respected.
+
+If JavaScript is disabled, optional analytics does not load. Documentation and the feedback form do not load analytics. These website choices do not enable tracking in the Mac app.

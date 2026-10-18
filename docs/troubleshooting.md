@@ -8,15 +8,15 @@ Confirm the download is from the official GitHub release and verify its signed i
 
 ## No update appears
 
-Use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 13 is app version 0.2.0, build 108; the beta label is visible in the update notes. From beta 11, automatic update reminders are on by default; check Settings → App updates if you opted out. Betas before beta 11 require one manual upgrade. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
+From beta 11, check that the native launcher’s PhotoFindry menu → Automatically Check for Updates is on. The app must be running for scheduled checks. Older betas need one manual upgrade for reminders. You can always use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 14 is app version 0.2.0, build 112; the beta label is visible in the update notes. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
 
 ## Model stopped, unavailable or insufficient memory
 
-Stopped is normal when the saved model is not needed; tagging restarts it automatically. If files moved, choose their current locations in Model Setup. Confirm the vision weights and projector are a supported pair. For memory holds, follow the app's measured recovery controls or choose a smaller compatible model. Do not kill unrelated model processes.
+Stopped is normal when the saved model is not needed; tagging restarts it automatically. If files moved, choose their current locations in Settings → Local models. Confirm the vision weights and projector are a supported pair. For memory holds, follow the app's measured recovery controls or choose a smaller compatible model. Do not kill unrelated model processes.
 
 ## A job is paused or waiting
 
-Open Jobs & Activity and read its specific reason. For **Waiting for originals**, make the drive or files available and choose **Resume** on that job. Resume retries saved targets without repeating a whole originals scan; pausing alone does not require reconnection. Choose **Reconnect originals…** if the folder moved, was explicitly disconnected in Sources, or needs identity confirmation. Confirm only the same originals collection. A later Pause or Stop prevents automatic continuation.
+Open Jobs and read its specific reason. For **Waiting for originals**, make the drive or files available and choose **Resume** on that job. Resume retries the saved locations; pausing alone does not require reconnection. Choose **Choose this Mac’s originals folder…** if the folder moved, was explicitly disconnected in Files, or needs identity confirmation. Confirm only the same originals collection. A later Pause or Stop prevents automatic continuation.
 
 A reopened queue stays paused until you resume or start work. Permission, memory and disk holds still require their specific resolution. Overnight schedules require the app open and Mac awake. Model **Start** can load your saved model while a job waits for originals, but it cannot resolve an unconfirmed folder.
 
@@ -32,47 +32,37 @@ Send Feedback submits directly, without an email app. Keep the receipt for follo
 
 Read [privacy and distribution](https://photofindry.com/docs/privacy.html) for what is sent.
 
-For beta 13 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
+For beta 14 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
 
 ## Legacy saved-photo search error
 
-Beta 13 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
+Beta 14 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
 
 ## Tagging pauses after a drive reconnects
 
-Choose **Resume** on the affected job after the drive returns. If PhotoFindry asks you to confirm the folder, choose **Reconnect originals…**, review its matching locations and confirm only the same originals collection. Saved checksums remain historical evidence; quick review checks attributes without rereading every original's contents. Full content comparison is available as a separate explicit action. Saved tags and pending targets are retained.
+Choose **Resume** on the affected job after the drive returns. If filesystem identifiers changed, PhotoFindry can verify a locally available original against its saved checksum without reconnecting the entire source. Originals without enough saved identity evidence still require **Choose this Mac’s originals folder…** and explicit confirmation. Saved tags and pending targets are retained.
 
-Starting **Tag photographs** puts eligible foreground work first and releases an ordinary queue pause. Repeating the same unfinished request reuses its job; an individually paused job keeps its Resume control. **Continue with available photos** preserves deferred targets across ordinary Pause/Resume and app restart. Once available work finishes, Resume from the source hold explicitly retries the remaining originals.
+Starting **Tag photographs** puts eligible foreground work first and releases an ordinary queue pause. Repeating the same unfinished request reuses its job; an individually paused job keeps its Resume control. **Continue with available photos** keeps unavailable targets pending. Ordinary Pause/Resume preserves that choice across app restarts. Once available work finishes, Resume from the source hold explicitly retries the remaining originals.
 
-## Original review stops or finishes without continuing tagging
+## Original verification stops or finishes without continuing tagging
 
-Keep the drive available during the scoped source check. If the check pauses, reconnect the source and choose **Resume check**. Successful confirmation continues explicitly linked work from its saved progress; unrelated held jobs remain paused. A later Pause or Stop of tagging, or a pause of the whole queue, prevents automatic continuation. Changed or cloud-only originals still need their specific resolution.
+When reconnecting a blocked job, choose **Verify original files** if the review offers saved checksums. A drive or cloud folder must remain available until verification finishes. If the check pauses, reconnect the source and choose **Resume check**. Pausing the verification check retains the requested continuation; successful verification then resumes the selected tagging job from its saved progress. A later Pause or Stop of tagging, or a pause of the whole queue, prevents automatic continuation.
 
-After reopening the app, jobs stay paused. Use **Resume** to retry saved targets. If confirmation is needed, start **Reconnect originals…** from that job so the source review is linked to its continuation.
-
-## Interrupted cleanup or deletion
-
-Read the affected job's recovery status and use its scoped recovery action. Clearing Jobs notices does not erase unfinished deletion progress. Do not delete databases, reimport a source or repeat a wider cleanup to repair an interruption. Saved originals remain outside library cleanup.
+After reopening the app, jobs stay paused. Use **Resume** to retry a job at its saved original locations. If folder verification is needed, start **Choose this Mac’s originals folder…** from that job so the source check is linked to its continuation. One shared source check can serve multiple explicitly linked jobs; unrelated held jobs stay paused. Changed or cloud-only originals remain unresolved until their specific issue is addressed.
 
 ## Empty or corrupt original files
 
-Beta 13 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
+Beta 14 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
 
 Failed tagging jobs appear in Queue with **Retry**. Read the final error before retrying. Retry applies to that selected job; unrelated source holds and schedules stay in place.
 
-## People discovery and review
 
-Beta 13 automatically scans eligible new, retagged and restored native photographs without requiring an existing person name. Imported archives stay opt-in through Scan scope. Scanning reads originals and may download cloud-provider files; it does not retag photographs with an LLM. People shows coverage and activity. Pause survives reopening; Resume retains the scope and completed compatible scans are reused. Needs review can open photos beyond the current gallery page. Uncertain matches remain for review; recognition thresholds are unchanged.
+## How do I stop the whole backlog?
 
-## Stop every queued job
+Open **Jobs & activity → Queue → Cancel all** and read the confirmation. It stops active work and cancels waiting, paused and scheduled jobs across the whole saved queue, including jobs that are not on the visible page. Accepted tags and reviewed AI matches are kept; failed jobs leave Queue and remain in Activity. The queue stays paused after reopening. Resume queue or start new work when ready. Cancelled AI searches cannot resume their scoring; start a new search instead.
 
-Jobs & Activity → Cancel all cancels unfinished jobs across the complete queue. Saved tags, names and reviewed results remain. Cancelled work is distinct from Pause and cannot be resumed.
+**Dismiss all** in Activity clears notifications only. It does not cancel processing or delete saved results.
 
-## Large source archive export
+## Why are faces still missing or unnamed?
 
-Beta 13 fixes oversized People undo-history shards in large source exports. Export again using the same source; saved history, names and vectors are preserved. Source archives remain snapshots and exclude original photographs and vision model weights.
-
-
-## Review pauses or original-file failures
-
-Saved model settings remain valid when a model is stopped. Resume retained work after checking the model and available memory. An unavailable original remains pending for explicit retry; other eligible photo targets can continue. Reconnect its source when needed. Experimental review suggestions are not accepted facts, and repeating a model assessment is not independent proof.
+Open **People** and check discovery progress and scope. Resume discovery if it is paused. Make the original folder available or reconnect it in Files when needed. Imported and catalog-only archives are outside the default automatic scope; choose the intended folder or library explicitly. Naming a reference helps match faces that have been found, but cannot identify someone whose face was not detected. Small, obscured or ambiguous faces can remain undetected or need review. This beta repairs automatic discovery and review; its recognition models and matching thresholds are unchanged.
