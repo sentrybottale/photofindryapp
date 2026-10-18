@@ -38,7 +38,7 @@ jobs:
             build: none
           - language: rust
             runner: macos-15
-            build: manual
+            build: none
           - language: swift
             runner: macos-15
             build: manual
