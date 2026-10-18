@@ -22,6 +22,9 @@ native_target="$(uname -m)-apple-macosx14.0"
 swift_flags=(-target "$native_target" -O
   -debug-prefix-map "$project_dir=/photofindry"
   -file-prefix-map "$project_dir=/photofindry")
+swiftc "${swift_flags[@]}" -framework Foundation -framework CryptoKit \
+  "$project_dir/scripts/companion-release-verify.swift" -o "$target_dir/CompanionReleaseVerify"
+codesign --force --sign - "$target_dir/CompanionReleaseVerify"
 swiftc "${swift_flags[@]}" -framework AppKit -framework UniformTypeIdentifiers \
   "$project_dir/scripts/companion-picker.swift" -o "$target_dir/CompanionPicker"
 codesign --force --sign - "$target_dir/CompanionPicker"

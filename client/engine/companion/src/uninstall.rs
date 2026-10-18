@@ -412,6 +412,7 @@ async fn execute(state: &Path, executable: &Path, mode: Mode) -> Result<Outcome>
         tokio::time::sleep(Duration::from_millis(100)).await;
     };
     receipt.status="stopped".into();launch::write_uninstall_receipt(state,&receipt)?;
+    super::lifecycle::disable_for_uninstall(executable).await?;
     // Recheck all contents after shutdown and immediately before the Trash move.
     let final_verified = verify(&record,executable,state,true)?;
     if final_verified.digest != verified.digest {return Err("The package changed during uninstall. No package files were removed.".into());}
@@ -426,6 +427,7 @@ async fn execute(state: &Path, executable: &Path, mode: Mode) -> Result<Outcome>
     }
     receipt.status="complete".into(); receipt.trashed_path=Some(trash.path.clone());
     launch::write_uninstall_receipt(state,&receipt)?;
+    super::lifecycle::finish_uninstall(executable)?;
     Ok(Outcome {status:"uninstalled",plan:verified.plan,trashed_path:Some(trash.path)})
 }
 

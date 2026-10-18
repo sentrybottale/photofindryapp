@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "12b618049644085b2db94e14d264526071e2b7fe08070aa84305fbaa1afb0458",
+  "exportManifestSHA256": "65ab08a81eecd1ff6af05debeb244ed799db8a0a634629ffc71a1df163d8b01c",
   "files": [
     {
       "bytes": 1182,
@@ -22,9 +22,9 @@
       "sha256": "7a102922db2d04dfe9bc557f1f0442434f53dc4f105fe9ffb7e2564df9342bbc"
     },
     {
-      "bytes": 3202,
+      "bytes": 4016,
       "path": "README.md",
-      "sha256": "7738246aa1a8620385363bdd80e01e390fc5e62efc3400f15b7af1f87a20e0f5"
+      "sha256": "651f0d5cdc224518c0eae86e09dd0b2dc699aeb6e76f4946aa442bb4473469b5"
     },
     {
       "bytes": 72487,
@@ -49,7 +49,7 @@
     {
       "bytes": 1471,
       "path": "Resources/Info.plist",
-      "sha256": "b4d9bd6c0aed45e48e418eee86472ec91a6064c7e5103ae301e05b4b3a5556c3"
+      "sha256": "b825dac47d92fe4679a6a3fe81f7ff1a4b2380cce422c348053fffc56ce83c6f"
     },
     {
       "bytes": 2536,
@@ -57,9 +57,9 @@
       "sha256": "fd92c76d44a00f4f4ae0d3b38d1934b30ff0fa71d20f6967958351870f732f92"
     },
     {
-      "bytes": 20235,
+      "bytes": 20574,
       "path": "Sources/PhotoFindryBrowserHost/BrowserApplication.swift",
-      "sha256": "2ca846abd246e3c71e5e6023ceb9c77c57abf4fd40c9199ee7ebba950592da90"
+      "sha256": "9713665703ea66682ddfe3644c12f4d7642b7b735e3f722765051b94643b9ddf"
     },
     {
       "bytes": 5103,
@@ -67,14 +67,14 @@
       "sha256": "ea512ccf68149f1eba31ceb2c12d33a27f18fd171aae97530a458452d0f281e5"
     },
     {
-      "bytes": 12357,
+      "bytes": 12803,
       "path": "Sources/PhotoFindryBrowserHost/BrowserMigration.swift",
-      "sha256": "efe0a78172e8b82b84bc0f4edcaadfcd14a7bc490465593a6f23bc68146329bf"
+      "sha256": "52eeb75d0e5654a1e127f6d7dc315ee6cff3f2b7d3e82b2bb28afbe57ecec9ae"
     },
     {
-      "bytes": 11064,
+      "bytes": 11105,
       "path": "Sources/PhotoFindryBrowserHost/BrowserProcessRunner.swift",
-      "sha256": "8eefb76b518bb3e19583cc7e3e7ad0617132daaa94de857ca3ec96c328dbb031"
+      "sha256": "f91019eec337601474851f4b7dffc20e0f1ce1b5c634cd355d280610c100fa74"
     },
     {
       "bytes": 13923,
@@ -132,6 +132,11 @@
       "sha256": "ecbb0167987cb018d3491b90a7c1d1ac5650e70e834a88277b61085608f9506e"
     },
     {
+      "bytes": 5121,
+      "path": "docs/CLI_COMPANION_LIFECYCLE.md",
+      "sha256": "1cb7360ad9a080695693bbaf573a53756ae28339ecf3dd222eae85ca0e75c944"
+    },
+    {
       "bytes": 16783,
       "path": "engine/Cargo.lock",
       "sha256": "1b0e0e9bf48aa6fc9a5797a9251b1c244b6bd77608042b6b60a708fa8fc224da"
@@ -142,9 +147,9 @@
       "sha256": "61e1f689da008493777582d07ede91d5e022f0f3f1e9e4e50730826830329415"
     },
     {
-      "bytes": 642,
+      "bytes": 648,
       "path": "engine/companion/Cargo.toml",
-      "sha256": "44efe7196bfe6202e97c2b9569fd3bfa7d68ae7a2d59cdb435e5e56127f7152e"
+      "sha256": "f5e0646f2c250f96f0a1d454f686074d9fade67c3eedc853122e928a1638bb79"
     },
     {
       "bytes": 13481,
@@ -157,9 +162,14 @@
       "sha256": "3af6e6be7b278d54ac0b87f80ea9b01275c004877612af23174dd97b4d9f026f"
     },
     {
-      "bytes": 10216,
+      "bytes": 10265,
       "path": "engine/companion/src/browser_package.rs",
-      "sha256": "8354a6cbe6f9cf5141c53d55daa0ea3affc17ae2ba7e8bb5135b9050f2786da7"
+      "sha256": "5f73e2af54fe323a56a63044c7a34cf8d78c443908edba3f20e96355cfb5f8da"
+    },
+    {
+      "bytes": 26236,
+      "path": "engine/companion/src/cli_release.rs",
+      "sha256": "a8c6b5ff3aae6b43eb3b1f001fcf5224bf64254cde3321c06fcd336e2800d784"
     },
     {
       "bytes": 4740,
@@ -192,14 +202,19 @@
       "sha256": "12115456d2b9b731698c72aa36fd4b601658ff245dd326119a75752ccd7bb0c6"
     },
     {
-      "bytes": 44618,
+      "bytes": 47118,
       "path": "engine/companion/src/launch.rs",
-      "sha256": "bc8889a242ddc7eba5d8098741165a4c40c93a4bfffc8ee12d986b1828047fcd"
+      "sha256": "cc4be3dda78316f23122e01b9a94e05b56dc29625e4d0b080d726c7e53b2ab63"
     },
     {
-      "bytes": 107089,
+      "bytes": 56826,
+      "path": "engine/companion/src/lifecycle.rs",
+      "sha256": "776901c5401958a6328dc5ee9365534ab04196fe098b2756489c447d546f6f86"
+    },
+    {
+      "bytes": 109777,
       "path": "engine/companion/src/macos.rs",
-      "sha256": "1f99d6443f7f5bfa1e6d0752b2f90d24cac403674b0d0ca66c24b2a89033ea78"
+      "sha256": "8a7020e9c68151c3ea6817fe1d86ab8baac5305811b3bc621c27253da10630af"
     },
     {
       "bytes": 252,
@@ -272,9 +287,9 @@
       "sha256": "b07fc7f3a0746f6193230ff8be69b1ba02667573fe9f87347454f2b758734706"
     },
     {
-      "bytes": 38395,
+      "bytes": 38512,
       "path": "engine/companion/src/uninstall.rs",
-      "sha256": "f1cb1852750585869b2045edfde82b02178de03391e1306b4cccd6bbceef23bf"
+      "sha256": "7465060d1ab5200130d7276cec54b63a803f9e9551c199e57159d5dbb384da02"
     },
     {
       "bytes": 20999,
@@ -292,9 +307,9 @@
       "sha256": "887f9be066a15585a2c583578e84b0fcb541126d81546276bad3d2ff00d61167"
     },
     {
-      "bytes": 5242,
+      "bytes": 5473,
       "path": "scripts/build-companion-tools.sh",
-      "sha256": "552dc41cd14ffd4a6f85ca9e8a3c3d537697794fa9612d75975440e6ae86b4f1"
+      "sha256": "b722b4bab206da4513e132bce8d1826aac8989b07114b8c656bcf99b0a9e57fa"
     },
     {
       "bytes": 2352,
@@ -317,14 +332,19 @@
       "sha256": "4775fd4ad18f05e8c8d4e533d1c5adf217fc15f88e310982e59b798d075d08bc"
     },
     {
-      "bytes": 29892,
+      "bytes": 32594,
       "path": "scripts/companion-launcher.swift",
-      "sha256": "c7290c87872e693c8d37cf6f37732b9d8b7f045bd30bf00e9e727a187edb4a1e"
+      "sha256": "ddb58327e70e4fff54724a9479a7df7f8c8f837b756a962922e6720f84d5cf8a"
     },
     {
       "bytes": 6444,
       "path": "scripts/companion-picker.swift",
       "sha256": "0296880aa4d082498c5a44d521189705a0ea658b87431626cac4ad485c419ba8"
+    },
+    {
+      "bytes": 1127,
+      "path": "scripts/companion-release-verify.swift",
+      "sha256": "be330e19203922ca877ffb9014eefa7e4b3a374de55aef63e215b0a4b1b29625"
     },
     {
       "bytes": 5917,
@@ -352,9 +372,9 @@
       "sha256": "78b5ed0f1131288db3cd58384859828478de88aeb46c74711983bf28380f88f3"
     },
     {
-      "bytes": 14708,
+      "bytes": 14751,
       "path": "tests/PhotoFindryBrowserHostTests/BrowserMigrationTests.swift",
-      "sha256": "6f3e4e3a376c2f192b5147eea5086e88753cc4541331647cb7c2ca72248b267f"
+      "sha256": "076184986f65e0f0cfe88a45e160658d05e7f1489fbd1582fff67b39f69b3d85"
     },
     {
       "bytes": 5459,
@@ -387,9 +407,9 @@
       "sha256": "243f2fce2595879bbcc9213b4f4891e337f35a31795b498e52b2b609b4ec4ed2"
     },
     {
-      "bytes": 66176,
+      "bytes": 66033,
       "path": "tests/companion-panel-contracts.test.js",
-      "sha256": "8b6c3646c69b5c643c0224c3d1722766e2effaea6a0fafe05ac4de920ff8399e"
+      "sha256": "5aac7b4e8e9d711ef6dac4b2b67424bbd8dcce3b691c5d7254c3198a83091765"
     },
     {
       "bytes": 3594,
@@ -412,9 +432,9 @@
       "sha256": "cc02bd63416f6ad6975c606897087e29ae7332222840082de55f39674ab31010"
     },
     {
-      "bytes": 67908,
+      "bytes": 69994,
       "path": "tests/companion-workspace-contracts.test.js",
-      "sha256": "65ca15740fea8588876d5fc20d6717734b99784597467e292d9cbf52c3f0493c"
+      "sha256": "24644caecbe1a724c91f8f0bf937c57cd889fb0a69f1c69a2b43fbc212a12f71"
     },
     {
       "bytes": 5931,
@@ -607,9 +627,9 @@
       "sha256": "356be6f69c970f96f892e28eaf7fd8117cfd5d0dd7e60c5a7c06d752545aedf4"
     },
     {
-      "bytes": 115697,
+      "bytes": 115613,
       "path": "web-companion/panels.js",
-      "sha256": "34bcf920c9e890986744a06c3ba147cf429ba207b1869f966483f5c9b1977333"
+      "sha256": "c3d3e525b6ad018eae59f4104c4ff4578c1875eefbf70f7409858837935c0a23"
     },
     {
       "bytes": 9682,
@@ -657,13 +677,13 @@
       "sha256": "0c76414f38e948071721183d617d1c7217261cd53887e7000d13064ace4520f8"
     },
     {
-      "bytes": 131156,
+      "bytes": 135559,
       "path": "web-companion/workspace.js",
-      "sha256": "2b54f4f2a9abf3194418b83c3159a77380823c22c6514c671f8fcb8ce421b8e7"
+      "sha256": "ebb1acac60e9e3851dbb6a5106499064c04731ac135711a5881266f89b061169"
     }
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "8de4845f6debb44ac1838f4cca3c2e3b7e58e75d",
+  "privateBuildRevision": "8e08b33528af713456e5fee0010b85a125e29bfb",
   "schema": 1
 }

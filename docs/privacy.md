@@ -6,7 +6,7 @@ PhotoFindry’s client is MIT open source; its Rust engine cores remain propriet
 
 Photo tagging, face processing and search inference run locally on your Mac. Original photographs stay in their folders. Local saved work remains readable and exportable. Backups and source archives exclude original photographs and model weights; keep your own backups of those files.
 
-The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, scheduled or manual update checks, browser links and voluntary feedback require network connections. From beta 11, automatic beta update checks are on by default and can be turned off in the native launcher’s PhotoFindry menu → Automatically Check for Updates. They contact the update host about every six hours while the app runs, and when opened if due. Checks do not send photos, search queries or library records; hosts receive ordinary connection information. Downloading and installing remain your choice.
+The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, scheduled or manual update checks, browser links and voluntary feedback require network connections. After migration, automatic CLI update checks are on by default and can be turned off under Settings → Background companion. They contact the fixed update host after startup and about every six hours while the companion runs. Older app versions retain their signed app feed for the one-time transition. Checks do not send photos, search queries or library records; hosts receive ordinary connection information. Downloading and installing remain your choice.
 
 ## Voluntary feedback
 

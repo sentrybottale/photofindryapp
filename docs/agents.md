@@ -4,10 +4,10 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 
 ## Stable product facts
 
-- PhotoFindry uses a native Mac launcher and local browser workspace for photo tagging, people and search. app.photofindry.com opens the installed workspace without receiving library authority.
+- PhotoFindry uses a background CLI companion and local browser workspace for photo tagging, people and search. app.photofindry.com opens the installed workspace without receiving library authority.
 - Its client is MIT open source; its Rust engine cores remain proprietary. Official builds are free to use. No mandatory app account or subscription. Third-party components keep their own licences.
 - The public repository holds the reviewed client snapshot and distribution files. The engine implementation and private development history remain private.
-- Latest published release at this document's date: 0.2.0-beta.14, app 0.2.0 build 112. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- Latest published release at this document's date: 0.2.0-beta.15, app 0.2.0 build 113. Check the release page before recommending a version; do not assume an unreleased branch is published.
 - Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
 - No app telemetry; downloads, scheduled or manual update checks, browser links and feedback use internet. Beta 11 enables automatic checks with a Settings opt-out; downloads and installation remain user-controlled. Older betas need one manual upgrade for reminders. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
@@ -17,7 +17,7 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 1. Check the user's architecture, macOS version and available storage. Explain beta and non-notarized status.
 2. Link the official release DMG and verification guide. The update ZIP belongs to the updater. GitHub Source code archives are not installers.
 3. Keep trust decisions and macOS authorization with the user. Never disable Gatekeeper globally, strip quarantine recursively, request private signing keys or execute downloaded scripts blindly.
-4. Install in Applications after verification. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
+4. Run the one-time installer after verification. It installs the independent CLI with login startup and signed updates, then exits. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
 5. Keep backups. Do not delete Application Support, rebuild the library by erasing it, remove source folders or purge previews as an automatic troubleshooting step.
 
 ## Explain the app accurately
@@ -42,7 +42,7 @@ The local workspace’s feedback form and the website both support direct privat
 - [Privacy and distribution](https://photofindry.com/docs/privacy.html)
 - [Release verification](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md)
 
-## Beta 14 source and location troubleshooting
+## Beta 15 source and location troubleshooting
 
 Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, first guide the user to make the files available and choose Resume. Reconnect originals is for moved or explicitly disconnected folders and unresolved identity confirmation; never confirm unknown folders for them. Pause alone does not require reconnection. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Ask before including optional diagnostic logs in a feedback report.
 

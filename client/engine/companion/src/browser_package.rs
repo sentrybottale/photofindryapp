@@ -61,7 +61,7 @@ fn aliases()->std::collections::BTreeMap<String,String>{
 /// the verified code signature for the bytes. Extra user files block removal.
 pub fn verify_layout(app:&Path)->Result<(u64,usize,String)>{
     let required=outer_files().union(&framework_files()).cloned().collect::<BTreeSet<_>>();
-    let optional=BTreeSet::from(["Contents/Resources/release/component-map.json".to_owned(),"Contents/Resources/release/disclosure-review.json".to_owned()]);
+    let optional=BTreeSet::from(["Contents/Resources/cli-release.json".to_owned(),"Contents/Resources/release/component-map.json".to_owned(),"Contents/Resources/release/disclosure-review.json".to_owned()]);
     let aliases=aliases();let mut dirs=BTreeSet::new();
     for name in required.iter().chain(optional.iter()).chain(aliases.keys()){
         for ancestor in Path::new(name).ancestors().skip(1).filter(|path|!path.as_os_str().is_empty()){dirs.insert(ancestor.to_string_lossy().into_owned());}

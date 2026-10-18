@@ -187,6 +187,9 @@ pub fn register(directory: &Path, data: &Path, runtime: &Path, executable: &Path
     let _startup = try_lock(directory, "startup.lock")?.ok_or("Another local launch or uninstall is in progress.")?;
     ensure_available(directory)?;
     let _lock = try_lock(directory, "registration.lock")?.ok_or("Another local registration is in progress.")?;
+    register_locked(directory, data, runtime, executable, &owner)
+}
+fn register_locked(directory: &Path, data: &Path, runtime: &Path, executable: &Path, owner: &File) -> Result<Registration> {
     let record = Registration { version: 1, data_dir: canonical(data, true)?, runtime: canonical(runtime, true)?, executable: canonical(executable, false)? };
     validate_registration(&record)?;
     super::handover::validate_admission(&record.data_dir)?;
@@ -285,6 +288,12 @@ impl LifecycleGuard {
         let registration = try_lock(directory, "registration.lock")?.ok_or("Another local registration is in progress.")?;
         same_directory(directory, &owner)?;
         Ok(Self {owner, _startup:startup, _registration:registration})
+    }
+}
+impl LifecycleGuard {
+    pub fn register(&self, directory:&Path, data:&Path, runtime:&Path, executable:&Path)->Result<Registration> {
+        same_directory(directory, &self.owner)?;
+        register_locked(directory,data,runtime,executable,&self.owner)
     }
 }
 pub(super) async fn request_stop(directory: &Path) -> Result<bool> {
@@ -418,6 +427,11 @@ impl Broker {
                             let bytes = read_frame(&mut stream).await?;
                             let request: Request = serde_json::from_slice(&bytes).map_err(|_| "Invalid local launch request.".to_owned())?;
                             if request.version != 1 { return Err("Unsupported local launch request.".into()); }
+                            if request.operation == "health" {
+                                let bytes=b"{\"ok\":true,\"ready\":true}\n";
+                                stream.write_all(bytes).await.map_err(|_|"Cannot report local readiness".to_owned())?;
+                                return Ok::<(),String>(());
+                            }
                             if request.operation == "stop" || request.operation == "prepare-update" {
                                 // Once the same-user request is accepted, complete its
                                 // owned idle/drain decision even if the socket times out.
@@ -467,6 +481,16 @@ impl Drop for Broker {
     fn drop(&mut self) { if let Some(stop) = self.stop.take() { let _ = stop.send(()); } }
 }
 
+pub(super) async fn request_health(directory:&Path)->Result<bool> {
+    let path=socket_path(directory)?;if socket_metadata(&path)?.is_none(){return Ok(false)};
+    tokio::time::timeout(IO_TIMEOUT,async {
+        let mut stream=match UnixStream::connect(&path).await {Ok(s)=>s,Err(error) if matches!(error.kind(),std::io::ErrorKind::NotFound|std::io::ErrorKind::ConnectionRefused)=>return Ok(false),Err(_)=>return Err("Cannot contact local companion".into())};
+        stream.write_all(b"{\"version\":1,\"operation\":\"health\"}\n").await.map_err(|_|"Cannot request local readiness")?;
+        stream.shutdown().await.map_err(|_|"Cannot finish local readiness request")?;
+        let bytes=read_frame(&mut stream).await?;
+        Ok(serde_json::from_slice::<serde_json::Value>(&bytes).ok()==Some(serde_json::json!({"ok":true,"ready":true})))
+    }).await.map_err(|_|"Local readiness timed out".to_owned())?
+}
 async fn request_open(directory: &Path) -> Result<Option<LaunchTarget>> {
     let path = socket_path(directory)?;
     if socket_metadata(&path)?.is_none() { return Ok(None); }
@@ -498,6 +522,9 @@ async fn stop_owned_startup(child: &mut tokio::process::Child) {
 
 /// Native/CLI-only entry. Registered paths are revalidated before any process starts.
 pub async fn open_registered(directory: &Path) -> Result<LaunchTarget> {
+    if let Ok(record)=read_registration(directory) {
+        if let Some(root)=super::lifecycle::installed_root(&record.executable) {super::lifecycle::recover(&root,false).await?;}
+    }
     let _owner = private_directory(directory, false)?;
     let lock_deadline = tokio::time::Instant::now() + Duration::from_secs(65);
     let _startup = loop {
@@ -509,6 +536,14 @@ pub async fn open_registered(directory: &Path) -> Result<LaunchTarget> {
     let record = read_registration(directory)?;
     if let Some(target) = request_open(directory).await? { return Ok(target); }
     super::handover::validate_admission(&record.data_dir)?;
+    if let Some(root)=super::lifecycle::installed_root(&record.executable) {
+        super::lifecycle::start_registered(&root).await?;
+        let deadline=tokio::time::Instant::now()+Duration::from_secs(75);
+        loop {if let Some(target)=request_open(directory).await?{return Ok(target)}
+            if tokio::time::Instant::now()>deadline{return Err("The background companion could not open. Run lifecycle recover; your library is kept.".into())}
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
     let mut command = desktop_command(&record.executable);
     command.args(["serve", "--data-dir"]).arg(&record.data_dir).arg("--runtime").arg(&record.runtime)
         .arg("--managed").arg("--launch-state").arg(directory)
@@ -675,6 +710,7 @@ mod tests {
         assert_eq!(first.port, 23456);
         assert_ne!(first.ticket, second.ticket);
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert!(request_health(&fixture.state).await.unwrap());
         assert_eq!(fs::symlink_metadata(fixture.state.join(SOCKET)).unwrap().mode() & 0o777, 0o600);
         broker.stop().await;
         assert!(!fixture.state.join(SOCKET).exists());

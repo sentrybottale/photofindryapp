@@ -62,7 +62,7 @@ function harness(overrides = {}) {
     return {};
   };
   const bridge = {
-    action: invoke, api: async (_path, body) => invoke(body.action || _path, body.params || body),
+    action: invoke, api: async (_path, body) => _path === '/api/action' ? invoke(body.action, body.params || {}) : invoke(_path, body),
     pick: overrides.pick || (async (kind) => ({ kind, grantId: `grant-${kind}`, label: `chosen-${kind}.gguf` })),
     refreshState: async () => state, refreshLibrary: async () => {}, refreshCurrentPage: async () => { calls.push({ name: 'refreshCurrentPage', params: structuredClone(scope) }); },
     getState: () => state, getScope: () => structuredClone(scope), selectedIDs: () => [...selected],
@@ -856,4 +856,35 @@ test('Settings reviewer rejects mismatched files and a late picker cannot change
     assert.equal(ui.calls.length, before, 'A closed Settings reviewer cannot check a late picker grant or save old choices.');
     assert(!ui.calls.some(call => call.name === 'configurePhotoReview'));
   } finally { finishPicker?.({ cancelled: true }); await ui.close(); }
+});
+
+test('background companion settings expose only fixed authenticated lifecycle actions', async () => {
+  const ui = harness({ responses: {
+    '/api/lifecycle/status': () => ({ installed: true, version: '0.2.0-beta.15', build: 113, previousBuild: 112, autostart: true, automaticUpdates: true, available: { build: 114 }, status: { phase: 'ready', message: 'Ready' } }),
+    '/api/lifecycle/action': () => ({ started: true }),
+  } });
+  try {
+    await ui.findButton('Settings').click(); await new Promise(resolve => setImmediate(resolve));
+    await ui.findButton('Install signed update').click();
+    await ui.findButton('Turn off login startup').click();
+    const actions = ui.calls.filter(call => call.name === '/api/lifecycle/action');
+    assert.deepEqual(JSON.parse(JSON.stringify(actions.map(call => call.params))), [{ action: 'update' }, { action: 'disable-autostart' }]);
+    assert(!ui.calls.some(call => ['configure', 'startModel', 'enqueueJob'].includes(call.name)));
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
+
+
+test('macOS read consent recovery gives an actionable Files path and explicit retry without starting work automatically', async () => {
+  const job = { id: 'consent', kind: 'tagging', state: 'paused', pauseReason: 'source-waiting', sourceLifecycleVersion: 1, sourceNextAction: { kind: 'allowAccess', sourceId: 'source-a' }, total: 2, completed: 0, failed: 0 };
+  const ui = harness({ state: { jobs: { jobs: [job], notifications: [] } } });
+  try {
+    const card = ui.window.PhotoFindryJobs.card(job);
+    assert.match(card.textContent, /choose its originals folder again/);
+    const buttons = card.children.at(-1).children;
+    assert(buttons.some(node => node.textContent === 'Open Files'));
+    assert.equal(ui.calls.length, 0);
+    await buttons.find(node => node.textContent === 'Retry access').click();
+    assert.deepEqual(ui.calls.filter(call => call.name === 'jobAction'), [{ name: 'jobAction', params: { action: 'resume', id: 'consent' } }]);
+  } finally { await ui.close(); }
 });

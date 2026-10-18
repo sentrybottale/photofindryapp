@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a native launcher and browser interface. The current public release is **0.2.0-beta.14, build 112**. This guide was updated on 18 October 2026.
+PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.15, build 113**. This guide was updated on 18 October 2026.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ PhotoFindry is a free local photo tagging and search workspace for Apple-silicon
 
 ## Official download
 
-Use the [official beta 14 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.14). The installer is [PhotoFindry-0.2.0-beta.14-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.14/PhotoFindry-0.2.0-beta.14-arm64-community-beta.dmg), 403,464,342 bytes (about 403 MB).
+Use the [official beta 15 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.15). The installer is [PhotoFindry-0.2.0-beta.15-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.15/PhotoFindry-0.2.0-beta.15-arm64-community-beta.dmg).
 
 The update ZIP is for the built-in updater. GitHub’s automatic source archives contain the open client and distribution files, not a complete runnable application or proprietary engine source. Do not install those archives.
 
@@ -27,18 +27,18 @@ The app is ad-hoc signed, with separate Ed25519 signatures for downloads and upd
 
 ## Update an existing installation
 
-From beta 11, automatic beta update checks are on by default: the app checks when opened if a check is due, then about every six hours while running. In the browser release, turn them off in the native launcher’s PhotoFindry menu → Automatically Check for Updates. A newer beta shows an update prompt or an inline reminder during active work; you choose when to download and install. **PhotoFindry → Check for Updates…** remains available when automatic checks are off.
+Existing app users receive a one-time migration installer through the retained signed app feed. Use PhotoFindry → Check for Updates in an older app, or install the current verified download. The installer keeps the library in place, waits for the independent companion to become ready, opens the browser and exits.
 
-If an older installation has no automatic reminders, check manually or install the current verified beta. The official feed is [photofindry.com/updates/beta/appcast.xml](https://photofindry.com/updates/beta/appcast.xml). The app authenticates the feed and update ZIP before installation and waits for work and saves to drain.
+After migration, use **Settings → Background companion** in the local browser. Login startup and automatic update checks can each be turned off there. Checks run locally about every six hours while the companion runs; you choose **Install signed update** when ready. Updates authenticate the fixed CLI feed and exact package bytes with the retained publisher key.
 
-An update replaces the application bundle, not your photo folders, library databases or selected model paths. Keep a library backup before testing a beta update. Use only a rollback version with documented data compatibility; never delete the library to fix an update problem.
+The companion keeps its previous verified software for recovery. An interrupted update restores software, never an older library backup. The native opening helper offers **Recover and open** if startup fails; **Recover companion** and **Use previous companion version** are also available in browser Settings when applicable. Keep independent backups of original photographs.
 
 Next: [Getting started](https://photofindry.com/docs/getting-started.html) · [Troubleshooting](https://photofindry.com/docs/troubleshooting.html)
 
 ## Browser workspace and native-app migration
 
-Beta 14 uses a small native launcher and a local companion with a browser interface. Open the installed PhotoFindry application or app.photofindry.com. The public page requests only the fixed local launch action; it never receives your library session. The address bar changes to the trusted local workspace.
+The installer runs once. Normal use needs only the background CLI companion and browser; the migration application exits and can move to Trash after successful handoff. Open PhotoFindry from app.photofindry.com. The public page requests only the fixed local launch action; it never receives your library session. The address bar changes to the trusted local workspace.
 
 Existing users keep their library, original photos and chosen model paths. Read the migration screen and let it finish preparing its recovery copy. **Use current beta** opens the verified retained native version if you defer or migration fails; it does not restore old library data. Imported photo sources may need their current originals folder confirmed under Files.
 
-To uninstall, use the local uninstall flow in Settings/About and review its native confirmation. It removes the verified application through Trash while retaining libraries, originals, model files and backups.
+To uninstall, use the local uninstall flow in Settings/About and review its native confirmation. It disables login startup and moves the active verified companion package to Trash while retaining libraries, originals, model files, backups and inactive recovery versions.

@@ -321,7 +321,7 @@
     if (!check && activeRootCheck) connection.append(notice(activeRootCheck.sourceVerifyContents === true
       ? 'The optional full-file comparison is in progress. It reads complete original contents and can take time on this drive.'
       : 'The folder check is in progress. Its matching locations will be ready to review here after it finishes.'));
-    const chooseFolder = button(needsConnection || check ? 'Choose this Mac’s originals folder…' : 'Change originals folder…', () => locate(source, rootInfo), needsConnection || check ? 'primary' : '');
+    const chooseFolder = button('Choose originals folder…', () => locate(source, rootInfo), needsConnection || check ? 'primary' : '');
     chooseFolder.classList.add('pfp-choose-originals');
     chooseFolder.disabled = (roots.length > 1 && !rootInfo) || Boolean(activeRootCheck) || confirming;
     if (checkedFolder && !check?.plan && !check?.phase) {
@@ -529,7 +529,7 @@
       }
     }, matches ? 'primary' : '');
     confirm.disabled = !matches;
-    node.append(row(matches ? confirm : button('Choose this Mac’s originals folder…', () => locate(source, rootInfo), 'primary'),
+    node.append(row(matches ? confirm : button('Choose originals folder…', () => locate(source, rootInfo), 'primary'),
       matches ? button('Choose another folder…', () => locate(source, rootInfo)) : confirm,
       button('Cancel review', async () => { await command('cancelSourceConnectionReview'); view.sourceChecks.delete(source.id); node.remove(); if (chooseOriginals) chooseOriginals.hidden = false; if (reviewChecked) reviewChecked.hidden = false; })));
     if (plan.verificationCount > 0) node.append(disclosure('Compare file contents (optional)', el('p', 'pfp-muted', 'This reads complete original files with saved checksums. It is not needed for folder confirmation.'), button('Optional full-file comparison…', () => locate(source, rootInfo, true))));

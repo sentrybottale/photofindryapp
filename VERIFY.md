@@ -48,8 +48,17 @@ That command alone does **not** check the signature or publisher.
 
 ## Application updates
 
-PhotoFindry verifies the signed beta feed and the full update ZIP with the same
-pinned Ed25519 key before installing. From beta 11, automatic checks are enabled on launch and about every six hours while the app runs. Settings → App updates has a persistent opt-out. Downloads and installation require your choice. Earlier betas need one manual upgrade using **Check for Updates…** to obtain reminders. The feed is `https://photofindry.com/updates/beta/appcast.xml`.
+Older app versions authenticate the one-time migration installer using the retained
+signed app feed at `https://photofindry.com/updates/beta/appcast.xml`. After handoff,
+the independent CLI uses `https://photofindry.com/updates/cli/release.json`.
+Its Ed25519 envelope authenticates release/build/platform/data contract, archive
+URL/size/hash and the complete package inventory. The installed verifier contains
+the same trusted publisher pin; the server cannot supply a replacement key.
+
+Settings → Background companion controls login startup and automatic checks.
+Checks do not silently install. Choose Install signed update when ready. Failed
+or interrupted switches retain verified prior software and never automatically
+restore an older library. The local opening helper offers Recover and open.
 
 The app bundle uses ad-hoc macOS signatures. These are distinct from the
 maintainer's Ed25519 download/update signatures and do not provide Apple publisher

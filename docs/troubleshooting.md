@@ -8,7 +8,11 @@ Confirm the download is from the official GitHub release and verify its signed i
 
 ## No update appears
 
-From beta 11, check that the native launcher’s PhotoFindry menu → Automatically Check for Updates is on. The app must be running for scheduled checks. Older betas need one manual upgrade for reminders. You can always use PhotoFindry → Check for Updates. Check your internet connection and the version/build in About PhotoFindry. Beta 14 is app version 0.2.0, build 112; the beta label is visible in the update notes. A current build may correctly report no newer update. Do not replace the configured feed or signing key to force an update.
+After CLI migration, open Settings → Background companion and choose **Check for updates**. Automatic checks can be switched on or off there; the companion must be running for scheduled checks. Older app versions use their PhotoFindry → Check for Updates menu for the one-time migration update. A current build may correctly report no newer update. Never replace the feed or signing key to force one.
+
+## The workspace cannot open after an update
+
+Use **Open PhotoFindry** again. The installed helper can offer **Recover and open** to recover verified software and retry. Your current library stays in place. If the browser is still connected, Settings → Background companion also offers recovery and the previous software version. Keep the library and its recovery copy; do not delete them or restore an old backup as an automatic fix.
 
 ## Model stopped, unavailable or insufficient memory
 
@@ -32,11 +36,11 @@ Send Feedback submits directly, without an email app. Keep the receipt for follo
 
 Read [privacy and distribution](https://photofindry.com/docs/privacy.html) for what is sent.
 
-For beta 14 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
+For beta 15 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
 
 ## Legacy saved-photo search error
 
-Beta 14 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
+Beta 15 handles legacy text that previously caused “Invalid saved photograph” during search. Install the update and retry the same query. Do not delete records, reimport the source or retag the library to repair this error. If it persists, submit a small reproducible report with the app build and optional reviewed diagnostic log.
 
 ## Tagging pauses after a drive reconnects
 
@@ -52,7 +56,7 @@ After reopening the app, jobs stay paused. Use **Resume** to retry a job at its 
 
 ## Empty or corrupt original files
 
-Beta 14 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
+Beta 15 continues past empty and corrupt files to process other usable photographs. Empty originals stay pending; reconnect or make the originals locally available, then explicitly Resume the held job. Corrupt images may need repair or replacement outside PhotoFindry. Saved tags are retained.
 
 Failed tagging jobs appear in Queue with **Retry**. Read the final error before retrying. Retry applies to that selected job; unrelated source holds and schedules stay in place.
 
