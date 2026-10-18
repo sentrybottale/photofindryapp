@@ -29,6 +29,8 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
     private var scheduled: DispatchWorkItem?
     private var activeRequest: NativeLaunchRequest?
     private var pendingRequest: NativeLaunchRequest?
+    private var retryRequest: NativeLaunchRequest = .workspace
+    private var recoveryAttempted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -57,11 +59,12 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         return false
     }
 
-    private func openLibrary(_ request: NativeLaunchRequest = .workspace) {
+    private func openLibrary(_ request: NativeLaunchRequest = .workspace, recovering: Bool = false) {
         if launch != nil {
             if request != activeRequest { pendingRequest=request }
             return
         }
+        retryRequest = request
         let executable = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("photofindry")
         var info: stat = stat()
         guard executable.withUnsafeFileSystemRepresentation({ pointer in
@@ -73,10 +76,11 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         }
         let process = Process()
         process.executableURL = executable
-        switch request {
+        if recovering { process.arguments=["lifecycle","recover"] }
+        else { switch request {
         case .workspace: process.arguments=["open"]
         case .archive(let id): process.arguments=["open-archive",id]
-        }
+        }}
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         // The CLI reports bounded human-readable errors, never a bootstrap URL.
@@ -96,7 +100,9 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.launch = nil
                 self.activeRequest=nil
+                if recovering { self.recoveryAttempted = true }
                 if process.terminationStatus == 0 {
+                    if recovering {self.openLibrary(self.pendingRequest ?? request);self.pendingRequest=nil;return}
                     if let next=self.pendingRequest {self.pendingRequest=nil;self.openLibrary(next)}
                     else {NSApp.terminate(nil)}
                 }
@@ -117,8 +123,22 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         alert.messageText = "PhotoFindry could not open"
         alert.informativeText = String(message.prefix(4096))
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        let bin=Bundle.main.bundleURL.deletingLastPathComponent()
+        let version=bin.deletingLastPathComponent().deletingLastPathComponent()
+        let canRecover = version.deletingLastPathComponent().lastPathComponent == "versions"
+            && UInt64(version.lastPathComponent) != nil && !recoveryAttempted
+        if canRecover {
+            alert.addButton(withTitle: "Recover and open")
+            alert.addButton(withTitle: "Cancel")
+            alert.informativeText += "\n\nRecovery restarts verified companion software. Your current library stays in place."
+            if alert.runModal() == .alertFirstButtonReturn {
+                openLibrary(retryRequest,recovering:true)
+                return
+            }
+        } else {
+            if recoveryAttempted { alert.informativeText += "\n\nReinstall the latest verified PhotoFindry companion from photofindry.com, then open it again. Keep your library and recovery copy in place." }
+            alert.addButton(withTitle: "OK");alert.runModal()
+        }
         if launch == nil { NSApp.terminate(nil) }
     }
 }
@@ -503,8 +523,29 @@ func runNativeUninstallError() -> Bool {
     return true
 }
 
+// The CLI may retire only the verified migration bundle recorded at handoff.
+// The website cannot supply this request; it arrives on the local private pipe.
+func retireMigrationApplication() -> Bool {
+    guard let input=readUninstallInput(),
+          let request=nativeUninstallRequest(input,confirmation:true),
+          !pathContains(request.packagePath,request.libraryPath),
+          !pathContains(request.libraryPath,request.packagePath),
+          verifiedBrowserApplication(request.packagePath),
+          let before=nativeUninstallIdentity(request.packagePath),before.owner==getuid(),
+          !NSWorkspace.shared.runningApplications.contains(where:{
+              $0.bundleURL?.resolvingSymlinksInPath().path == request.packagePath
+          }) else {return false}
+    guard nativeUninstallIdentity(request.packagePath)==before else {return false}
+    do {
+        var destination:NSURL?
+        try FileManager.default.trashItem(at:URL(fileURLWithPath:request.packagePath),resultingItemURL:&destination)
+        guard destination != nil else {return false}
+        return writeNativeUninstallReply(["retired":true],closeOutput:false)
+    } catch {return false}
+}
+
 enum NativeHelperMode: Equatable {
-    case openLocal, registerLinks, confirmUninstall, trashPackage, uninstallError
+    case openLocal, registerLinks, confirmUninstall, trashPackage, uninstallError, retireMigration
 }
 func nativeHelperMode(_ arguments:[String]) -> NativeHelperMode? {
     switch arguments {
@@ -513,6 +554,7 @@ func nativeHelperMode(_ arguments:[String]) -> NativeHelperMode? {
     case ["--confirm-uninstall"]: return .confirmUninstall
     case ["--trash-package"]: return .trashPackage
     case ["--uninstall-error"]: return .uninstallError
+    case ["--retire-migration-app"]: return .retireMigration
     default: return nil
     }
 }
@@ -528,6 +570,7 @@ if !arguments.isEmpty {
     case .confirmUninstall: success=runNativeUninstall(confirmation:true)
     case .trashPackage: success=runNativeUninstall(confirmation:false)
     case .uninstallError: success=runNativeUninstallError()
+    case .retireMigration: success=retireMigrationApplication()
     case nil: success=false
     }
     guard success else {

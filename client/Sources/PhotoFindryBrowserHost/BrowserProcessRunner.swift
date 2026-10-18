@@ -61,7 +61,7 @@ final class BrowserProcessRunner: BrowserCommandRunning, @unchecked Sendable {
 
     init(timeout: @escaping @Sendable (String) -> TimeInterval? = { command in
         switch command {
-        case "migrate-library": return nil // Cooperative, explicitly cancellable cold-copy transaction.
+        case "migrate-library", "lifecycle": return nil // Cooperative, explicitly cancellable cold-copy transaction.
         case "migration-status": return 15
         case "prepare-app-update": return 90 // Includes the CLI's bounded 60-second owned drain.
         default: return 30
@@ -181,7 +181,7 @@ final class BrowserProcessRunner: BrowserCommandRunning, @unchecked Sendable {
 
     func cancelMigration() async {
         let process: Process? = lock.withLock {
-            guard activeCommand == "migrate-library", let process = active else { return nil }
+            guard ["migrate-library", "lifecycle"].contains(activeCommand ?? ""), let process = active else { return nil }
             cancellationRequested = true
             return process
         }

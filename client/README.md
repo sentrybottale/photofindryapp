@@ -11,6 +11,20 @@ website can request that the installed launcher open it, but does not receive
 library authority. Photos, models and inference stay local. Optional, explicit
 feedback and model downloads have their own visible network actions.
 
+## Installed lifecycle
+
+The application download is a one-time migration installer. It verifies a recovery
+copy when needed, installs the CLI separately and exits after the local service is
+ready. The per-user LaunchAgent starts the companion at login; native file dialogs
+and the URL handler run only when needed. No permanent Mac application is required.
+
+Use **Background companion** in browser Settings for login startup, automatic
+update checks, signed installation and software recovery. The installed publisher
+key verifies the fixed CLI feed and exact package bytes. Updates keep a previous
+software version; recovery never automatically restores an older photo library.
+Automatic checks do not silently install. Uninstall disables startup and keeps
+saved libraries, original photographs and model paths.
+
 ## Build and test the client
 
 Use macOS 14 or newer on Apple silicon, Swift 5.9 or newer, Node 24 or newer,

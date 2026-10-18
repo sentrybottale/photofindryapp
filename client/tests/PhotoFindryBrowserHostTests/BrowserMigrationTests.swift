@@ -20,7 +20,7 @@ import XCTest
         await controller.acceptMigration()
         XCTAssertEqual(controller.screen, .ready(rollbackPath: recovery.path))
         XCTAssertEqual(runner.invocations.map(\.arguments), [
-            ["migration-status", "--data-dir", paths.library.path], paths.migrationArguments(rollback: recovery), ["open"]
+            ["migration-status", "--data-dir", paths.library.path], paths.migrationArguments(rollback: recovery), ["open", "--launch-state", paths.launchState.path]
         ])
         XCTAssertTrue(runner.invocations.allSatisfy { $0.executable == paths.executable })
         XCTAssertTrue(controller.hasOpenedWorkspace)
@@ -65,18 +65,18 @@ import XCTest
         XCTAssertTrue(controller.hasOpenedWorkspace)
     }
 
-    func testReadyMatchingRegistrationReopensWithoutBackupMigrationOrPairing() async {
-        let runner = ScriptedBrowserRunner([.json(#"{"ok":true,"state":"ready","registrationMatches":true}"#), .success, .success])
+    func testReadyMatchingRegistrationStillInstallsIndependentCLIOnce() async {
+        let runner = ScriptedBrowserRunner([.json(#"{"ok":true,"state":"ready","registrationMatches":true}"#), .json(#"{"ok":true,"state":"ready"}"#), .success, .success])
         let controller = BrowserMigrationController(paths: paths, runner: runner)
         await controller.start(); await controller.start()
-        XCTAssertEqual(runner.invocations.map { $0.arguments.first! }, ["migration-status", "open", "open"])
+        XCTAssertEqual(runner.invocations.map { $0.arguments.first! }, ["migration-status", "lifecycle", "open", "open"])
     }
 
     func testReadyNewBundleRebindsThroughCLIInsteadOfUsingOldExecutable() async {
         let runner = ScriptedBrowserRunner([.json(#"{"ok":true,"state":"ready","registrationMatches":false}"#), .json(#"{"ok":true,"state":"ready"}"#), .success])
         let controller = BrowserMigrationController(paths: paths, runner: runner)
         await controller.start()
-        XCTAssertEqual(runner.invocations.map { $0.arguments.first! }, ["migration-status", "migrate-library", "open"])
+        XCTAssertEqual(runner.invocations.map { $0.arguments.first! }, ["migration-status", "lifecycle", "open"])
     }
 
     func testBusyNativeAppHasActionableRecoveryAndRetryReachesWorkspace() async {
@@ -124,7 +124,7 @@ import XCTest
     }
 
     func testOpenFailureRetriesOpenOnlyWithoutRepeatingSuccessfulMigration() async {
-        let runner = ScriptedBrowserRunner([.json(#"{"ok":true,"state":"ready","registrationMatches":true}"#),
+        let runner = ScriptedBrowserRunner([.json(#"{"ok":true,"state":"ready","registrationMatches":true}"#), .json(#"{"ok":true,"state":"ready"}"#),
             BrowserCommandResult(exitCode: 1, response: nil, diagnostic: "Enable your default browser, then choose Try again."), .success])
         let controller = BrowserMigrationController(paths: paths, runner: runner)
         await controller.start()
@@ -132,21 +132,22 @@ import XCTest
         XCTAssertTrue(error.nextAction.contains("default browser"))
         await controller.start()
         XCTAssertTrue(controller.hasOpenedWorkspace)
-        XCTAssertEqual(runner.invocations.map { $0.arguments.first! }, ["migration-status", "open", "open"])
+        XCTAssertEqual(runner.invocations.map { $0.arguments.first! }, ["migration-status", "lifecycle", "open", "open"])
     }
 
-    func testShutdownUsesGuardedOwnedCommandAndActiveWorkFailureCanBeRetried() async throws {
+    func testClosingInstallerKeepsInstalledBackgroundServiceRunning() async throws {
         let runner = ScriptedBrowserRunner([
-            .json(#"{"ok":true,"state":"ready","registrationMatches":true}"#), .success,
-            .json(#"{"ok":false,"ready":false,"message":"A tagging job is active.","nextAction":"Pause it in Jobs and retry."}"#, code: 1),
-            .json(#"{"ok":true,"ready":true}"#)
+            .json(#"{"ok":true,"state":"ready","registrationMatches":true}"#),
+            .json(#"{"ok":true,"state":"ready"}"#), .success
         ])
         let controller = BrowserMigrationController(paths: paths, runner: runner)
         await controller.start()
-        do { try await controller.prepareForExit(); XCTFail("Must defer") }
-        catch { XCTAssertTrue(error.localizedDescription.contains("Pause it in Jobs")) }
+        XCTAssertTrue(controller.hasOpenedWorkspace)
+        let count = runner.invocations.count
         try await controller.prepareForExit()
-        XCTAssertEqual(runner.invocations.suffix(2).map(\.arguments), Array(repeating: ["prepare-app-update", "--data-dir", paths.library.path], count: 2))
+        XCTAssertEqual(runner.invocations.count, count, "Closing the installer never drains the independent CLI")
+        XCTAssertEqual(runner.invocations[1].arguments.prefix(2), ["lifecycle", "install"])
+        XCTAssertTrue(runner.invocations[1].arguments.contains("--release"))
     }
 
     func testPublicLinksAllowOnlyFixedWorkspaceAndCanonicalArchiveNavigation() {
@@ -213,7 +214,7 @@ private final class CancellableBrowserRunner: BrowserCommandRunning {
         self.arguments.append(arguments)
         switch arguments.first {
         case "migration-status": return .json(#"{"ok":true,"state":"needs-handover"}"#)
-        case "migrate-library":
+        case "lifecycle":
             if interruptedOnce { return .json(#"{"ok":true,"state":"ready"}"#) }
             return await withCheckedContinuation { continuation = $0 }
         default: return .success

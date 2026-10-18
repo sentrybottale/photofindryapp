@@ -172,7 +172,45 @@
   }
   function openAbout() {
     const { body } = modal('About PhotoFindry', 'Find the photograph you remember. Free to use, with optional support.');
-    body.append(el('p', 'dialog-intro', 'This browser workspace is bundled into the installed macOS companion. The website cannot replace its code or receive its local session. Library databases, original photographs and model files stay on this Mac.'), el('p', 'dialog-intro', 'The PhotoFindry Mac application checks for signed updates. Use its PhotoFindry menu to check now or turn automatic checks on or off. Downloading and installing remain your choice. Updates preserve your library and chosen model paths. Standalone companion packages require a separately verified manual installation. Community betas are not Apple-notarized.'), el('p', 'dialog-intro', 'PhotoFindry is free to use, with an MIT open-source client and proprietary local engines. Third-party licences and notices are retained with the installed runtime. Your photos, human labels and saved details remain portable through backups and source archives.'), button('Privacy & distribution', openPrivacy), button('Optional Buy Me a Coffee support', () => window.PhotoFindrySupport?.open()), button('Uninstall companion…', openUninstall));
+    body.append(el('p', 'dialog-intro', 'This browser workspace is bundled into the installed macOS companion. The website cannot replace its code or receive its local session. Library databases, original photographs and model files stay on this Mac.'), el('p', 'dialog-intro', 'The background companion starts at login and checks for signed updates. Manage startup, updates and recovery below. The one-time migration application is no longer needed. Updates preserve your library and chosen model paths. Community betas are not Apple-notarized.'), el('p', 'dialog-intro', 'PhotoFindry is free to use, with an MIT open-source client and proprietary local engines. Third-party licences and notices are retained with the installed runtime. Your photos, human labels and saved details remain portable through backups and source archives.'), button('Privacy & distribution', openPrivacy), button('Optional Buy Me a Coffee support', () => window.PhotoFindrySupport?.open()), button('Uninstall companion…', openUninstall), lifecycleControls());
+  }
+  function lifecycleControls() {
+    const panel = section('Background companion', 'PhotoFindry runs locally without keeping the migration application open.');
+    const message = el('p', 'settings-live', 'Checking this installation…');
+    message.setAttribute('role', 'status');
+    const controls = el('div', 'button-row');
+    const reopen = el('a', 'secondary-button', 'Open PhotoFindry'); reopen.href = 'photofindry-local://open';
+    const refresh = button('Refresh status', load);
+    let pending = false;
+    async function act(action) {
+      if (pending) return;
+      pending = true;
+      try {
+        await P.api('/api/lifecycle/action', { action });
+        message.textContent = ['update', 'rollback', 'recover'].includes(action)
+          ? 'The companion is finishing saved work and restarting. When this connection closes, choose Open PhotoFindry to return. Your library stays in place. If it cannot start, the previous version is restored automatically.'
+          : 'The request has started. Choose Refresh status in a moment to see the result.';
+      } finally { pending = false; }
+    }
+    async function load() {
+      const value = await P.api('/api/lifecycle/status', {});
+      if (!panel.isConnected) return;
+      controls.replaceChildren();
+      if (!value?.installed) { message.textContent = str(value?.message) || 'Open the latest verified installer once to enable background startup and signed CLI updates.'; return; }
+      message.textContent = `Version ${str(value.version)} · build ${num(value.build)}. ${str(value.status?.message)}`;
+      const actions = [
+        [value.autostart ? 'Turn off login startup' : 'Start at login', value.autostart ? 'disable-autostart' : 'enable-autostart'],
+        [value.automaticUpdates ? 'Turn off automatic update checks' : 'Check for updates automatically', value.automaticUpdates ? 'disable-update-checks' : 'enable-update-checks'],
+        ['Check for updates', 'check'],
+      ];
+      if (num(value.available?.build) > num(value.build)) actions.push(['Install signed update', 'update']);
+      if (value.previousBuild) actions.push(['Use previous companion version', 'rollback']);
+      if (value.recoveryPending || value.status?.phase === 'error') actions.push(['Recover companion', 'recover']);
+      for (const [title, action] of actions) controls.append(button(title, () => act(action), action === 'update'));
+    }
+    panel.append(message, controls, refresh, reopen);
+    queueMicrotask(() => { if (panel.isConnected) run(load); });
+    return panel;
   }
   async function openUninstall() {
     if (uninstallDialog?.open) { uninstallDialog.focus(); return; }
@@ -251,7 +289,7 @@
       ['Public entry and local workspace', 'The public site opens the installed launcher. This trusted workspace is bundled with the companion and served from loopback. The website receives no library session or local API authority. No mandatory account, advertising analytics or background feedback reporting is added.'],
       ['Connections you choose', 'Model downloads contact their pinned hosts only when requested. Feedback sends the report, selected screenshots and optional diagnostic attachment you review. Support and website links open external pages only when selected. Those hosts receive normal connection information such as IP addresses.'],
       ['Working offline', 'Local photo workflows can run without internet when the required models and originals are available. Cloud-only originals may need your cloud provider. This build does not enforce an operating-system network sandbox.'],
-      ['Installation and updates', 'Official Mac application updates are authenticated by the installed updater key. Use PhotoFindry → Check for Updates in the native launcher; automatic checks can be turned off in that menu. Downloading and installing remain your choice. Standalone companion packages require separately verified manual installation. Updates preserve libraries, originals, previews and chosen model locations. Community betas are not Apple Developer ID signed or notarized.'],
+      ['Installation and updates', 'Installed companion updates are authenticated by the pinned publisher key. Use Background companion in Settings to check, install or recover an update; automatic checks and login startup can be turned off there. The migration application closes after installing the background CLI. Updates preserve libraries, originals, previews and chosen model locations. Community betas are not Apple Developer ID signed or notarized.'],
       ['Feedback you share', 'Reports go by HTTPS to photofindry.com/bugs for private review and follow-up. A receipt confirms storage. No photo library or raw logs are attached automatically. Prepared screenshots remove file metadata, but visible private content stays visible. Optional diagnostics contain only the exact allowlisted states and counters shown in the report preview. Reports remain until removed by the team.'],
       ['Distribution and ownership', 'PhotoFindry is free to use, with an MIT open-source client and proprietary local engines. The client includes the browser interface, launcher and local bridge. Engine implementation remains private. Published release signatures establish publisher approval and file integrity; they do not certify absence of defects. Third-party software retains its licences and notices.'],
     ]) body.append(section(title, description));
@@ -1108,7 +1146,7 @@
     const awake = select([['off', 'Off'], ['processing', 'While processing'], ['queue', 'Until queue finishes']], snapshot.powerPreferences?.mode || 'processing'); awake.addEventListener('change', () => { draft.dirty = true; }); power.append(field('Prevent idle system sleep', awake));
     const uninstall = section('Uninstall companion', 'Remove this companion through a macOS confirmation. Your saved library, original photographs, model files and saved settings are kept.');
     uninstall.append(button('Review uninstall…', openUninstall));
-    body.append(models, downloads, recommendations, metadata, storage, search, power, uninstall);
+    body.append(models, downloads, recommendations, metadata, storage, search, power, lifecycleControls(), uninstall);
     const footer = el('div', 'settings-footer'); footer.append(button('Close', () => settingsDialog?.close()), button('Save settings', async () => {
       const budgetValue = Number(budget.value); if (!Number.isFinite(budgetValue) || budgetValue < 0.0625 || budgetValue > 1024) throw new Error('Choose a preview budget from 0.0625 to 1024 GiB.');
       await saveModels();

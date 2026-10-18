@@ -1,4 +1,8 @@
 //! macOS-only experiment: immutable local UI, explicitly isolated library, no remote trust.
+#[path = "cli_release.rs"]
+mod cli_release;
+#[path = "lifecycle.rs"]
+mod lifecycle;
 #[path = "auth.rs"]
 mod auth;
 #[path = "appearance.rs"]
@@ -482,6 +486,9 @@ async fn uninstall_plan(state: &State) -> Result<uninstall::Plan,String> {
 }
 async fn open_native_uninstall(state: &State) -> Result<(),String> {
     uninstall_plan(state).await?;
+    if let Some(root)=lifecycle::installed_root(&std::env::current_exe().map_err(|_|"Cannot locate companion")?) {
+        return lifecycle::schedule(&root,"uninstall").await;
+    }
     if state.uninstall_active.compare_exchange(false,true,Ordering::AcqRel,Ordering::Acquire).is_err() {
         return Err("An uninstall review is already open in macOS. Finish or cancel it before trying again.".into());
     }
@@ -521,6 +528,24 @@ async fn api(path: &str, bytes: &[u8], state: &State, library_guard:Option<Libra
         return error(StatusCode::CONFLICT,"The restored library is opening. Wait for it to finish before continuing.");
     }
     match path {
+        "/api/lifecycle/status" => {
+            if serde_json::from_slice::<Empty>(bytes).is_err(){return invalid();}
+            let exe=match std::env::current_exe(){Ok(v)=>v,Err(_)=>return operation_error("Cannot locate installed companion")};
+            let Some(root)=lifecycle::installed_root(&exe)else{return json_response(json!({"installed":false,"message":"Open the latest verified installer once to enable background startup and signed CLI updates."}));};
+            match tokio::task::spawn_blocking(move||lifecycle::status(&root)).await {
+                Ok(Ok(value))=>json_response(value),Ok(Err(reason))=>operation_error(&reason),Err(_)=>operation_error("Could not check companion status. Try again.")
+            }
+        }
+        "/api/lifecycle/action" => {
+            #[derive(Deserialize)] #[serde(deny_unknown_fields)] struct Request {action:String}
+            let Ok(input)=serde_json::from_slice::<Request>(bytes)else{return invalid();};
+            if !matches!(input.action.as_str(),"check"|"update"|"rollback"|"recover"|"enable-autostart"|"disable-autostart"|"enable-update-checks"|"disable-update-checks"){return invalid();}
+            if !state.registered{return operation_error("Open the installed PhotoFindry companion to manage updates.");}
+            if uninstall_transfer_busy(state){return operation_error("Finish or cancel the current backup or transfer, then retry.");}
+            let exe=match std::env::current_exe(){Ok(v)=>v,Err(_)=>return operation_error("Cannot locate companion")};
+            let Some(root)=lifecycle::installed_root(&exe)else{return operation_error("Open the verified installer once to finish CLI migration.");};
+            match lifecycle::schedule(&root,&input.action).await{Ok(())=>json_response(json!({"started":true})),Err(reason)=>operation_error(&reason)}
+        }
         "/api/uninstall/plan" => {
             if serde_json::from_slice::<Empty>(bytes).is_err() {return invalid();}
             let pending=state.uninstall_active.load(Ordering::Acquire);
@@ -1952,12 +1977,15 @@ pub async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args == ["--help"] || args.is_empty() {
         println!(
-            "PhotoFindry macOS browser migration preview\n\nNew empty library:\n  photofindry new --data-dir /absolute/new/library --runtime /absolute/runtime\nReopen an admitted library:\n  photofindry serve --data-dir /absolute/library --runtime /absolute/runtime\nOne-time closed-app handover:\n  photofindry serve --data-dir /absolute/existing/library --runtime /absolute/runtime --handover-existing-library --rollback-copy /absolute/new/rollback\nRegister one admitted library for browser entry (once, while closed):\n  photofindry register-launch --data-dir /absolute/library --runtime /absolute/runtime\nOpen the registered library without a terminal pairing code:\n  photofindry open\nCheck a private rollback copy:\n  photofindry verify-handover --rollback-copy /absolute/rollback\n\nInstalled library launches use a fresh loopback port. Handover keeps the same directory, verifies a private cold copy, and refuses incompatible schemas or a running former host. Queues reopen paused. Never add a prototype marker to a customer library.\nDevelopment only: serve also accepts a companion-prototype.json library, or explicit --allow-existing-library, with optional --worker and --port. These bypass the production handover preparation.\nThe embedded local UI uses reviewed native actions. The public website has no library API or update authority. Requested model downloads and feedback remain explicit.\nKeep the terminal open. Type status for local state, pair to revoke access and issue a new code, or quit/Ctrl-C to stop owned processes. No public release or automatic updater is included."
+            "PhotoFindry macOS browser migration preview\n\nNew empty library:\n  photofindry new --data-dir /absolute/new/library --runtime /absolute/runtime\nReopen an admitted library:\n  photofindry serve --data-dir /absolute/library --runtime /absolute/runtime\nOne-time closed-app handover:\n  photofindry serve --data-dir /absolute/existing/library --runtime /absolute/runtime --handover-existing-library --rollback-copy /absolute/new/rollback\nRegister one admitted library for browser entry (once, while closed):\n  photofindry register-launch --data-dir /absolute/library --runtime /absolute/runtime\nOpen the registered library without a terminal pairing code:\n  photofindry open\nCheck a private rollback copy:\n  photofindry verify-handover --rollback-copy /absolute/rollback\n\nInstalled library launches use a fresh loopback port. Handover keeps the same directory, verifies a private cold copy, and refuses incompatible schemas or a running former host. Queues reopen paused. Never add a prototype marker to a customer library.\nDevelopment only: serve also accepts a companion-prototype.json library, or explicit --allow-existing-library, with optional --worker and --port. These bypass the production handover preparation.\nThe embedded local UI uses reviewed native actions. The public website has no library API or update authority. Requested model downloads and feedback remain explicit.\nKeep the terminal open. Type status for local state, pair to revoke access and issue a new code, or quit/Ctrl-C to stop owned processes. Installed versions use lifecycle status/check/update/recover for signed CLI updates and recovery. Use lifecycle autostart --enabled true or false to change login startup."
         );
         println!("\nReview removal of the registered companion (keeps all saved data):\n  photofindry uninstall\nNative confirmation:\n  photofindry uninstall --interactive\nTerminal confirmation:\n  photofindry uninstall --confirm\nThe installed package moves to Trash. Libraries, originals, models, settings and other installations are kept.");
         return;
     }
-    let result = if matches!(args.first().map(String::as_str),Some("migration-status"|"migrate-library"|"prepare-app-update")) {
+    let installing_cli=args.get(0).map(String::as_str)==Some("lifecycle")&&args.get(1).map(String::as_str)==Some("install");
+    let result = if args.first().map(String::as_str)==Some("lifecycle") {
+        lifecycle::command(&args).await
+    } else if matches!(args.first().map(String::as_str),Some("migration-status"|"migrate-library"|"prepare-app-update")) {
         migration::command(&args).await
     } else if matches!(args.first().map(String::as_str), Some("open" | "open-archive" | "register-launch")) {
         launch_command(&args).await
@@ -1972,6 +2000,7 @@ pub async fn main() {
         Err(error) => Err(error),
     }};
     if let Err(error) = result {
+        if installing_cli{println!("{}",json!({"ok":false,"state":"blocked","message":error,"nextAction":"Choose Try again. Keep your library and recovery copy in place; use the current beta if migration cannot finish."}));}
         eprintln!("PhotoFindry: {error}");
         std::process::exit(1);
     }

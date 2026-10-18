@@ -34,14 +34,18 @@ struct BrowserHostPaths: Equatable {
     let runtime: URL
     let library: URL
     let rollbackDirectory: URL
+    let installation: URL
+    let launchState: URL
     init(resources: URL, home: URL) {
         executable = resources.appendingPathComponent("companion/bin/photofindry")
         runtime = resources.appendingPathComponent("companion/runtime", isDirectory: true)
         library = home.appendingPathComponent("Library/Application Support/PhotoRecall", isDirectory: true)
+        installation = home.appendingPathComponent("Library/Application Support/PhotoFindry Companion", isDirectory: true)
+        launchState = library.appendingPathComponent("companion-launch", isDirectory: true)
         rollbackDirectory = home.appendingPathComponent("Library/Application Support/PhotoFindry Migration Backups", isDirectory: true)
     }
     func migrationArguments(rollback: URL) -> [String] {
-        ["migrate-library", "--data-dir", library.path, "--runtime", runtime.path, "--rollback-copy", rollback.path]
+        ["lifecycle", "install", "--install-root", installation.path, "--launch-state", launchState.path, "--data-dir", library.path, "--release", runtime.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("cli-release.json").path, "--rollback-copy", rollback.path]
     }
 }
 
@@ -152,8 +156,7 @@ enum BrowserMigrationScreen: Equatable {
                 }
                 screen = .offer(existing: reply.state == "needs-handover", diskExplanation: disk)
             case "ready":
-                if reply.registrationMatches == true { configured = true; try await openPendingRequest() }
-                else { try await migrateAndOpen() }
+                try await migrateAndOpen()
             case "busy", "incompatible": throw reply.failure
             default: throw BrowserHostFailure.invalidReply
             }
@@ -202,7 +205,7 @@ enum BrowserMigrationScreen: Equatable {
     private func openPendingRequest(rollbackPath: String? = nil) async throws {
         screen = .working(stage: "opening", message: "Opening your trusted local workspace in the browser…")
         let request = pendingRequest
-        let result = try await runner.run(executable: paths.executable, arguments: request.arguments, json: false, progress: { _ in })
+        let result = try await runner.run(executable: paths.executable, arguments: request.arguments + ["--launch-state", paths.launchState.path], json: false, progress: { _ in })
         guard result.exitCode == 0 else {
             throw BrowserHostFailure(message: "Your library is ready, but its browser workspace could not open.",
                 nextAction: result.diagnostic.isEmpty ? "Choose Try again to reopen PhotoFindry. Your saved library and recovery copy remain in place." : result.diagnostic)
@@ -219,8 +222,9 @@ enum BrowserMigrationScreen: Equatable {
         }
         // Declining the offer must not stop a pre-migration native app or
         // require a library to exist merely to close this setup window.
-        guard configured else { return }
-        try await prepareForUpdate()
+        // The installed background service owns its lifetime after handoff.
+        // Closing the one-time installer must not stop it.
+        return
     }
 
     /// Installation must prove package idleness even before the user accepts

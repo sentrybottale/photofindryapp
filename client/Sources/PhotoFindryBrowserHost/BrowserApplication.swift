@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import UniformTypeIdentifiers
 
-/// The app bundle remains the familiar, authenticated launch/update entry.
+/// One-time authenticated migration installer; exits after CLI handoff.
 /// Library UI and state stay inside the bundled local companion and browser.
 @MainActor final class BrowserApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var migration: BrowserMigrationController?
@@ -280,7 +280,7 @@ import UniformTypeIdentifiers
             detail.stringValue = existing
                 ? "Switch to the browser workspace using your existing library. PhotoFindry first verifies a recovery copy, then keeps your photographs, tags, people, saved reviews and model paths in place. Existing jobs remain paused until you resume them."
                 : "Create your local photo library and open it in your browser. Processing and saved data stay on this Mac. No account or upload is needed."
-            note.stringValue = disk + (existing ? "\n\nSwitching is optional. Use current beta opens your saved native application without starting handover or restoring data. Quit for now leaves the library in place." : "")
+            note.stringValue = "After setup, the background companion starts at login and this installer closes. Startup and signed update checks are controlled in browser Settings.\n\n" + disk + (existing ? "\n\nSwitching is optional. Use current beta opens your saved native application without starting handover or restoring data. Quit for now leaves the library in place." : "")
             currentBeta.isHidden = !existing
             primary.title = existing ? "Switch to browser workspace" : "Create local library"
             secondary.title = "Quit for now"
@@ -292,8 +292,8 @@ import UniformTypeIdentifiers
             secondary.title = "Cancel preparation"; progress.startAnimation(nil)
         case .ready(let path):
             heading.stringValue = "Your local workspace is ready"
-            detail.stringValue = "PhotoFindry has opened in your browser. Use this application icon or Open PhotoFindry on app.photofindry.com whenever you want to return. Resume saved processing explicitly from Jobs."
-            note.stringValue = "The application keeps the local companion and authenticated updates available. Closing a browser tab does not stop your saved work."
+            detail.stringValue = "PhotoFindry has opened in your browser. Use Open PhotoFindry on app.photofindry.com whenever you want to return. Resume saved processing explicitly from Jobs."
+            note.stringValue = "The background companion starts at login and manages signed updates. This one-time installer will now close. Closing a browser tab does not stop your saved work."
             primary.title = "Open PhotoFindry"; secondary.title = "Quit PhotoFindry"
             currentBeta.isHidden = false
             if let path { recoveryPath = path }
@@ -301,6 +301,9 @@ import UniformTypeIdentifiers
                FileManager.default.fileExists(atPath: directory.path) { recoveryPath = directory.path }
             recovery.isHidden = recoveryPath == nil
             window?.orderOut(nil)
+            // The background service has passed readiness; never drain it here.
+            allowTermination = true
+            DispatchQueue.main.async { NSApp.terminate(nil) }
         case .failed(let failure):
             heading.stringValue = "Let’s get PhotoFindry ready"
             detail.stringValue = failure.message
