@@ -79,3 +79,37 @@ Candidate results and publication receipts belong in the hotfix record. A passin
 small fixture is not a claim of another-Mac acceptance, notarization, a full engine
 requalification or an independent security review. Required public repository
 checks and the client/proprietary-core export boundary remain in force.
+
+## Launch routing correction — 19 October 2026 (unreleased)
+
+Beta 15 still exposes `photofindry-local://open` on the public hub. Retained
+browser-app copies advertise that same scheme, and LaunchServices can reopen one
+after the application in Applications is removed. The same-build installer path
+also omitted native link repair. Reusing a build number for different signed
+program bytes could silently keep the old installed program; the next installer
+rejects that case with an explicit instruction to use a newer verified build. The beta 15 custom-root lifecycle qualification
+intentionally skipped production URL registration; parser tests did not qualify
+this actual platform association.
+
+The next client uses `photofindry-companion://open` for public entry and local
+recovery. Only the short-lived companion helper advertises it; the one-time
+installer advertises no URL schemes. Legacy local/archive links remain accepted
+by the helper. Registration always selects the helper, including when invoked
+inside an installer; never the enclosing application. A real desktop test uses
+unique protocol aliases in Application Support, registers a previous app,
+deletes the old installer, lets the previous app reclaim its legacy link, then
+opens the companion link through LaunchServices and observes only the helper's
+fixed `open-companion` command. It does not alter the owner's product handlers.
+
+Reinstalling the same build repairs native links. Default opening prefers the
+verified standalone installation over a stale same-library registration. Repair
+preserves active legacy work and tells the user to quit that copy before retry;
+it may replace an idle same-library binding, never another library. Recovery also
+repairs missing registration without restoring a backup. Normal current launches
+need no service restart or full package rehash.
+
+Roll out the companion first, using a new official build (114 or newer), then
+switch the public hub. The prepared website branch gates deployment on that
+minimum verified release and a matching download link. The owner authorized the coordinated build 114 hotfix on 19 October.
+Publication still depends on exact-candidate upgrade and delivery qualification;
+this is not an other-Mac acceptance claim.

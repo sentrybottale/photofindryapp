@@ -512,6 +512,10 @@ test('Jobs preserves saved-model failures, ignores old source progress in a new 
   try {
     const failed = ui.window.PhotoFindryJobs.card({ id: 'failure', kind: 'tagging', title: 'Failed batch', state: 'failed', modelName: 'saved-with-job.gguf', failureSummary: ['Final response failed validation.'], total: 4, completed: 2 });
     assert.match(failed.textContent, /Final response failed validation.*Model saved with job: saved-with-job\.gguf/s);
+    const review = ui.window.PhotoFindryJobs.card({ id: 'review-failure', kind: 'improve', state: 'failed', failureSummary: ['Invalid evidence review: visual age requires an explicitly approximate range for the same person.'] });
+    assert.match(review.textContent, /Saved tags are kept.*Retry to use automatic correction/s);
+    assert.equal(review.children.find(node => node.tagName === 'DETAILS').open, false);
+    assert.match(review.children.find(node => node.tagName === 'DETAILS').textContent, /visual age requires/);
     const checking = ui.window.PhotoFindryJobs.card({ id: 'source', kind: 'sourceRecovery', title: 'Check source', state: 'running', phase: 'checking', progressDetails: { phase: 'match', checked: 500, total: 500 } });
     assert.match(checking.textContent, /Checking folder access/); assert.doesNotMatch(checking.textContent, /500/);
     const ranked = ui.window.PhotoFindryJobs.card({ id: 'rank', kind: 'aiSearch', state: 'running', aiRanking: true, aiRankingStage: 'refining', aiRefinedCount: 2, aiRefineProcessedCount: 7, completed: 2, total: 10 });

@@ -123,7 +123,7 @@ test('framework startup failure clears the launch ticket and offers a usable loc
     assert.equal(ui.ids.get('pair-error').hidden, false);
     assert.match(ui.ids.get('pair-error').textContent, /Open PhotoFindry again using the button above/);
     assert.equal(ui.ids.get('app').hidden, true);
-    assert.match(fs.readFileSync(path.join(__dirname, '../web-companion/index.html'), 'utf8'), /class="primary-button local-open-link" href="photofindry-local:\/\/open"/);
+    assert.match(fs.readFileSync(path.join(__dirname, '../web-companion/index.html'), 'utf8'), /class="primary-button local-open-link" href="photofindry-companion:\/\/open"/);
   } finally { await ui.close(); }
 });
 

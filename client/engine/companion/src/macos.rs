@@ -1890,6 +1890,8 @@ async fn run(mut config: Config) -> Result<(), String> {
 }
 
 async fn launch_command(args: &[String]) -> Result<(), String> {
+    let installed_only = args.first().map(String::as_str) == Some("open-companion");
+    if installed_only && args.len() != 1 {return Err("Open companion accepts no paths or launch options. Run the verified installer to finish setup.".into())}
     let register = args.first().map(String::as_str) == Some("register-launch");
     let archive=if args.first().map(String::as_str)==Some("open-archive") {
         Some(launch::archive_id(args.get(1).ok_or("Choose a complete PhotoFindry archive UUID.")?)?)
@@ -1926,7 +1928,7 @@ async fn launch_command(args: &[String]) -> Result<(), String> {
     } else {
         let executable = std::env::current_exe().map_err(|_| "Cannot locate the installed companion.")?;
         let helper = launch::browser_opener(&executable)?;
-        let mut target = launch::open_registered(&directory).await?;
+        let mut target = launch::open_registered(&directory, installed_only).await?;
         target.archive_id=archive;
         target.url()?;
         // A capability must not appear in process arguments or diagnostics.
@@ -1987,7 +1989,7 @@ pub async fn main() {
         lifecycle::command(&args).await
     } else if matches!(args.first().map(String::as_str),Some("migration-status"|"migrate-library"|"prepare-app-update")) {
         migration::command(&args).await
-    } else if matches!(args.first().map(String::as_str), Some("open" | "open-archive" | "register-launch")) {
+    } else if matches!(args.first().map(String::as_str), Some("open" | "open-companion" | "open-archive" | "register-launch")) {
         launch_command(&args).await
     } else if args.first().map(String::as_str)==Some("uninstall") {
         uninstall_command(&args).await
@@ -2009,6 +2011,13 @@ pub async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn companion_entry_cannot_accept_state_or_library_overrides() {
+        for tail in [vec!["--launch-state","/tmp/old"],vec!["--data-dir","/tmp/photos"],vec!["photofindry-local://open"]] {
+            let mut args=vec!["open-companion".to_string()];args.extend(tail.into_iter().map(str::to_string));
+            assert!(launch_command(&args).await.unwrap_err().contains("accepts no paths"));
+        }
+    }
     #[test]
     fn library_generation_headers_are_single_canonical_and_required_for_stateful_actions() {
         let mut headers=HeaderMap::new();assert_eq!(library_generation_header(&headers),None);

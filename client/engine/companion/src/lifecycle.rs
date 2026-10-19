@@ -426,6 +426,75 @@ fn publish_registration(
     }
     Ok(())
 }
+// Installed signed state is authoritative for the same library. An idle legacy
+// registration may be repaired; active work and a different library are never adopted.
+fn registration_needs_repair(root: &Path, cfg: &Installation, record: &launch::Registration) -> Result<bool> {
+    if record.data_dir != cfg.data {return Err("Another library owns the local registration. Open its workspace before changing installations.".into())}
+    Ok(!record.matches(&cfg.data, &package(root,cfg.current).join("runtime"), &executable(root,cfg.current)))
+}
+fn repair_registration(root: &Path, cfg: &Installation) -> Result<()> {
+    let _owner = launch::private_directory(&cfg.launch_state, true)?;
+    launch::ensure_available(&cfg.launch_state)?;
+    let guard = launch::LifecycleGuard::acquire(&cfg.launch_state)?;
+    if let Ok(record)=launch::read_registration(&cfg.launch_state) {
+        if !registration_needs_repair(root,cfg,&record)? {return Ok(())}
+    }
+    publish_registration(root,cfg,Some(&guard)).map_err(|_| "An older PhotoFindry copy is still using this library, or its launch state cannot be repaired. Quit that copy, then open the verified installer again. Your saved work is kept.".into())
+}
+fn existing_release_identity(current:u64, incoming:u64, installed:&[u8], offered:&[u8]) -> Result<()> {
+    if current==incoming && installed!=offered {
+        return Err("This build number already has different signed program bytes. Install a newer verified PhotoFindry release; the current companion and your library are kept.".into())
+    }
+    Ok(())
+}
+
+/// Public launch prefers the verified standalone installation, even if an older
+/// application rewrote the legacy launch record. Custom qualification states stay isolated.
+const INSTALL_NEXT_ACTION: &str = "The standalone PhotoFindry companion is not ready. Download and open the latest verified installer from photofindry.com once, then return to Open PhotoFindry. Your saved library is kept.";
+pub fn require_installed(directory: &Path) -> Result<()> {
+    let root=default_root()?;
+    if directory!=launch::default_directory()? {return Err(INSTALL_NEXT_ACTION.into())}
+    require_installed_at(&root,directory).map(|_|())
+}
+fn require_installed_at(root: &Path, directory: &Path) -> Result<Installation> {
+    if !root.join(STATE).exists() {return Err(INSTALL_NEXT_ACTION.into())}
+    let cfg=read_state(root)?;
+    if cfg.launch_state!=directory {return Err(INSTALL_NEXT_ACTION.into())}
+    Ok(cfg)
+}
+pub fn require_current_registration(directory: &Path, record: &launch::Registration) -> Result<()> {
+    let root=default_root()?;
+    if directory!=launch::default_directory()? {return Err(INSTALL_NEXT_ACTION.into())}
+    require_current_registration_at(&root,directory,record)
+}
+fn require_current_registration_at(root: &Path, directory: &Path, record: &launch::Registration) -> Result<()> {
+    let cfg=require_installed_at(root,directory)?;
+    if registration_needs_repair(root,&cfg,record)? {return Err("The launch registration changed while opening. Open PhotoFindry again to repair it, or run the latest verified installer. Your library is kept.".into())}
+    Ok(())
+}
+pub async fn prefer_installed(directory: &Path) -> Result<()> {
+    if directory != launch::default_directory()? {return Ok(())}
+    let root = default_root()?;
+    prefer_installed_at(&root,directory).await
+}
+async fn prefer_installed_at(root: &Path, directory: &Path) -> Result<()> {
+    if !root.join(STATE).exists() {return Ok(())}
+    recover(root,false).await?;
+    let cfg=read_state(root)?;
+    if cfg.launch_state!=directory {return Err("The installed companion has another launch registration. Open its verified installer to review this account's setup.".into())}
+    // A healthy current broker needs no package rehash or restart. Starting its
+    // service later still performs the normal signed-package verification.
+    if let Ok(record)=launch::read_registration(directory) {
+        if !registration_needs_repair(root,&cfg,&record)? {return Ok(())}
+    }
+    // --open-after runs while its updater still owns operation.lock. Read-only
+    // current registration above must remain usable; only repair takes the lock.
+    let _operation=launch::try_lock(root,"operation.lock")?.ok_or("Companion maintenance is still finishing. Wait a moment, then open PhotoFindry again.")?;
+    let cfg=read_state(root)?;
+    if cfg.launch_state!=directory {return Err("The installed companion's launch registration changed. Reopen its verified installer to review setup.".into())}
+    checked_release(root,cfg.current,&verifier(&self_executable()?)?)?;
+    repair_registration(root,&cfg)
+}
 async fn restore(
     root: &Path,
     tx: &Transaction,
@@ -599,16 +668,20 @@ async fn register_links(root: &Path, cfg: &Installation) -> Result<()> {
     if root != default_root()? || cfg.launch_state != launch::default_directory()? {
         return Ok(());
     }
-    let status = launch::desktop_command(&launch::browser_opener(&executable(root, cfg.current))?)
+    let mut child = launch::desktop_command(&launch::browser_opener(&executable(root, cfg.current))?)
         .arg("--register-links")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
-        .await
-        .map_err(|_| "Cannot select the background companion's link helper")?;
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|_| "The companion is installed, but its Open link could not be repaired. Reopen the verified PhotoFindry installer and choose Try again; saved work is kept.")?;
+    let status=match tokio::time::timeout(Duration::from_secs(105),child.wait()).await {
+        Ok(Ok(status))=>status,
+        _=>{let _=child.kill().await;let _=child.wait().await;return Err("macOS link repair did not finish. Reopen the verified PhotoFindry installer and choose Try again; your library stays in place.".into())}
+    };
     if !status.success() {
-        return Err("The companion is running but macOS did not select its link helper. Run lifecycle recover, or use photofindry open.".into());
+        return Err("The companion is running but macOS did not select its Open link. Reopen the verified PhotoFindry installer and choose Try again to repair it; saved work is kept.".into());
     }
     Ok(())
 }
@@ -1049,8 +1122,14 @@ async fn install(
             switch(root, cfg, &signed, false, false).await?;
         } else {
             checked_release(root, cfg.current, &helper)?;
+            if signed.build==cfg.current {
+                let installed=release::read(&root.join("versions").join(cfg.current.to_string()).join("release.json"),131072)?;
+                existing_release_identity(cfg.current,signed.build,&installed,&bytes)?;
+            }
+            repair_registration(root, &cfg)?;
             start_agent(root, &cfg, false).await?;
             health(&cfg).await?;
+            register_links(root, &cfg).await?;
         }
         return status(root);
     }
@@ -1345,15 +1424,7 @@ pub async fn command(args: &[String]) -> Result<()> {
         let _operation=launch::try_lock(&root,"operation.lock")?.ok_or("Another companion operation is still running. Wait, then choose Recover and open again.")?;
         let cfg = read_state(&root)?;
         checked_release(&root, cfg.current, &verifier(&self_executable()?)?)?;
-        let _state_owner = launch::private_directory(&cfg.launch_state, true)?;
-        launch::ensure_available(&cfg.launch_state)?;
-        let guard = launch::LifecycleGuard::acquire(&cfg.launch_state)?;
-        match launch::read_registration(&cfg.launch_state){
-            Ok(record) if record.executable==executable(&root,cfg.current)&&record.data_dir==cfg.data=>{},
-            Ok(_)=>return Err("Another library or companion owns the local registration. Open its workspace before changing installations.".into()),
-            Err(_)=>{publish_registration(&root,&cfg,Some(&guard))?;}
-        }
-        drop(guard);
+        repair_registration(&root,&cfg)?;
         start_agent(&root, &cfg, false).await?;
         health(&cfg).await?;
         register_links(&root, &cfg).await?;
@@ -1443,6 +1514,48 @@ pub async fn command(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn current_open_remains_read_only_while_updater_finishes() {
+        let base=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-current-open-{}-{}",std::process::id(),now()));
+        std::fs::create_dir(&base).unwrap();std::fs::set_permissions(&base,std::fs::Permissions::from_mode(0o700)).unwrap();
+        let root=base.join("Program");let data=base.join("Library");let state=base.join("Launch");
+        for p in [&root,&data,&state] {std::fs::create_dir(p).unwrap();std::fs::set_permissions(p,std::fs::Permissions::from_mode(0o700)).unwrap();}
+        let cfg=Installation{schema:1,current:114,previous:Some(113),highest:114,data:data.clone(),launch_state:state.clone(),autostart:true,automatic_updates:true,retire:None};
+        let runtime=package(&root,114).join("runtime");std::fs::create_dir_all(&runtime).unwrap();let exe=executable(&root,114);std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        for p in [&exe,&runtime.join("PhotoWorker"),&runtime.join("PhotoEngine")] {std::fs::write(p,b"not executed").unwrap();std::fs::set_permissions(p,std::fs::Permissions::from_mode(0o700)).unwrap();}
+        save(&root,STATE,&cfg).unwrap();let record=launch::Registration{version:1,data_dir:data,runtime,executable:exe};
+        atomic(&state,"registration.json",&serde_json::to_vec(&record).unwrap()).unwrap();
+        let before=std::fs::read(state.join("registration.json")).unwrap();
+        let held=launch::try_lock(&root,"operation.lock").unwrap().unwrap();
+        prefer_installed_at(&root,&state).await.unwrap();
+        require_current_registration_at(&root,&state,&record).unwrap();
+        let mut stale=record.clone();stale.executable=PathBuf::from("/Applications/PhotoFindry-previous.app/old");
+        assert!(require_current_registration_at(&root,&state,&stale).unwrap_err().contains("registration changed"));
+        std::fs::remove_file(root.join(STATE)).unwrap();
+        assert!(require_installed_at(&root,&state).unwrap_err().contains("installer"));
+        assert!(require_current_registration_at(&root,&state,&record).unwrap_err().contains("installer"));
+        assert_eq!(std::fs::read(state.join("registration.json")).unwrap(),before);
+        drop(held);std::fs::remove_dir_all(base).unwrap();
+    }
+    #[test]
+    fn same_build_cannot_silently_ignore_different_signed_installer_bytes() {
+        assert!(existing_release_identity(113,113,b"same signed envelope",b"same signed envelope").is_ok());
+        assert!(existing_release_identity(113,113,b"installed",b"different").unwrap_err().contains("newer verified"));
+        assert!(existing_release_identity(114,113,b"current",b"older installer").is_ok());
+    }
+    #[test]
+    fn installed_launch_repairs_only_its_own_library_and_exact_current_runtime() {
+        let root=Path::new("/private/program");
+        let cfg=Installation{schema:1,current:114,previous:Some(113),highest:114,data:PathBuf::from("/private/library"),launch_state:PathBuf::from("/private/state"),autostart:true,automatic_updates:true,retire:None};
+        let mut record=launch::Registration{version:1,data_dir:cfg.data.clone(),runtime:package(root,114).join("runtime"),executable:executable(root,114)};
+        assert_eq!(registration_needs_repair(root,&cfg,&record).unwrap(),false);
+        record.executable=PathBuf::from("/Applications/PhotoFindry-previous.app/Contents/Resources/companion/bin/photofindry");
+        assert_eq!(registration_needs_repair(root,&cfg,&record).unwrap(),true);
+        record.executable=executable(root,114);record.runtime=package(root,113).join("runtime");
+        assert_eq!(registration_needs_repair(root,&cfg,&record).unwrap(),true);
+        record.data_dir=PathBuf::from("/private/another-library");
+        assert!(registration_needs_repair(root,&cfg,&record).unwrap_err().contains("Another library"));
+    }
     #[test]
     fn installed_paths_are_structural() {
         assert_eq!(

@@ -78,7 +78,7 @@ suffix,name=names[tool]
 info={'CFBundleIdentifier':'com.sentrybottale.photorecall.companion-'+suffix,'CFBundleName':name,'CFBundleDisplayName':name,'CFBundleExecutable':tool,'CFBundlePackageType':'APPL','LSUIElement':True,'LSMinimumSystemVersion':'14.0'}
 info.update(versions)
 if tool=='CompanionLabels':info['NSCameraUsageDescription']='Scan a PhotoFindry archive label locally. Camera frames are never saved or sent.'
-if tool=='CompanionLauncher':info['CFBundleURLTypes']=[{'CFBundleURLName':'PhotoFindry local launch','CFBundleURLSchemes':['photofindry-local'],'CFBundleTypeRole':'Viewer'},{'CFBundleURLName':'PhotoFindry archive navigation','CFBundleURLSchemes':['photofindry'],'CFBundleTypeRole':'Viewer'}]
+if tool=='CompanionLauncher':info['CFBundleURLTypes']=[{'CFBundleURLName':'PhotoFindry local launch','CFBundleURLSchemes':['photofindry-companion','photofindry-local'],'CFBundleTypeRole':'Viewer'},{'CFBundleURLName':'PhotoFindry archive navigation','CFBundleURLSchemes':['photofindry'],'CFBundleTypeRole':'Viewer'}]
 with (bundle/'Contents/Info.plist').open('wb') as f:plistlib.dump(info,f)
 PY
   codesign --force --sign - "$bundle"

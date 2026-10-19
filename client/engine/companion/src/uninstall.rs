@@ -558,7 +558,7 @@ mod tests {
         let f=Fixture::new(true);let v=verify(&f.record,&f.record.executable,&f.state,true).unwrap();
         let receipt=Receipt{version:1,status:"revoked".into(),registration:f.record.clone(),manifest_sha256:v.digest,trashed_path:None};
         launch::write_uninstall_receipt(&f.state,&receipt).unwrap();fs::remove_file(f.state.join(launch::REGISTRATION)).unwrap();
-        assert!(launch::ensure_available(&f.state).is_err());assert!(launch::open_registered(&f.state).await.is_err());
+        assert!(launch::ensure_available(&f.state).is_err());assert!(launch::open_registered(&f.state,false).await.is_err());
         assert!(f.plan().is_ok());assert_eq!(run(&f.state,&f.record.executable,Mode::Confirm).await.unwrap().status,"uninstalled");f.assert_data();
     }
     #[tokio::test]

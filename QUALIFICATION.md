@@ -1,68 +1,54 @@
-# PhotoFindry 0.2.0-beta.15 hotfix qualification
+# PhotoFindry 0.2.0-beta.16 qualification
 
-Application 0.2.0 build 113 is a one-time migration installer for the independent
-macOS CLI companion. Apple silicon, minimum macOS 14; Core ML ranking requires
-macOS 15. Qualification was performed on macOS 27.0.
+Build 114 repairs companion URL ownership and stale launch registrations, adds
+one bounded correction for invalid improvement answers, and scores long saved
+AI evidence in complete bounded passages. The MIT client remains separate from
+proprietary engine cores; no photo originals, model weights or data schema change.
 
-This is a focused hotfix, as requested by the owner. The unrelated whole-engine
-and whole-release regression suites were not repeated. Inference policy, models and data schemas are unchanged. The private worker
-and native helper additionally bound macOS file-open consent; this correction
-received focused worker, native and browser recovery tests.
+Completed source checks: 131 companion tests (two opt-in cases separate),
+38 engine tests, 366 worker tests (ten live/platform cases opt-in), 42 review
+comparison/recovery tests, 95 browser panel/workspace tests, 13 packaging tests,
+32 release-tooling tests and seven export-boundary tests. Swift build and retained
+Svelte asset verification passed. Full Node regression: 1,504 passed, 24 explicitly skipped, zero failures.
+An earlier invocation used stale local runtime inputs; after selecting matching
+audited runtimes and updating the obsolete 24 KiB rejection fixture, the complete
+suite passed. Exported client-only tests: 186 passed, one opt-in OS-routing test
+skipped there and exercised separately as described below.
 
-- Scoped companion tests: 127 passed; two opt-in cases excluded from the ordinary
-  run. The signed-candidate archive/tampering case was run separately and passed.
-- Migration host: 38 passed and one existing optional test skipped. Browser
-  controls, native parser and packaging checks: 45 passed. Client export boundary:
-  seven passed. Retained frontend and parity ownership checks passed.
-- Real per-user LaunchAgent: startup from its persisted plist without a resident
-  Mac app; authenticated browser controls; rejection of unauthenticated actions
-  and caller-supplied update URLs; startup/check preferences.
-- Signed release verification: wrong signature, changed payload/archive and
-  package tampering rejected. Traversal, symlink and duplicate ZIP entries rejected.
-- Update/recovery: the updater was killed after durable version publication.
-  Verified prior software recovered without restoring an older library. Signed
-  successor installation and explicit software rollback succeeded; the highest
-  build watermark prevented older signed updates from bypassing replay protection.
-- Path-free recovery rebuilt a deliberately removed test launch registration from
-  verified installation state and reopened the service. Recovery serializes with
-  other maintenance. Browser update results refresh while the panel is visible.
-- A copied synthetic tagged library retained every photo row and selected model
-  path through migration, update and rollback; its cold recovery copy verified.
-  Confirmed uninstall disabled autostart and moved only the active program to
-  Trash while keeping the library and original-file bytes.
-- The actual installer layout handed off to an independent CLI, retired its
-  inactive disposable app copy to Trash, and left the CLI running with its library.
-- Actual model qualification on the development package covered selected tagging/
-  improvement, queued AI search, saved search/results, preview and human People
-  labels, backup/restore/restart, source archive attachment and unchanged originals.
-  That model-loop evidence predates the final consent timeout correction.
-  A real launchd tagging run also completed after selecting its synthetic originals
-  folder in the native chooser. Safari displayed the local lifecycle controls.
-- Consent recovery checks: 102 focused worker tests, 11 native source tests and
-  96 browser/panel/parity checks passed. Permission holds keep accepted records
-  and pending targets; Jobs exposes Open Files and explicit Retry access.
-  A further 46 queue tests and an execution retry regression verify that metadata
-  checks cannot release a permission hold before that explicit retry.
+Real macOS LaunchServices qualification used disposable UUID-only protocols and
+apps under Application Support. An old app reclaimed the legacy protocol after
+the old installer was deleted; actual OS dispatch of the new companion protocol
+still reached only the helper's fixed open-companion command. Production link
+preferences were not changed by this test.
 
-The exact 136-file MIT client snapshot plus CLIENT-SOURCE.json excludes private
-engine source and repository history. Two new payload paths are the MIT native
-signature verifier and the signed CLI release envelope; all 468 payload paths
-have exact component classifications. Publisher signing uses the existing key;
-no new trust root is downloaded from the website or update server.
+A real local vision model completed a review of a tagged synthetic fixture,
+retaining accepted source identity and original bytes. The real local fast and
+Qwen rerankers captured and completed a synthetic photo whose full saved evidence
+exceeded the former 24 KiB bound. Interrupt/restart tests verify that no partial
+passage aggregate can commit. Candidate membership and full stored evidence are
+preserved. This is scoped model qualification, not a retest of every model or
+the other Mac.
 
-Required public client, distribution-boundary and security checks apply to
-[the hotfix PR](https://github.com/sentrybottale/photofindryapp/pull/11). Publication
-is permitted only after the release head passes those gates. Secret scanning,
-push protection, CodeQL rules and private vulnerability reporting remain enabled.
-The owner does not require an independent human approver. This hotfix is not a
-new independent security audit or a genuine external-fork qualification.
+The exact signed beta 15 → beta 16 upgrade passed on a copied tagged synthetic
+library: missing-registration recovery, authenticated controls, real LaunchAgent
+startup, wrong-signature rejection, killing the updater after durable version
+publication, verified software recovery, successful upgrade, new-build autostart,
+same-build reinstall, software rollback, anti-replay rejection and uninstall of
+the current beta 16 program. Every saved photo row and model path was preserved;
+the cold recovery copy verified and original sentinels were unchanged.
 
-Community beta: ad-hoc macOS signatures and separately publisher-authenticated
-artifacts; not Apple Developer ID signed or notarized. No claim of flawless
-security, an OS-enforced sandbox, other-Mac acceptance or qualified Linux/Windows
-desktop behavior. Independent photo backups remain important.
-
-The signed release inventory binds this record, the client source, component
-review, installer and CLI archive. Both the existing app migration feed and fixed
-CLI feed retain the same publisher pin. Live delivery and website verification
-are recorded separately after publication.
+The sealed companion completed actual local tagging, planned queued AI search,
+saved candidate paging, previews, human People labels, backup/restore with worker
+restart and source-archive attachment. A separate durable improvement job on
+that sealed build completed with unchanged accepted tags and original bytes.
+The exact signed archive passed extraction and signature/payload/archive/package
+tamper rejection. The one-time installer retired its disposable application copy
+after handoff, leaving only the background CLI running. The final DMG was mounted
+read-only: all 479 app entries matched the reviewed bundle and signature/audit
+checks passed. The 137-file source inventory was verified in both export and
+public submission trees. Live-delivery evidence is recorded after promotion. Required public build/security/boundary checks
+remain in force; no independent approver is required by the owner. This is not
+a new exhaustive or independent security audit, external-fork test, actual
+logout/reboot, or Linux/Windows qualification. Community beta: ad-hoc macOS code
+signing and separate retained-key publisher authentication; not Developer ID
+signed or notarized.

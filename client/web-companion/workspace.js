@@ -859,7 +859,13 @@
     const facts = jobFacts(job), card = el('article', 'job-card');
     const heading = el('div', 'job-card-heading'); heading.append(el('h3', '', job.title || job.kind || 'Local job'), el('span', `job-badge ${job.state === 'failed' ? 'failed' : ''}`, facts.status)); card.append(heading);
     if (facts.message) card.append(el('p', '', facts.message));
-    for (const failure of list(job.failureSummary).slice(0, 3)) card.append(el('p', 'job-failure', str(failure).slice(0, 1000)));
+    const failures = list(job.failureSummary).slice(0, 3);
+    const invalidReview = job.kind === 'improve' && failures.some(value => /Invalid evidence review:|invalid answer after one automatic correction/.test(str(value)));
+    if (invalidReview) {
+      card.append(el('p', 'job-failure', 'The review model returned an invalid answer. Saved tags are kept. Retry to use automatic correction; if it repeats, choose another photo review model in Settings.'));
+      const details = el('details'); details.append(el('summary', '', 'Validation details'));
+      failures.forEach(failure => details.append(el('p', '', str(failure).slice(0, 1000)))); card.append(details);
+    } else for (const failure of failures) card.append(el('p', 'job-failure', str(failure).slice(0, 1000)));
     if (job.dismissedFromQueue) card.append(el('p', '', 'Dismissed from queue · saved progress kept. Retry is still available here.'));
     if (job.modelName) { const name = el('p', 'job-model', `Model saved with job: ${str(job.modelName)}`); name.title = 'This job keeps the model selected when it was queued. Settings changes apply to new jobs.'; card.append(name); }
     const source = job.kind === 'sourceRecovery' ? sourceProgress(job) : null;
