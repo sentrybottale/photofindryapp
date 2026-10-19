@@ -30,6 +30,18 @@ struct Pending {
     created: Instant,
     reply: oneshot::Sender<Result<Value, String>>,
 }
+fn startup_stage_message(line: &[u8]) -> Option<&'static str> {
+    Some(match line {
+        b"PF_STARTUP:recovery" => "recovering interrupted library work",
+        b"PF_STARTUP:catalog" => "checking the photo catalog",
+        b"PF_STARTUP:jobs" => "opening saved jobs",
+        b"PF_STARTUP:people" => "opening saved people records",
+        b"PF_STARTUP:search-probe" => "checking search-index readiness",
+        b"PF_STARTUP:reader" => "opening the gallery view",
+        b"PF_STARTUP:snapshot" => "preparing the first library view",
+        _ => return None,
+    })
+}
 #[derive(Default)]
 struct Cache {
     state: Value,
@@ -157,6 +169,7 @@ struct NativeWorker {
     pending: Arc<Mutex<HashMap<u64, Pending>>>,
     sequence: Arc<AtomicU64>,
     cache: Arc<Mutex<Cache>>,
+    startup: Arc<Mutex<&'static str>>,
 }
 async fn frame<R: AsyncRead + Unpin>(reader: &mut BufReader<R>) -> Result<Option<Vec<u8>>, ()> {
     let mut line = Vec::new();
@@ -240,11 +253,24 @@ impl NativeWorker {
             .stderr
             .take()
             .ok_or("Worker diagnostics are unavailable.")?;
+        let startup = Arc::new(Mutex::new("starting the local worker"));
+        let startup_events = startup.clone();
         let diagnostics = tokio::spawn(async move {
             let mut buffer = [0u8; 8192];
+            let mut line = Vec::with_capacity(64);
             while let Ok(n) = stderr.read(&mut buffer).await {
                 if n == 0 {
                     break;
+                }
+                for &byte in &buffer[..n] {
+                    if byte == b'\n' {
+                        if let Some(stage) = startup_stage_message(&line) {
+                            *startup_events.lock().unwrap() = stage;
+                        }
+                        line.clear();
+                    } else if line.len() < 128 {
+                        line.push(byte);
+                    }
                 }
             }
         });
@@ -348,6 +374,7 @@ impl NativeWorker {
                 pending,
                 sequence,
                 cache,
+                startup,
             },
             task,
         ))
@@ -385,6 +412,9 @@ impl NativeWorker {
     }
     pub fn snapshot(&self) -> Value {
         self.cache.lock().unwrap().snapshot()
+    }
+    pub fn startup_stage(&self) -> &'static str {
+        *self.startup.lock().unwrap()
     }
     pub fn stop(&self) {
         let _ = self.stop.send(true);
@@ -450,6 +480,9 @@ impl Worker {
         }
         value
     }
+    pub fn startup_stage(&self) -> &'static str {
+        self.current.lock().unwrap().startup_stage()
+    }
     pub async fn restart(&self) -> Result<(), String> {
         let (reply, result) = oneshot::channel();
         self.restart
@@ -468,6 +501,13 @@ impl Worker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn startup_stage_diagnostics_are_fixed_and_never_accept_worker_text() {
+        assert_eq!(startup_stage_message(b"PF_STARTUP:catalog"),Some("checking the photo catalog"));
+        assert_eq!(startup_stage_message(b"PF_STARTUP:snapshot"),Some("preparing the first library view"));
+        assert_eq!(startup_stage_message(b"PF_STARTUP:catalog /Users/private/photo.jpg"),None);
+        assert_eq!(startup_stage_message(b"PhotoWorker: generated text"),None);
+    }
     #[tokio::test]
     async fn framing_is_bounded_and_rejects_unterminated_frames() {
         let mut reader = BufReader::with_capacity(2, &b"one\ntwo\n"[..]);

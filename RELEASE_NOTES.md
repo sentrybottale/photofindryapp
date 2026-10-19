@@ -1,15 +1,7 @@
-# PhotoFindry 0.2.0-beta.19 — companion and search recovery
+# PhotoFindry 0.2.0-beta.20 — library startup and recovery
 
-This update repairs background companion reopening after Quit and makes signed
-update failures identify their cause and recovery state. It keeps the library,
-original photographs, selected model files, saved jobs and reviewed matches.
+This standalone CLI update addresses a startup failure reported after beta 19. The companion now names the stage of a slow library opening in local status and gives a specific error if it cannot finish. **Recover and open** tries the retained publisher-verified previous program when a newly updated program fails to open. It keeps the current library, originals, models and saved jobs; recovery never restores an older library backup.
 
-Large-library search returns every match while bounding optional local related
-reordering. A queued AI search shows retrieval progress and opens its unscored
-All candidates pool until Best so far contains scored results. Stop all remaining
-retries a lost local acknowledgement for the same library and shows the committed
-queue state. No retagging or library schema migration is part of this hotfix.
+The startup path uses a bounded read-only search-index check, and the AI search lane opens when needed. The ordinary search lane retains the ordering required by source recovery. No retagging or source-schema migration is part of this hotfix.
 
-Fresh installations remain CLI-only. The beta 16 Mac application remains the
-one-time migration bridge for existing native-app users. The public website has
-no library authority; the signed CLI feed remains the update trust boundary.
+Fresh installation remains CLI-only. Beta 16 remains the one-time Mac-app migration bridge for existing native users. The affected other Mac has not yet been tested with this build; local qualification and limits are in QUALIFICATION.md.

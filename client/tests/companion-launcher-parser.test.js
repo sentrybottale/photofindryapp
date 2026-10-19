@@ -17,6 +17,9 @@ test('native archive and private-pipe parsers accept navigation only', { skip: p
     assert.equal(original.split(marker).length, 2);
     const driver = String.raw`
 let id="ABCDEF01-2345-6789-ABCD-EF0123456789"
+let installed=URL(fileURLWithPath:"/private/tmp/Program/versions/117")
+assert(recoveryOfferAvailable(version:installed,attempted:false))
+assert(!recoveryOfferAvailable(version:installed,attempted:true))
 assert(nativeLaunchRequest("photofindry-companion://open") == .companion)
 assert(nativeLaunchRequest("photofindry-local://open") == .workspace)
 for invalid in ["photofindry-companion://open?path=/tmp","photofindry-companion://open/","photofindry-companion://open#token=x","photofindry-companion://user@open","photofindry-companion://open:80","PHOTOFINDRY-COMPANION://open"] {assert(nativeLaunchRequest(invalid)==nil)}
