@@ -3,8 +3,8 @@
 The Mac client is MIT licensed. It contains the Svelte browser UI, native launcher,
 local authenticated bridge and macOS interaction helpers. PhotoWorker, PhotoEngine,
 their contracts and inference policy implementations remain proprietary and are
-distributed separately in official application builds. This is not a source build
-of those engines. Official application builds remain free to use.
+distributed separately in official companion packages. This is not a source build
+of those engines. Official companion builds remain free to use.
 
 The browser workspace is served by the installed companion on loopback. The public
 website can request that the installed launcher open it, but does not receive
@@ -13,9 +13,11 @@ feedback and model downloads have their own visible network actions.
 
 ## Installed lifecycle
 
-The application download is a one-time migration installer. It verifies a recovery
-copy when needed, installs the CLI separately and exits after the local service is
-ready. The per-user LaunchAgent starts the companion at login; native file dialogs
+New users install the CLI directly using the verified setup at
+https://app.photofindry.com/#installation. No PhotoFindry application is installed
+in Applications. Only existing native-app users use the application update channel
+for its one-time migration bridge: it verifies a recovery copy when needed, installs
+the independent CLI and exits after the local service is ready. The per-user LaunchAgent starts the companion at login; native file dialogs
 and the URL handler run only when needed. No permanent Mac application is required.
 
 Use **Background companion** in browser Settings for login startup, automatic
@@ -60,7 +62,7 @@ engine source, inference recipes or model weights. `CLIENT-SOURCE.json` binds it
 exact file bytes. Its hashes detect changes; authenticate the signed release
 inventory with an independently trusted publisher key before trusting a download.
 
-This source snapshot is separate from the official signed application download.
+This source snapshot is separate from the official signed companion download.
 Consult the distribution repository’s release page for published builds. Source
 availability does not grant redistribution rights to the proprietary engines.
 

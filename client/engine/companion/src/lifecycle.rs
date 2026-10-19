@@ -463,7 +463,7 @@ fn current_library_at(root: &Path, state: &Path, fallback: &Path) -> Result<Path
         if cfg.launch_state!=state {return Err("The installed companion uses another launch registration. Open its workspace before changing setup.".into())}
         return Ok(cfg.data);
     }
-    if state.join(launch::REGISTRATION).exists() {return Ok(launch::read_registration(state)?.data_dir);}
+    if let Some(record)=launch::recovery_registration(state)? {return Ok(record.data_dir);}
     Ok(fallback.to_path_buf())
 }
 /// Public launch prefers the verified standalone installation, even if an older
@@ -542,20 +542,14 @@ async fn restore(
         }
     } else {
         if let Some(prior) = &tx.registration {
+            if prior.data_dir != tx.after.data {
+                return Err("Recovery registration belongs to another library. No registration was restored.".into());
+            }
             if let Some(guard) = guard {
-                guard.register(
-                    &tx.after.launch_state,
-                    &prior.data_dir,
-                    &prior.runtime,
-                    &prior.executable,
-                )?;
+                guard.restore_registration(&tx.after.launch_state, prior)?;
             } else {
-                launch::register(
-                    &tx.after.launch_state,
-                    &prior.data_dir,
-                    &prior.runtime,
-                    &prior.executable,
-                )?;
+                let guard = launch::LifecycleGuard::acquire(&tx.after.launch_state)?;
+                guard.restore_registration(&tx.after.launch_state, prior)?;
             }
         } else if let Ok(current) = launch::read_registration(&tx.after.launch_state) {
             if current.executable == executable(root, tx.after.current) {
@@ -1152,7 +1146,7 @@ async fn install(
         }
         return status(root);
     }
-    if let Ok(prior)=launch::read_registration(state) {
+    if let Some(prior)=launch::recovery_registration(state)? {
         if prior.data_dir!=data {return Err("Another library owns the current launch registration. Open the latest verified installer to keep using that library; no program or library was changed.".into())}
     }
     let stage = Stage(stage_version(root)?);
@@ -1163,7 +1157,7 @@ async fn install(
     }
     // The existing migration command owns admission/verified recovery, never the installer.
     let exe = executable(root, signed.build);
-    let prior = launch::read_registration(state).ok();
+    let prior = launch::recovery_registration(state)?;
     if let Some(prior)=&prior {
         if prior.data_dir!=data {return Err("The registered library changed during setup. Reopen the installer to use its current location; saved work is kept.".into())}
         launch::request_update_stop(state).await?;
@@ -1568,7 +1562,23 @@ mod tests {
         assert!(require_installed_at(&root,&state).unwrap_err().contains("installer"));
         assert!(require_current_registration_at(&root,&state,&record).unwrap_err().contains("installer"));
         assert_eq!(std::fs::read(state.join("registration.json")).unwrap(),before);
-        drop(held);std::fs::remove_dir_all(base).unwrap();
+        drop(held);
+        // A removed native/browser package must not hide a still-present custom library.
+        std::fs::remove_file(&record.executable).unwrap();
+        std::fs::remove_dir_all(&record.runtime).unwrap();
+        assert!(launch::read_registration(&state).is_err());
+        assert_eq!(current_library_at(&root,&state,&base.join("UnusedDefault")).unwrap(),record.data_dir);
+        let tx=Transaction{schema:1,before:None,after:cfg.clone(),registration:Some(record.clone()),committed:false};
+        save(&root,JOURNAL,&tx).unwrap();
+        std::fs::remove_file(state.join("registration.json")).unwrap();
+        restore(&root,&tx,Path::new("/unused-verifier"),false,None).await.unwrap();
+        assert_eq!(current_library_at(&root,&state,&base.join("UnusedDefault")).unwrap(),record.data_dir);
+        assert!(!root.join(JOURNAL).exists());
+        assert!(launch::read_registration(&state).is_err());
+        let mut missing=record.clone();missing.data_dir=base.join("unavailable-library");
+        atomic(&state,"registration.json",&serde_json::to_vec(&missing).unwrap()).unwrap();
+        assert!(current_library_at(&root,&state,&base.join("UnusedDefault")).is_err());
+        std::fs::remove_dir_all(base).unwrap();
     }
     #[test]
     fn same_build_cannot_silently_ignore_different_signed_installer_bytes() {

@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "2b290b1e5de05b588d2b2bfe25ceff5208d5c16344cdec1df6bb7ad855359f83",
+  "exportManifestSHA256": "41fcdee490f7873ee21ca69db39348be7b20759127e37e77e9445172b06f8c7e",
   "files": [
     {
       "bytes": 1182,
@@ -22,9 +22,9 @@
       "sha256": "7a102922db2d04dfe9bc557f1f0442434f53dc4f105fe9ffb7e2564df9342bbc"
     },
     {
-      "bytes": 4016,
+      "bytes": 4217,
       "path": "README.md",
-      "sha256": "651f0d5cdc224518c0eae86e09dd0b2dc699aeb6e76f4946aa442bb4473469b5"
+      "sha256": "a6ddc20acd242aefc4ac4656a15fe81ee358892ea1b866954bcf1d10fc81e6a9"
     },
     {
       "bytes": 72487,
@@ -132,9 +132,9 @@
       "sha256": "ecbb0167987cb018d3491b90a7c1d1ac5650e70e834a88277b61085608f9506e"
     },
     {
-      "bytes": 7378,
+      "bytes": 8015,
       "path": "docs/CLI_COMPANION_LIFECYCLE.md",
-      "sha256": "957957609ad1b742d6ca41d02cdfdf2bf9bc6122b8afca785f114685d2402939"
+      "sha256": "25c2c516779443bcbe74a35d995de65f7e76a86fc5c57e8542b8e53d08a0854d"
     },
     {
       "bytes": 16783,
@@ -202,14 +202,14 @@
       "sha256": "12115456d2b9b731698c72aa36fd4b601658ff245dd326119a75752ccd7bb0c6"
     },
     {
-      "bytes": 47572,
+      "bytes": 52689,
       "path": "engine/companion/src/launch.rs",
-      "sha256": "b8ce5e1c32a960266e6efd12ed9e7d0cb012faf007392800053f86f058c88793"
+      "sha256": "c9001ebed2723cfe560acb931f5bedbb15789c3e001adeaad6cc99563d14f168"
     },
     {
-      "bytes": 67912,
+      "bytes": 69092,
       "path": "engine/companion/src/lifecycle.rs",
-      "sha256": "919ff4c1ee9379289b4c0dffcb9e161ad3b02ea47a190a4c9a1ddc8b086b279c"
+      "sha256": "fa0a4c5b283a6d9ac100fb1cb0e5733c500c06c800749622106251ef8691bbbf"
     },
     {
       "bytes": 110492,
@@ -355,6 +355,11 @@
       "bytes": 3774,
       "path": "scripts/generate-icon.swift",
       "sha256": "e9b20949f4761dda152b617bbe9177bca804e72fcaaa926bc5b752cb78725cbf"
+    },
+    {
+      "bytes": 1972,
+      "path": "scripts/install-companion.sh",
+      "sha256": "e39b903c6d5d647e662f4e56b3f69ad3c1508631de86ad0bb427721b3b4b7dae"
     },
     {
       "bytes": 8058,
@@ -689,6 +694,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "7100314361b156a9ec62186b4fc4138263262f21",
+  "privateBuildRevision": "b88aeea6c1cf8d04a007d01807edd1e43ed5649f",
   "schema": 1
 }
