@@ -25,7 +25,7 @@ printf '2db2e520d32685e710cc4b0b0a8953698cfade29542954e5f32d79483638094d  %s\n' 
 /usr/bin/env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/bash "$pf_setup" )
 ```
 
-The [official beta 18 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.18) contains the [CLI package ZIP](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.18/PhotoFindry-0.2.0-beta.18-arm64-companion.zip), 397,731,668 bytes (398 MB). The signed CLI envelope and its package inventory are checked by the pinned native verifier before installation. Startup, update checks and recovery are managed in browser Settings → Background companion.
+The [official beta 18 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.18) contains the [CLI package ZIP](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.18/PhotoFindry-0.2.0-beta.18-arm64-companion.zip), 397,738,514 bytes (398 MB). The signed CLI envelope and its package inventory are checked by the pinned native verifier before installation. Startup, update checks and recovery are managed in browser Settings → Background companion.
 
 For first installation, independently trust the instructions and their pinned bytes. Commands and hashes copied together from a compromised website do not authenticate themselves. The [signed-release verification guide](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md) records the existing publisher key. Do not accept an unexplained key change. The optional standalone Swift verifier requires Command Line Tools; normal CLI setup and operation do not.
 

@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "4202e1dbd86ed7d9c77715b89c197ac599356fc8119edc7114800a0057e2ce7d",
+  "exportManifestSHA256": "0abe6bc8c615ff0fc6a2b2e58108ac62fbc4711a30e2f35b25d209c37f53548d",
   "files": [
     {
       "bytes": 1182,
@@ -359,7 +359,7 @@
     {
       "bytes": 1972,
       "path": "scripts/install-companion.sh",
-      "sha256": "2db2e520d32685e710cc4b0b0a8953698cfade29542954e5f32d79483638094d"
+      "sha256": "48b39c188cf818bce76ed89175ccaaa4c027b973d0578314749fe3d6d2d28975"
     },
     {
       "bytes": 8058,
@@ -694,6 +694,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "14833d96e2709d9cf7da4d3e76f7bc24163b7f7c",
+  "privateBuildRevision": "71b4439c73b18f83cb4811bb9066611775fda7bb",
   "schema": 1
 }
