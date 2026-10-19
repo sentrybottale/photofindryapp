@@ -484,6 +484,7 @@ pub fn prepare(
                     "folderGrant",
                     "scopeId",
                     "verifyContents",
+                    "resumeJobId",
                 ],
             )?;
             required(&params, &["sourceId"])?;
@@ -507,7 +508,7 @@ pub fn prepare(
             "prepareSourceConnection"
         }
         "confirmSourceConnection" => {
-            object(&params, &["sourceId", "planId", "confirmed"])?;
+            object(&params, &["sourceId", "planId", "confirmed", "resumeJobId"])?;
             required(&params, &["sourceId", "planId"])?;
             if params["confirmed"] != true {
                 return Err("Confirm the reviewed source connection.".into());
@@ -770,6 +771,13 @@ pub fn library(mut value: Value, scopes: &Scopes) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reviewed_folder_confirmation_preserves_the_waiting_job_identity() {
+        let scopes=Scopes::default();let picker=Picker::new(std::path::Path::new("/unavailable"));
+        let request=json!({"sourceId":"source","planId":"reviewed-plan","confirmed":true,"resumeJobId":"waiting-job"});
+        assert_eq!(prepare("confirmSourceConnection",request.clone(),&scopes,&picker).unwrap().1,request);
+        assert!(prepare("confirmSourceConnection",json!({"sourceId":"source","planId":"plan","confirmed":true,"resumeJobId":{"path":"/private"}}),&scopes,&picker).is_err());
+    }
     #[test]
     fn face_discovery_can_clear_old_folders_only_for_explicit_nonfolder_scopes() {
         let scopes=Scopes::default(); let picker=Picker::new(std::path::Path::new("/unavailable"));

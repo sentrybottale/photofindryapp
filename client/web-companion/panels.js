@@ -193,6 +193,8 @@
     if (root.hidden) previousFocus = document.activeElement;
     view.name = normalized; view.generation += 1; root.hidden = false; isolatePanel(); clearContent();
     if (context.sourceId !== undefined) view.sourceId = context.sourceId;
+    if (normalized === 'sources' && typeof context.sourceId === 'string' && typeof context.rootId === 'string') view.sourceRoots.set(context.sourceId, context.rootId);
+    else if (normalized === 'sources' && typeof context.sourceId === 'string' && context.jobId) view.sourceRoots.delete(context.sourceId);
     if (context.personId !== undefined) { view.personId = context.personId || ''; view.peopleOffset = 0; }
     if (normalized === 'people') view.photoId = typeof context.photoId === 'string' && context.photoId.length <= 128 ? context.photoId : '';
     if (normalized === 'sources') view.recoveryJobId = typeof context.jobId === 'string' ? context.jobId : null;
@@ -351,6 +353,7 @@
       summary.append(button('Recheck originals for the selected job', async () => {
         const result = await command('recoverJobOriginals', { jobId: id }, 'The job’s original-file recovery is being checked. Its completed work is preserved.');
         if (result.sourceId) view.sourceId = result.sourceId;
+        if (result.sourceId && result.rootId) view.sourceRoots.set(result.sourceId, result.rootId);
         await renderSourcesFresh();
       }));
     }
@@ -425,6 +428,7 @@
   }
   async function locate(source, rootInfo, verify = false) {
     const generation = view.generation;
+    const recoveryJobId = view.recoveryJobId;
     // Starting a new choice supersedes every preceding plan before any native
     // picker or queue submission can wait. An old acknowledgement has no effect.
     const check = { rootId: rootInfo?.id, previousLocationLabel: sourceLocation(rootInfo), chosenLocationLabel: '', jobId: null, verifyContents: verify };
@@ -437,7 +441,7 @@
     const grant = await choose('sourceFolder'); if (!grant || !current()) { await cancelChoice(); return; }
     check.chosenLocationLabel = text(grant.locationLabel, text(grant.label));
     try {
-      const result = await command('locateSource', { sourceId: source.id, ...(rootInfo?.id ? { rootId: rootInfo.id } : {}), folderGrant: grant.grantId, ...(verify ? { verifyContents: true } : {}) }, verify ? 'Full-file comparison queued.' : 'Checking the chosen originals folder. Review and confirm its matching locations here when the check finishes.');
+      const result = await command('locateSource', { sourceId: source.id, ...(rootInfo?.id ? { rootId: rootInfo.id } : {}), folderGrant: grant.grantId, ...(verify ? { verifyContents: true } : {}), ...(recoveryJobId ? { resumeJobId: recoveryJobId } : {}) }, verify ? 'Full-file comparison queued.' : 'Checking the chosen originals folder. Review and confirm its matching locations here when the check finishes.');
       check.jobId = result?.submittedJob?.id;
       if (!current()) return;
       await renderSourcesFresh();
@@ -518,7 +522,7 @@
       pendingCheck.chosenLocationLabel = current; delete pendingCheck.plan;
       await renderSourcesFresh();
       try {
-        const result = await command('confirmSourceConnection', { sourceId: plan.sourceId, planId: plan.planId, confirmed: true }, 'Connecting the original locations you confirmed.');
+        const result = await command('confirmSourceConnection', { sourceId: plan.sourceId, planId: plan.planId, confirmed: true, ...(view.recoveryJobId ? { resumeJobId: view.recoveryJobId } : {}) }, 'Connecting the original locations you confirmed.');
         if (view.sourceChecks.get(source.id) !== pendingCheck) return;
         pendingCheck.jobId = result?.submittedJob?.id;
         if (!pendingCheck.jobId) { view.sourceChecks.delete(source.id); throw Error('The connection job was not returned. Review the folder again before confirming.'); }
