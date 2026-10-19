@@ -14,10 +14,14 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{UnixListener, UnixStream}, 
 #[cfg(test)]
 const LAUNCH_URL: &str = "photofindry-companion://open";
 pub(super) const REGISTRATION: &str = "registration.json";
+pub(super) const CLOSING: &str = "This companion is closing for local maintenance.";
 const SOCKET: &str = "launch.sock";
 const MAX_REGISTRATION: u64 = 16 * 1024;
 const FRAME_LIMIT: usize = 1024;
+const REPLY_LIMIT: usize = 4096;
 const IO_TIMEOUT: Duration = Duration::from_secs(3);
+const UPDATE_TIMEOUT: Duration = Duration::from_secs(60);
+const UPDATE_REPLY_TIMEOUT: Duration = Duration::from_secs(65);
 type Result<T> = std::result::Result<T, String>;
 
 #[cfg(test)]
@@ -358,7 +362,7 @@ async fn request_shutdown(directory: &Path, update: bool) -> Result<bool> {
         let command=if update {b"{\"version\":1,\"operation\":\"prepare-update\"}\n".as_slice()} else {b"{\"version\":1,\"operation\":\"stop\"}\n".as_slice()};
         stream.write_all(command).await.map_err(|_| "Cannot request local shutdown.")?;
         stream.shutdown().await.map_err(|_| "Cannot finish local shutdown request.")?;
-        let bytes = read_frame(&mut stream).await?;
+        let bytes = read_frame(&mut stream, REPLY_LIMIT).await?;
         let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| "This running companion does not support safe uninstall. Quit it, then retry.")?;
         if value != serde_json::json!({"stopping":true}) {
             if value.get("stopping") == Some(&serde_json::Value::Bool(false)) {
@@ -368,7 +372,17 @@ async fn request_shutdown(directory: &Path, update: bool) -> Result<bool> {
         }
         Ok(true)
     };
-    tokio::time::timeout(IO_TIMEOUT, operation).await.map_err(|_| "The registered companion did not respond to shutdown. Quit it, then retry.")?
+    tokio::time::timeout(if update { UPDATE_REPLY_TIMEOUT } else { IO_TIMEOUT }, operation).await
+        .map_err(|_| "The registered companion did not respond to shutdown. Quit it, then retry.")?
+}
+
+fn bounded_reply_error(error: &str) -> String {
+    let mut result = String::new();
+    for character in error.chars().filter(|c| !c.is_control()) {
+        if result.len() + character.len_utf8() > 256 { break; }
+        result.push(character);
+    }
+    result
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -398,10 +412,10 @@ fn same_user(stream: &UnixStream) -> bool {
     unsafe { libc::getpeereid(stream.as_raw_fd(), &mut peer_uid, &mut peer_gid) == 0 && peer_uid == uid() }
 }
 
-async fn read_frame(stream: &mut UnixStream) -> Result<Vec<u8>> {
+async fn read_frame(stream: &mut UnixStream, limit: usize) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    stream.take((FRAME_LIMIT + 1) as u64).read_to_end(&mut bytes).await.map_err(|_| "Cannot read the local launch request.")?;
-    if bytes.is_empty() || bytes.len() > FRAME_LIMIT { return Err("The local launch message exceeds its limit.".into()); }
+    stream.take((limit + 1) as u64).read_to_end(&mut bytes).await.map_err(|_| "Cannot read the local launch request.")?;
+    if bytes.is_empty() || bytes.len() > limit { return Err("The local launch message exceeds its limit.".into()); }
     Ok(bytes)
 }
 
@@ -467,7 +481,8 @@ impl Broker {
                         let Ok((mut stream, _)) = accepted else { break; };
                         if !same_user(&stream) { continue; }
                         let operation = async {
-                            let bytes = read_frame(&mut stream).await?;
+                            let bytes = tokio::time::timeout(IO_TIMEOUT, read_frame(&mut stream, FRAME_LIMIT)).await
+                                .map_err(|_| "The local launch request timed out.".to_owned())??;
                             let request: Request = serde_json::from_slice(&bytes).map_err(|_| "Invalid local launch request.".to_owned())?;
                             if request.version != 1 { return Err("Unsupported local launch request.".into()); }
                             if request.operation == "health" {
@@ -485,7 +500,7 @@ impl Broker {
                                 } else { shutdown() };
                                 let result = match stopped {
                                     Ok(()) => serde_json::json!({"stopping":true}),
-                                    Err(error) => serde_json::json!({"stopping":false,"error":error.chars().take(512).collect::<String>()}),
+                                    Err(error) => serde_json::json!({"stopping":false,"error":bounded_reply_error(&error)}),
                                 };
                                 let bytes = serde_json::to_vec(&result).map_err(|_| "Cannot encode local shutdown response.".to_owned())?;
                                 stream.write_all(&bytes).await.map_err(|_| "Cannot acknowledge local shutdown.".to_owned())?;
@@ -497,14 +512,23 @@ impl Broker {
                             // Never replay a previously delivered one-use ticket.
                             // Authority bounds outstanding tickets; native launcher
                             // coalesces URL events while its open process is active.
-                            let target = LaunchTarget { port, ticket: issue()?, archive_id:None };
+                            let ticket = match issue() {
+                                Ok(ticket) => ticket,
+                                Err(error) if error == CLOSING => {
+                                    stream.write_all(b"{\"closing\":true}\n").await.map_err(|_| "Cannot report local shutdown.".to_owned())?;
+                                    stream.shutdown().await.map_err(|_| "Cannot finish local shutdown response.".to_owned())?;
+                                    return Ok(());
+                                }
+                                Err(error) => return Err(error),
+                            };
+                            let target = LaunchTarget { port, ticket, archive_id:None };
                             target.url()?;
                             let bytes = serde_json::to_vec(&target).map_err(|_| "Cannot encode local launch response.".to_owned())?;
                             stream.write_all(&bytes).await.map_err(|_| "Cannot deliver local launch response.".to_owned())?;
                             stream.shutdown().await.map_err(|_| "Cannot finish local launch response.".to_owned())?;
                             Ok::<(), String>(())
                         };
-                        tokio::select! { _ = &mut stopped => break, _ = tokio::time::timeout(IO_TIMEOUT, operation) => {} }
+                        tokio::select! { _ = &mut stopped => break, _ = tokio::time::timeout(UPDATE_TIMEOUT, operation) => {} }
                     }
                 }
             }
@@ -530,7 +554,7 @@ pub(super) async fn request_health(directory:&Path)->Result<bool> {
         let mut stream=match UnixStream::connect(&path).await {Ok(s)=>s,Err(error) if matches!(error.kind(),std::io::ErrorKind::NotFound|std::io::ErrorKind::ConnectionRefused)=>return Ok(false),Err(_)=>return Err("Cannot contact local companion".into())};
         stream.write_all(b"{\"version\":1,\"operation\":\"health\"}\n").await.map_err(|_|"Cannot request local readiness")?;
         stream.shutdown().await.map_err(|_|"Cannot finish local readiness request")?;
-        let bytes=read_frame(&mut stream).await?;
+        let bytes=read_frame(&mut stream, REPLY_LIMIT).await?;
         Ok(serde_json::from_slice::<serde_json::Value>(&bytes).ok()==Some(serde_json::json!({"ok":true,"ready":true})))
     }).await.map_err(|_|"Local readiness timed out".to_owned())?
 }
@@ -546,7 +570,10 @@ async fn request_open(directory: &Path) -> Result<Option<LaunchTarget>> {
         if !same_user(&stream) { return Err("The local launch broker belongs to another account.".into()); }
         stream.write_all(b"{\"version\":1,\"operation\":\"open\"}\n").await.map_err(|_| "Cannot request local launch.")?;
         stream.shutdown().await.map_err(|_| "Cannot finish local launch request.")?;
-        let bytes = read_frame(&mut stream).await?;
+        let bytes = read_frame(&mut stream, REPLY_LIMIT).await?;
+        if serde_json::from_slice::<serde_json::Value>(&bytes).ok() == Some(serde_json::json!({"closing":true})) {
+            return Ok(None);
+        }
         let target: LaunchTarget = serde_json::from_slice(&bytes).map_err(|_| "Invalid local launch response.")?;
         target.url()?;
         Ok(Some(target))
@@ -582,16 +609,47 @@ pub async fn open_registered(directory: &Path, installed_only: bool) -> Result<L
     // Recheck after taking startup.lock: uninstall or a legacy registration may
     // have changed authority while this launch waited. Never start that old host.
     if installed_only { super::lifecycle::require_current_registration(directory, &record)?; }
+    // Older installed brokers may still issue a ticket during the short Quit
+    // response flush. Let that shutdown settle before accepting a live target.
+    if request_health(directory).await.unwrap_or(false) {
+        tokio::time::sleep(Duration::from_millis(350)).await;
+    }
     if let Some(target) = request_open(directory).await? { return Ok(target); }
-    super::handover::validate_admission(&record.data_dir)?;
     if let Some(root)=super::lifecycle::installed_root(&record.executable) {
+        // A Quit acknowledgement precedes the old worker releasing its library
+        // lease. Wait for that owned shutdown before asking launchd to reopen it.
+        let deadline=tokio::time::Instant::now()+Duration::from_secs(30);
+        loop {
+            match super::handover::validate_admission(&record.data_dir) {
+                Ok(_) => break,
+                Err(error) if error == "Another PhotoFindry host owns this library." && tokio::time::Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        if read_registration(directory)? != record {
+            return Err("The companion registration changed while opening. Open PhotoFindry again to use the current installation.".into());
+        }
+        if installed_only { super::lifecycle::require_current_registration(directory, &record)?; }
         super::lifecycle::start_registered(&root).await?;
-        let deadline=tokio::time::Instant::now()+Duration::from_secs(75);
+        let deadline=tokio::time::Instant::now()+Duration::from_secs(210);
+        let mut last_kick=tokio::time::Instant::now();
         loop {if let Some(target)=request_open(directory).await?{return Ok(target)}
+            if let Some(error)=super::lifecycle::startup_error(&root){return Err(error)}
             if tokio::time::Instant::now()>deadline{return Err("The background companion could not open. Run lifecycle recover; your library is kept.".into())}
+            // A kickstart against a still-exiting LaunchAgent can be accepted
+            // without scheduling its successor. Retry only after its library
+            // lease has cleared; never interrupt a host that owns the data.
+            if last_kick.elapsed()>=Duration::from_secs(3) && super::handover::validate_admission(&record.data_dir).is_ok() {
+                if read_registration(directory)? != record { return Err("The companion registration changed while reopening. Open PhotoFindry again to use the current installation.".into()); }
+                super::lifecycle::start_registered(&root).await?;
+                last_kick=tokio::time::Instant::now();
+            }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
     }
+    super::handover::validate_admission(&record.data_dir)?;
     let mut command = desktop_command(&record.executable);
     command.args(["serve", "--data-dir"]).arg(&record.data_dir).arg("--runtime").arg(&record.runtime)
         .arg("--managed").arg("--launch-state").arg(directory)
@@ -708,7 +766,11 @@ mod tests {
         let (mut a, mut b) = UnixStream::pair().unwrap();
         assert!(same_user(&a));
         let writer = tokio::spawn(async move { a.write_all(&vec![b'x'; FRAME_LIMIT + 1]).await.unwrap(); a.shutdown().await.unwrap(); });
-        assert!(read_frame(&mut b).await.is_err());
+        assert!(read_frame(&mut b, FRAME_LIMIT).await.is_err());
+        writer.await.unwrap();
+        let (mut a, mut b) = UnixStream::pair().unwrap();
+        let writer = tokio::spawn(async move { a.write_all(&vec![b'x'; FRAME_LIMIT + 1]).await.unwrap(); a.shutdown().await.unwrap(); });
+        assert_eq!(read_frame(&mut b, REPLY_LIMIT).await.unwrap().len(), FRAME_LIMIT + 1);
         writer.await.unwrap();
     }
     struct Fixture { root: PathBuf, state: PathBuf, record: Registration }
@@ -742,6 +804,36 @@ mod tests {
         assert!(request_open(&fixture.state).await.unwrap().is_some(),"A deferred update leaves normal launch authority usable");
         allowed.store(true,std::sync::atomic::Ordering::Release);
         assert!(request_update_stop(&fixture.state).await.unwrap());broker.stop().await;
+    }
+    #[tokio::test]
+    async fn closing_broker_refuses_a_new_ticket_without_turning_open_into_a_fatal_error() {
+        let fixture=Fixture::new();
+        let closing=Arc::new(std::sync::atomic::AtomicBool::new(false));let issue=closing.clone();
+        let broker=Broker::start(&fixture.state,&fixture.record,23456,move||{
+            if issue.load(std::sync::atomic::Ordering::Acquire){Err(CLOSING.into())}else{Ok("a".repeat(64))}
+        }).unwrap();
+        assert!(request_open(&fixture.state).await.unwrap().is_some());
+        closing.store(true,std::sync::atomic::Ordering::Release);
+        assert!(request_open(&fixture.state).await.unwrap().is_none());
+        assert!(request_health(&fixture.state).await.unwrap());
+        broker.stop().await;
+    }
+    #[tokio::test]
+    async fn slow_update_decision_and_unicode_error_fit_the_existing_broker_protocol() {
+        let fixture=Fixture::new();
+        let broker=Broker::start_with_shutdown_and_update(&fixture.state,&fixture.record,23456,
+            ||Ok("a".repeat(64)),||Ok(()),||async {
+                tokio::time::sleep(Duration::from_millis(3200)).await;
+                Err("💥\"\\".repeat(512))
+            }).unwrap();
+        let started=tokio::time::Instant::now();
+        let error=request_update_stop(&fixture.state).await.unwrap_err();
+        assert!(started.elapsed()>=Duration::from_secs(3));
+        assert!(!error.contains("exceeds its limit"));
+        assert!(error.len()<=256);
+        assert!(error.starts_with("💥\"\\"));
+        assert!(request_health(&fixture.state).await.unwrap());
+        broker.stop().await;
     }
     #[tokio::test]
     async fn broker_roundtrip_is_bounded_nonreplaying_and_checks_registration() {

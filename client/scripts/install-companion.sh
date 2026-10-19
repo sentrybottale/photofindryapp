@@ -8,16 +8,16 @@ umask 077
 stage="$(mktemp -d /private/tmp/photofindry-cli.XXXXXXXX)"
 trap 'result=$?; rm -rf -- "$stage"; if [ "$result" != 0 ]; then echo "Installation did not finish. Retry this command. If an older PhotoFindry app owns the library, quit it first. Your library is kept." >&2; fi; exit "$result"' EXIT
 cd "$stage"
-base='https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.18'
-archive='PhotoFindry-0.2.0-beta.18-arm64-companion.zip'
+base='https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.19'
+archive='PhotoFindry-0.2.0-beta.19-arm64-companion.zip'
 echo 'Downloading the PhotoFindry CLI companion…'
 for file in "$archive" cli-release.json; do
   curl --disable --fail --location --progress-bar --show-error --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 900 --max-filesize 450000000 --output "$file" "$base/$file"
 done
 # Pin the reviewed first-install bytes before extracting or running downloaded code.
 shasum -a 256 -c <<'HASHES'
-c3fa2f9087ba3bb715aaa84e98ba0ffa8982f6a883269190658a3c4bb3ef0fab  PhotoFindry-0.2.0-beta.18-arm64-companion.zip
-60c28d5f4fdcea8ce89719ac465f0816fd2e93f34c4da5e7bcc8ba8457c46a52  cli-release.json
+f0e9d882279ea08058c655a2a7faa13a8b7ab512588f0fbfe700ee17e8c3ea36  PhotoFindry-0.2.0-beta.19-arm64-companion.zip
+3ada94ea93e68e6440af4816f0b78fd8b303fd908acb69d22be78de3e0b4ec55  cli-release.json
 HASHES
 ditto -x -k "$archive" package
 cli="$stage/package/bin/photofindry"

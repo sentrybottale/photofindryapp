@@ -170,6 +170,12 @@ fn note(root: &Path, phase: &str, message: &str) {
         &json!({"phase":phase,"message":message,"updatedAt":now()}),
     );
 }
+pub fn startup_error(root: &Path) -> Option<String> {
+    let bytes = release::read(&root.join("status.json"), 16384).ok()?;
+    let status: Value = serde_json::from_slice(&bytes).ok()?;
+    if status["phase"] != "error" { return None; }
+    status["message"].as_str().filter(|message| message.len() <= 2048).map(str::to_owned)
+}
 fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -245,7 +251,11 @@ fn plist(root: &Path, cfg: &Installation, operation: Option<&str>) -> Result<Vec
         .iter()
         .map(|s| format!("<string>{}</string>", xml(s)))
         .collect::<String>();
-    Ok(format!("<?xml version=\"1.0\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>{}</string><key>ProgramArguments</key><array>{args}</array><key>RunAtLoad</key><{} /><key>ProcessType</key><string>Background</string><key>ThrottleInterval</key><integer>30</integer><key>KeepAlive</key><{} /></dict></plist>",xml(&label),if operation.is_some()||cfg.autostart{"true"}else{"false"},"false").into_bytes())
+    // Keep maintenance throttled, but an explicit Open after Quit must not
+    // inherit a 30-second delay. KeepAlive is false: failed background jobs
+    // are never restarted unattended.
+    let throttle = if operation.is_some() { 30 } else { 1 };
+    Ok(format!("<?xml version=\"1.0\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>{}</string><key>ProgramArguments</key><array>{args}</array><key>RunAtLoad</key><{} /><key>ProcessType</key><string>Background</string><key>ThrottleInterval</key><integer>{throttle}</integer><key>KeepAlive</key><{} /></dict></plist>",xml(&label),if operation.is_some()||cfg.autostart{"true"}else{"false"},"false").into_bytes())
 }
 fn write_agent(root: &Path, cfg: &Installation) -> Result<PathBuf> {
     let path = agent_path(root)?;
@@ -367,8 +377,8 @@ async fn start_agent(root: &Path, cfg: &Installation, reload: bool) -> Result<()
 async fn stop_agent(root: &Path) -> Result<()> {
     unload(format!("{}/{}", domain(), label(root)?)).await
 }
-async fn health(cfg: &Installation) -> Result<()> {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(75);
+async fn health(root: &Path, cfg: &Installation) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(210);
     loop {
         if launch::request_health(&cfg.launch_state)
             .await
@@ -376,8 +386,11 @@ async fn health(cfg: &Installation) -> Result<()> {
         {
             return Ok(());
         }
+        if let Some(detail) = startup_error(root) {
+            return Err(format!("The companion stopped while opening: {detail}"));
+        }
         if tokio::time::Instant::now() > deadline {
-            return Err("The new companion did not become ready. The prior software will be restored; your library stays in place.".into());
+            return Err("The companion did not become ready. The library stays in place; recovery will restore prior software when available.".into());
         }
         tokio::time::sleep(Duration::from_millis(150)).await;
     }
@@ -537,8 +550,9 @@ async fn restore(
         save(root, STATE, before)?;
         write_agent(root, before)?;
         if restart {
+            note(root, "opening", "Restarting the retained companion with the current library.");
             start_agent(root, before, true).await?;
-            health(before).await?;
+            health(root, before).await?;
         }
     } else {
         if let Some(prior) = &tx.registration {
@@ -649,8 +663,9 @@ async fn switch(
         stop_agent(root).await?;
         publish_registration(root, &after, Some(&guard))?;
         save(root, STATE, &after)?;
+        note(root, "opening", "Opening the updated library in the background. Saved work remains in place.");
         start_agent(root, &after, true).await?;
-        health(&after).await?;
+        health(root, &after).await?;
         tx.committed = true;
         save(root, JOURNAL, &tx)?;
         clear(root, JOURNAL)?;
@@ -928,6 +943,7 @@ pub fn status(root: &Path) -> Result<Value> {
 pub async fn start_registered(root: &Path) -> Result<()> {
     recover(root, false).await?;
     let cfg = read_state(root)?;
+    note(root, "opening", "Opening the registered companion with the current library.");
     start_agent(root, &cfg, false).await
 }
 pub async fn schedule(root: &Path, operation: &str) -> Result<()> {
@@ -1062,10 +1078,22 @@ async fn background(root: &Path) -> Result<()> {
         .arg(&cfg.launch_state)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .map_err(|_| "Cannot start the background companion")?;
+    let mut stderr = child.stderr.take().ok_or("Cannot read companion startup diagnostics")?;
+    let mut diagnostics = Some(tokio::spawn(async move {
+        let mut tail = Vec::new();
+        let mut buffer = [0u8; 1024];
+        while let Ok(size) = stderr.read(&mut buffer).await {
+            if size == 0 { break; }
+            tail.extend_from_slice(&buffer[..size]);
+            if tail.len() > 2048 { tail.drain(..tail.len() - 2048); }
+        }
+        String::from_utf8_lossy(&tail).chars().filter(|c| !c.is_control() || *c == '\n')
+            .take(512).collect::<String>().trim().to_owned()
+    }));
     let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
         .map_err(|_| "Cannot handle background shutdown")?;
     let mut ticks = tokio::time::interval(Duration::from_secs(30));
@@ -1074,7 +1102,7 @@ async fn background(root: &Path) -> Result<()> {
     let mut check_child: Option<tokio::process::Child> = None;
     loop {
         tokio::select! {
-         status=child.wait()=>{let status=status.map_err(|_|"Cannot inspect companion exit")?;if status.success(){return Ok(())}note(root,"error","The companion stopped unexpectedly. Open PhotoFindry to retry, or use lifecycle recover. Your saved work is kept.");return Err("The companion stopped unexpectedly; saved work is kept.".into())},
+         status=child.wait()=>{let status=status.map_err(|_|"Cannot inspect companion exit")?;if status.success(){return Ok(())}let detail=if let Some(mut task)=diagnostics.take(){match tokio::time::timeout(Duration::from_secs(2),&mut task).await{Ok(Ok(value))=>value,_=>{task.abort();String::new()}}}else{String::new()};let reason=if detail.is_empty(){"The companion stopped unexpectedly.".to_owned()}else{format!("The companion stopped unexpectedly: {detail}")};note(root,"error",&format!("{reason} Use Recover companion; saved work is kept."));return Err(reason)},
          _=term.recv()=>{let _=launch::request_stop(&cfg.launch_state).await;if tokio::time::timeout(Duration::from_secs(30),child.wait()).await.is_err(){let _=child.kill().await;let _=child.wait().await;}return Ok(())},
          _=ticks.tick()=>{if now().saturating_sub(last_retire)>=600{last_retire=now();let _=retire_migration(root).await;}if let Some(c)=check_child.as_mut(){if c.try_wait().ok().flatten().is_some(){check_child=None;}}
           if let Ok(current)=read_state(root){if current.automatic_updates&&now().saturating_sub(last_check)>=21600&&check_child.is_none(){last_check=now();check_child=tokio::process::Command::new(executable(root,current.current)).args(["lifecycle","check","--install-root"]).arg(root).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true).spawn().ok();}}
@@ -1145,8 +1173,9 @@ async fn install(
                 existing_release_identity(cfg.current,signed.build,&installed,&bytes)?;
             }
             repair_registration(root, &cfg)?;
+            note(root, "opening", "Opening the installed companion with the current library.");
             start_agent(root, &cfg, false).await?;
-            health(&cfg).await?;
+            health(root, &cfg).await?;
             register_links(root, &cfg).await?;
         }
         return status(root);
@@ -1276,19 +1305,23 @@ async fn install(
     });
     let migration_status = tokio::select! {
      status=child.wait()=>status.map_err(|_|"Migration process stopped unexpectedly")?,
-     _=cancelled(&mut cancellation)=>{if let Some(pid)=child.id(){unsafe{libc::kill(pid as i32,libc::SIGINT);}}if tokio::time::timeout(Duration::from_secs(30),child.wait()).await.is_err(){let _=child.kill().await;let _=child.wait().await;}let _=progress.await;let _=restore(root,&tx,&helper,true,None).await;return Err("Migration cancelled. The previous installation and current library are kept; retry when ready.".into())}
+     _=cancelled(&mut cancellation)=>{if let Some(pid)=child.id(){unsafe{libc::kill(pid as i32,libc::SIGINT);}}if tokio::time::timeout(Duration::from_secs(30),child.wait()).await.is_err(){let _=child.kill().await;let _=child.wait().await;}let _=progress.await;if let Err(recovery)=restore(root,&tx,&helper,true,None).await{return Err(format!("Migration cancelled. Recovery is pending: {recovery} Keep the library and recovery copy in place."));}return Err("Migration cancelled. The previous installation and current library are kept; retry when ready.".into())}
     };
     let output = progress
         .await
         .map_err(|_| "Migration progress reader stopped")?;
     if !migration_status.success() || output.is_err() {
-        let _ = restore(root, &tx, &helper, true, None).await;
-        return Err(output.err().unwrap_or_else(||"The library could not migrate. Keep the existing app and recovery copy, then retry. Your original library was not replaced.".into()));
+        let reason = output.err().unwrap_or_else(||"The library could not migrate. Keep the existing app and recovery copy, then retry. Your original library was not replaced.".into());
+        if let Err(recovery) = restore(root, &tx, &helper, true, None).await {
+            return Err(format!("{reason} Recovery is pending: {recovery} Keep the library and recovery copy in place."));
+        }
+        return Err(reason);
     }
     let result = tokio::select! { result=async {
            save(root, STATE, &cfg)?;
+           note(root, "opening", "Opening the saved library in the background. Processing remains paused.");
            start_agent(root, &cfg, true).await?;
-           health(&cfg).await?;
+           health(root, &cfg).await?;
            register_links(root, &cfg).await?;
            tx.committed = true;
            save(root, JOURNAL, &tx)?;
@@ -1297,7 +1330,9 @@ async fn install(
        }
     => result, _=cancelled(&mut cancellation)=>Err("Installation cancelled. Your library is kept; retry when ready.".into()) };
     if let Err(error) = result {
-        let _ = restore(root, &tx, &helper, true, None).await;
+        if let Err(recovery) = restore(root, &tx, &helper, true, None).await {
+            return Err(format!("{error} Recovery is pending: {recovery} Keep the library and recovery copy in place."));
+        }
         return Err(error);
     }
     note(root,"ready","Background companion installed. Your library is kept; processing remains paused until you start it.");
@@ -1442,7 +1477,9 @@ pub async fn command(args: &[String]) -> Result<()> {
         return Ok(());
     }
     if operation == "background" {
-        return background(&root).await;
+        let result = background(&root).await;
+        if let Err(error) = &result { note(&root, "error", error); }
+        return result;
     }
     if operation == "status" {
         println!("{}", status(&root)?);
@@ -1455,8 +1492,9 @@ pub async fn command(args: &[String]) -> Result<()> {
         let cfg = read_state(&root)?;
         checked_release(&root, cfg.current, &verifier(&self_executable()?)?)?;
         repair_registration(&root,&cfg)?;
+        note(&root, "opening", "Recovering the background companion with the current library.");
         start_agent(&root, &cfg, false).await?;
-        health(&cfg).await?;
+        health(&root, &cfg).await?;
         register_links(&root, &cfg).await?;
         note(
             &root,
@@ -1544,6 +1582,19 @@ pub async fn command(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn readiness_reports_a_failed_background_launch_without_waiting_for_the_full_deadline() {
+        let base=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-health-{}-{}",std::process::id(),now()));
+        std::fs::create_dir(&base).unwrap();std::fs::set_permissions(&base,std::fs::Permissions::from_mode(0o700)).unwrap();
+        let root=base.join("Program");let data=base.join("Library");let state=base.join("Launch");
+        for path in [&root,&data,&state] {std::fs::create_dir(path).unwrap();std::fs::set_permissions(path,std::fs::Permissions::from_mode(0o700)).unwrap();}
+        let cfg=Installation{schema:1,current:117,previous:Some(116),highest:117,data,launch_state:state,autostart:true,automatic_updates:false,retire:None};
+        note(&root,"opening","Opening the saved library.");
+        note(&root,"error","The local worker could not open its saved library.");
+        let error=health(&root,&cfg).await.unwrap_err();
+        assert!(error.contains("The local worker could not open"));
+        std::fs::remove_dir_all(base).unwrap();
+    }
     #[tokio::test]
     async fn current_open_remains_read_only_while_updater_finishes() {
         let base=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-current-open-{}-{}",std::process::id(),now()));

@@ -327,7 +327,7 @@ test('real library-open failures and AI-result errors are actionable and never r
     };
     await ui.pair(); assert.equal(attempts, 1);
     assert.match(ui.ids.get('result-count').textContent, /Library could not be loaded/);
-    assert.match(ui.ids.get('library-error-text').textContent, /local library is unavailable.*Try again.*reopen PhotoFindry/);
+    assert.match(ui.ids.get('library-error-text').textContent, /local library is unavailable.*Try again.*Background companion in Settings/);
     let actions = 0;
     ui.handlers['/api/action'] = () => { actions += 1; return Response.json({ error: 'The library changed during search.' }, { status: 409 }); };
     await ui.window.PhotoFindry.openAIResults('saved-ai');
@@ -374,6 +374,22 @@ test('new AI search shows its own pending state without old results, direct coun
     assert.equal(ui.window.PhotoFindry.getScope().sourceId, 'source-b');
     assert.equal(ui.window.PhotoFindry.getScope().scopeId, 'folder-b');
     assert.equal(ui.window.PhotoFindry.getScope().metadataFilters.camera, 'other-camera');
+  } finally { await ui.close(); }
+});
+
+test('a ready AI pool appears as explicitly unscored All candidates before the first score', async () => {
+  const ui = harness();
+  try {
+    await ui.pair();
+    ui.handlers['/api/action'] = ({ params }) => params.candidateView === 'best'
+      ? page([], { aiJobId: params.id, aiResultsReady: true, aiResultsPending: false, aiCandidateCount: 3, aiCandidateView: 'best' })
+      : page([photo('a'), photo('b'), photo('c')], { aiJobId: params.id, aiResultsReady: true, aiResultsPending: false, aiCandidateCount: 3, aiCandidateView: 'all' });
+    await ui.window.PhotoFindry.openAIResults('ready-job');
+    assert.deepEqual(ui.calls.filter(call => call.route === '/api/action').map(call => call.input.params.candidateView), ['best', 'all']);
+    assert.equal(ui.ids.get('gallery').children.length, 3);
+    assert.equal(ui.window.PhotoFindry.getPage().aiCandidateView, 'all');
+    await ui.window.PhotoFindry.refreshCurrentPage();
+    assert.equal(ui.calls.filter(call => call.route === '/api/action').at(-1).input.params.candidateView, 'all');
   } finally { await ui.close(); }
 });
 

@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.18, build 116**. This guide was updated on 19 October 2026.
+PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.19, build 117**. This guide was updated on 19 October 2026.
 
 ## Requirements
 
@@ -21,11 +21,11 @@ New users install the background CLI and use the browser workspace. No PhotoFind
 ( pf_setup=$(/usr/bin/mktemp) || exit
 trap '/bin/rm -f "$pf_setup"' EXIT
 /usr/bin/curl --disable -fL --proto '=https' --proto-redir '=https' --max-time 60 --max-filesize 65536 https://photofindry.com/install-cli.sh -o "$pf_setup" &&
-printf '2db2e520d32685e710cc4b0b0a8953698cfade29542954e5f32d79483638094d  %s\n' "$pf_setup" | /usr/bin/shasum -a 256 -c - &&
+printf '1a5dc41fb1c092a617fe66c8bda85cb4dcf5e36f6eed265dcafd1b8be069b8a1  %s\n' "$pf_setup" | /usr/bin/shasum -a 256 -c - &&
 /usr/bin/env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/bash "$pf_setup" )
 ```
 
-The [official beta 18 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.18) contains the [CLI package ZIP](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.18/PhotoFindry-0.2.0-beta.18-arm64-companion.zip), 397,738,514 bytes (398 MB). The signed CLI envelope and its package inventory are checked by the pinned native verifier before installation. Startup, update checks and recovery are managed in browser Settings → Background companion.
+The [official beta 19 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.19) contains the [CLI package ZIP](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.19/PhotoFindry-0.2.0-beta.19-arm64-companion.zip), 397,878,185 bytes (398 MB). The signed CLI envelope and its package inventory are checked by the pinned native verifier before installation. Startup, update checks and recovery are managed in browser Settings → Background companion.
 
 For first installation, independently trust the instructions and their pinned bytes. Commands and hashes copied together from a compromised website do not authenticate themselves. The [signed-release verification guide](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md) records the existing publisher key. Do not accept an unexplained key change. The optional standalone Swift verifier requires Command Line Tools; normal CLI setup and operation do not.
 

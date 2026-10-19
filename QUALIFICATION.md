@@ -1,39 +1,40 @@
-# Beta 18 / build 116 qualification
+# Beta 19 / build 117 qualification
 
-This is a focused tagging/source-lifecycle CLI hotfix, qualified on this Apple-silicon Mac.
+The owner approved publication on 2026-10-19. This is the CLI-only successor to
+beta 18. Beta 16 remains the existing-user native migration channel. The public
+client is an exact MIT allowlist snapshot; private engine source and Git history
+must not be exported.
 
-- Exact packaged runtime: complete Node regression suite, 1,511 passed, 23 explicit
-  opt-in skips, zero failures. Swift compatibility build and seven source-export
-  boundary tests passed; mapped parity inventory passed.
-- Clean exported Svelte client: 30 tests and deterministic build check passed.
-  Real WebKit responsive qualification: 50/50 cases passed across gallery, Files,
-  Settings, Jobs and preview, 320–1440 pixels, light and dark.
-- Companion: 134 unit tests passed, two opt-in cases ignored; 28 handover checks
-  passed. Engine: 38 unit checks passed. Worker checks include source-return,
-  missing/changed distinctions, removal, cancellation and a 95,000-target indexed
-  recovery lookup. Final worker suite: 376 passed, 10 opt-in skips; five worker integration checks passed.
-- Exact bundled real-model loop passed tagging, queued AI search, retained results,
-  human naming, preview, backup/restore, worker restart and portable source attach.
-  Synthetic original bytes stayed unchanged; saved model selections were retained.
-- Exact publisher-signed candidate passed stale deleted-program recovery, a blocked
-  active library, real launchd/authenticated-browser readiness, repeated setup and
-  uninstall with the retained library and original sentinel intact.
-- A forged publisher signature was rejected before stopping the installed service.
-  Killing the updater after its durable switch recovered verified prior software;
-  retry installed build 116 without changing the library or highest-build watermark.
-- Normal signed 115-to-116 upgrade, active conflicting-service PID preservation,
-  foreign-library refusal and software rollback to 115 passed on isolated fixtures.
+The build-117 package was publisher-signed with the retained updater key
+`G363x/YCT07qbJyyI5minQjp3v+6SEw9sB7dU3pL6cM=`. Candidate archive SHA-256 is
+`f0e9d882279ea08058c655a2a7faa13a8b7ab512588f0fbfe700ee17e8c3ea36`
+(397,878,185 bytes); signed CLI envelope SHA-256 is
+`3ada94ea93e68e6440af4816f0b78fd8b303fd908acb69d22be78de3e0b4ec55`.
+The archive and envelope must match the public release assets exactly.
 
-Actual packaged observer/browser trials completed the same missing-original job
-automatically and continued another job after acknowledged folder relocation.
-Original bytes were preserved. Existing persisted legacy jobs keep their compatible
-manual recovery behavior; new source-reading requests use the shared lifecycle.
+Matched package qualification passed 1,513 Node checks with 23 explicit skips,
+377 worker tests with ten opt-in skips, 39 engine tests, 137 companion tests with
+two opt-in skips, 28 handover tests, Swift build, Svelte verification, and exact
+138-file client allowlist hashes. The small isolated signed lifecycle suite passed
+all 11 checks: real launchd autostart, authenticated controls, forged-signature
+rejection, killed-update recovery, signed successor, rollback, anti-replay,
+library/model preservation, and uninstall preservation.
 
-No other-Mac, reboot/new-account acceptance, arbitrary installation location,
-Apple notarization or exhaustive new independent security audit is claimed.
-Initial sandbox-restricted runs could not bind loopback and are retained as failed
-infrastructure runs; the qualified tests ran with their required local endpoints.
-An outdated missing-file test expectation was updated to the newly authorized
-verified-return behavior before final qualification. Automated security checks
-are distinct from independent human review. Required public final-head gates,
-asset verification and coordinated feed/website readback must pass before release.
+On a separate 93,806-photo library clone, a forged successor was rejected
+without stopping the service. Signed 116-to-117 installation took 45 seconds,
+the first gallery page loaded in seven seconds, and immediate Quit/Open completed
+in one request in 43 seconds. The service stayed healthy afterward. Explicit
+software rollback and signed retry also succeeded. Photo, job and review row
+counts and the catalog header hash matched the baseline; the queue stayed
+paused. A packaged ordinary search returned all 4,921 matches in 16 seconds
+idle or 26 seconds under competing worker tests; Stop all committed in 42 ms.
+The queued AI search retained 22,190 candidates, completed 509 preview reviews,
+populated Best so far with 60, and preserved those results after Stop/restart.
+
+The direct signed 115-to-117 isolated lifecycle suite passed its ten applicable
+checks, including killed-update recovery, signature rejection and rollback. The
+affected other Mac has not been directly inspected or upgraded. The signed
+full-size test starts from build 116. Full Qwen refinement of all 22,190 candidates, reboot
+on another Mac, notarization and an exhaustive independent security audit are
+not claimed. The 43-second Quit/Open wait is visible; this release prevents the
+rapid-retry failure but does not yet make a full-library restart instantaneous.

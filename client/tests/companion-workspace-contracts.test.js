@@ -152,6 +152,30 @@ test('Jobs owns queue, notices and history; dismissing notifications never delet
   } finally { await ui.close(); }
 });
 
+test('confirmed Stop all remaining retries a lost local reply for the same library and shows the committed queue', async () => {
+  let attempts = 0;
+  const cancelled = { paused: true, pauseReason: 'cancelled', jobs: [{ id: 'waiting', kind: 'tagging', state: 'cancelled' }], notifications: [] };
+  const ui = harness({ state: { libraryId: 'library-a', jobs: { paused: false, jobs: [{ id: 'waiting', kind: 'tagging', state: 'paused' }], notifications: [] } }, responses: {
+    jobAction: (params) => {
+      assert.equal(params.action, 'cancelAll');
+      if (++attempts === 1) throw Error('The companion could not be reached.');
+      return cancelled;
+    },
+  } });
+  try {
+    await ui.findButton('Jobs').click();
+    await ui.findButton('Stop all remaining').click();
+    const controls = ui.all().filter(node => node.tagName === 'BUTTON' && node.textContent === 'Stop all remaining');
+    assert.equal(controls.length, 2);
+    assert.equal(controls.at(-1).closest('dialog')?.open, true);
+    await controls.at(-1).click();
+    assert.equal(attempts, 2);
+    assert.deepEqual(ui.calls.filter(call => call.name === 'jobAction').map(call => call.params), [{ action: 'cancelAll' }, { action: 'cancelAll' }]);
+    assert(ui.findButton('Stop all remaining').disabled);
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
+
 test('model file draft survives native snapshots and saves only an opaque picker grant', async () => {
   const ui = harness();
   try {
