@@ -95,7 +95,13 @@
   function confirmAction(title, description, label, operation) {
     const { dialog, body } = modal(title, description);
     const controls = el('div', 'button-row');
-    controls.append(button('Cancel', () => dialog.close()), button(label, async () => { await operation(); dialog.close(); }, true));
+    let confirm;
+    confirm = button(label, async () => {
+      confirm.textContent = label === 'Stop all remaining' ? 'Stopping…' : label;
+      try { await operation(); dialog.close(); }
+      finally { if (dialog.open) confirm.textContent = label; }
+    }, true);
+    controls.append(button('Cancel', () => dialog.close()), confirm);
     body.append(controls);
   }
   const duration = (seconds) => {
@@ -750,6 +756,22 @@
     if (P.getAIJobId() === id) await P.refreshLibrary();
     return result;
   }
+  async function stopAllRemaining() {
+    // The confirmed queue-wide stop is idempotent. A lost local HTTP reply may
+    // be retried for this same library without selecting any new job or photo.
+    const libraryId = snapshot.libraryId;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        const jobs = await P.api('/api/action', { action: 'jobAction', params: { action: 'cancelAll' } }, { timeoutMs: 10000 });
+        if (snapshot.libraryId === libraryId) { snapshot = { ...snapshot, jobs }; renderJobs(true); }
+        P.refreshState().catch(() => { /* The next normal status poll also refreshes Jobs. */ });
+        return jobs;
+      } catch (error) {
+        if (error?.name === 'AbortError' || error?.status && error.status < 500 || snapshot.libraryId !== libraryId || attempt === 3) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+      }
+    }
+  }
   function stopJob(job) {
     confirmAction('Stop remaining work?', 'Completed photos, accepted tags and reviewed search candidates are kept. Remaining targets are cancelled. A stopped AI search cannot resume.', 'Stop remaining work', () => jobAction('cancel', job.id));
   }
@@ -956,7 +978,7 @@
     queueToggle.disabled = queue.paused ? recoveries.length > 0 : activeCount === 0;
     if (recoveries.length) queueToggle.title = 'Finish interrupted cleanup above before resuming other work.';
     const cancellingAll = queue.pauseReason === 'cancelled' && all.some(job => ['running', 'pausing'].includes(job.state));
-    const stopAll = keyed(button(cancellingAll ? 'Stopping…' : 'Stop all remaining', () => confirmAction('Stop all remaining jobs?', 'This stops running work and cancels every waiting, paused and scheduled job, including jobs outside this page. Failed jobs move to Activity. Saved photos and reviewed matches are kept. The queue stays paused.', 'Stop all remaining', () => jobAction('cancelAll'))), 'queue', 'cancelAll');
+    const stopAll = keyed(button(cancellingAll ? 'Stopping…' : 'Stop all remaining', () => confirmAction('Stop all remaining jobs?', 'This stops running work and cancels every waiting, paused and scheduled job, including jobs outside this page. Failed jobs move to Activity. Saved photos and reviewed matches are kept. The queue stays paused.', 'Stop all remaining', stopAllRemaining)), 'queue', 'cancelAll');
     stopAll.disabled = queueCount === 0 || cancellingAll; toolbar.append(queueToggle, stopAll);
     const power = keyed(select([['off', 'Keep awake: off'], ['processing', 'Awake while processing'], ['queue', 'Awake until queue finishes']], snapshot.powerPreferences?.mode || 'processing'), 'queue', 'keepAwake');
     power.setAttribute('aria-label', 'Keep Mac awake'); power.addEventListener('change', () => run(() => P.action('configurePower', { mode: power.value }))); toolbar.append(power);

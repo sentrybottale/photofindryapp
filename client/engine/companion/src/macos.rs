@@ -613,6 +613,7 @@ async fn api(path: &str, bytes: &[u8], state: &State, library_guard:Option<Libra
             if serde_json::from_slice::<Empty>(bytes).is_err() {
                 return invalid();
             }
+            state.uninstall_shutdown.store(true, Ordering::Release);
             state.authority.lock().unwrap().disconnect();
             state.shutdown.notify_one();
             json_response(json!({"stopping":true}))
@@ -1684,7 +1685,7 @@ async fn run(mut config: Config) -> Result<(), String> {
         worker::Worker::spawn(&config.worker, &config.data, &config.runtime)?;
     // A spawned PID is not proof of a worker lease or an opened library. Never
     // advertise pairing until the actual native host reports usable state.
-    let initial = tokio::time::timeout(Duration::from_secs(60), worker.call("state", json!({}))).await;
+    let initial = tokio::time::timeout(Duration::from_secs(180), worker.call("state", json!({}))).await;
     let admitted = (|| -> Result<(), String> {
         let initial = initial.map_err(|_| "The local library did not finish opening.")??;
         let id = initial["libraryId"].as_str().filter(|id| !id.is_empty())
@@ -1756,7 +1757,7 @@ async fn run(mut config: Config) -> Result<(), String> {
         let update_state=state.clone();
         let port = listener.local_addr().map_err(|_| "Cannot inspect the local port.")?.port();
         match launch::Broker::start_with_shutdown_and_update(&launch_directory, registration, port, move || {
-            if authority_state.uninstall_shutdown.load(Ordering::Acquire) {return Err("This companion is closing for local maintenance.".into());}
+            if authority_state.uninstall_shutdown.load(Ordering::Acquire) {return Err(launch::CLOSING.into());}
             authority_state.authority.lock().unwrap().issue_bootstrap(Instant::now()).map_err(str::to_owned)
         },move|| {
             let _guard=shutdown_state.library_transition.try_write().map_err(|_|"A local operation is still finishing. Finish or cancel it before uninstalling.".to_owned())?;

@@ -331,6 +331,7 @@
 
   function requestTimeout(path, body) {
     if (path === '/api/pick') return 310000;
+    if (path === '/api/state' || path === '/api/library') return 120000;
     if (path !== '/api/action') return 30000;
     if (['sourceLabel', 'sourceLabelScan', 'startDownload'].includes(body.action)) return 310000;
     if (['startModel', 'switchModel', 'configure', 'optimizeModel', 'prepareSourceArchive', 'inspectSourceArchive', 'attachSourceArchive', 'exportSourceArchive', 'inspectBackup', 'restoreLibrary', 'exportLibrary'].includes(body.action)) return 1900000;
@@ -391,7 +392,7 @@
       return result;
     } catch (error) {
       if (generation !== state.requestGeneration || state.pageSuspended) throw abortError();
-      if (timedOut) throw new Error('The companion took too long to respond. Check its terminal, then try again.');
+      if (timedOut) throw new Error('The companion did not respond in time. Check Background companion in Settings for its current status.');
       if (isAbort(error) || error instanceof SessionError) throw error;
       if (error instanceof TypeError) {
         if (state.token === token && !pairing) setConnection(false);
@@ -720,6 +721,7 @@
       if (!input.scopeId) delete input.scopeId;
       if (!input.sourceId) delete input.sourceId;
       let result;
+      let showingUnscoredPool = false;
       const retryDelays = [200, 600, 1400];
       for (let attempt = 0; ; attempt += 1) {
         try {
@@ -738,12 +740,19 @@
         }
       }
       if (!current()) return;
+      if (aiJobId && state.candidateView === 'best' && result.aiResultsReady === true && result.aiResultsPending !== true && result.totalCount === 0 && result.aiCandidateCount > 0) {
+        const all = await api('/api/action', { action: 'jobResults', params: { id: aiJobId, offset: 0, limit: 60, sort: state.aiSort, candidateView: 'all' } }, { signal: controller.signal });
+        if (!current()) return;
+        if (all.aiJobId !== aiJobId) throw new Error('The companion returned results for a different AI search.');
+        if (all.aiCandidateView === 'all' && all.totalCount > 0) { result = all; showingUnscoredPool = true; }
+      }
       if (aiJobId && result.aiJobId !== aiJobId) throw new Error('The companion returned results for a different AI search.');
       if (!Array.isArray(result.photos) || !Number.isSafeInteger(result.totalCount) || result.totalCount < 0 ||
           !Number.isSafeInteger(result.offset) || result.offset < 0 || !Number.isSafeInteger(result.limit) || result.limit < 1 || result.limit > 60 || result.photos.length > result.limit ||
           result.photos.some((photo) => typeof photo?.id !== 'string' || !photo.id) || new Set(result.photos.map((photo) => photo.id)).size !== result.photos.length) {
         throw new Error('The companion returned an invalid library page.');
       }
+      if (showingUnscoredPool) state.candidateView = 'all';
       const oldActivePhoto = state.photos.find((photo) => photo.id === state.activeId);
       state.photos = result.photos;
       state.total = result.totalCount;
@@ -817,7 +826,7 @@
       else if (!keepingPhotos) $('result-count').textContent = aiJobId ? 'AI search results could not be loaded' : state.query ? 'Search could not finish' : 'Library could not be loaded';
       $('library-error-text').textContent = invalidated
         ? 'Saved details kept changing during the search. Your query and filters are kept. Choose Retry search. Open Jobs to check or pause any running work.'
-        : `${error.message} Choose ${state.query && !aiJobId ? 'Retry search' : 'Try again'} to retry this view. If it fails again, reopen PhotoFindry.`;
+        : `${error.message} Choose ${state.query && !aiJobId ? 'Retry search' : 'Try again'} to retry this view. If it repeats, check Background companion in Settings.`;
       $('retry-library').textContent = (state.query && !aiJobId) || invalidated ? 'Retry search' : 'Try again';
       searchRecoveryJobs.hidden = !invalidated;
       $('library-error').hidden = false;

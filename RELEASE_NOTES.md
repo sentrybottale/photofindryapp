@@ -1,32 +1,15 @@
-# PhotoFindry 0.2.0-beta.18 — tagging and automatic source recovery
+# PhotoFindry 0.2.0-beta.19 — companion and search recovery
 
-This CLI hotfix fixes failed tagging during bursts of streamed progress. Progress
-now waits within bounded transport queues; cancellation and real frame limits
-remain enforced. A single OCR format repair uses a narrower checked decoder when
-copied text exceeds the aggregate schema bound; final validation remains strict.
+This update repairs background companion reopening after Quit and makes signed
+update failures identify their cause and recovery state. It keeps the library,
+original photographs, selected model files, saved jobs and reviewed matches.
 
-New tagging, metadata, preview, face and improvement jobs retain unavailable
-selections and share durable source recovery. Cached previews remain usable offline.
-The native filesystem observer also reconciles returns during startup.
+Large-library search returns every match while bounding optional local related
+reordering. A queued AI search shows retrieval progress and opens its unscored
+All candidates pool until Best so far contains scored results. Stop all remaining
+retries a lost local acknowledgement for the same library and shows the committed
+queue state. No retagging or library schema migration is part of this hotfix.
 
-Verified originals that return to the same saved location automatically release
-their existing jobs. Missing originals keep saved tags and previews while other
-usable photos continue. Changed or uncertain locations still require identity
-confirmation. Folder recovery follows its exact source/root and keeps the waiting
-job linked through acknowledged relocation. Pauses, stops, schedules and resource
-holds remain in force. Quick location checks do not start a camera/location scan.
-
-Explicitly moving entries to Removed skips those pending targets once across
-source-reading jobs, including ready, offline and identity-held targets. Other
-records, original photographs and saved accepted details stay intact. Recovery
-selection uses an index, including a 95,000-target regression fixture.
-
-Install the CLI directly using the verified setup at app.photofindry.com. Existing
-companion users choose Install signed update in Settings → Background companion.
-The beta 16 application channel remains only the one-time migration bridge for
-existing native users. Libraries and selected model paths stay in place.
-
-The reviewed MIT client is open source; Rust engine implementations and private
-history remain private. Community beta artifacts use the retained publisher key;
-they are not Apple Developer ID signed or notarized. See QUALIFICATION.md for the
-exact scope and limits of testing.
+Fresh installations remain CLI-only. The beta 16 Mac application remains the
+one-time migration bridge for existing native-app users. The public website has
+no library authority; the signed CLI feed remains the update trust boundary.
