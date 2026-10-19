@@ -12,17 +12,16 @@ launcher, generic Rust companion bridge and selected macOS interaction helpers.
 The Rust engine cores remain proprietary, supplied in official builds. Rust is a
 language, not the licensing boundary. Official builds remain free to use.
 
-## Current beta: 0.2.0-beta.16
+## Current beta: 0.2.0-beta.17
 
-[Download the Mac browser beta](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.16)
+[Download the CLI companion](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.17)
 · [Install and migrate](INSTALLATION.md) · [Qualification](QUALIFICATION.md)
 
-Build 114 uses a one-time installer, then runs without a permanent Mac app. Login
-startup, signed CLI updates and recovery are controlled in the local browser.
+Build 115 installs the CLI directly through the [short setup command](https://app.photofindry.com/#installation). The old application download is only a migration bridge for existing native users. Login startup, signed CLI updates and recovery are controlled in the local browser.
 Libraries, originals, model paths and saved work stay in place. Verify the signed release inventory before installation.
 
 The client directory is the exact reviewed snapshot associated with the release
-candidate. Its 137 files plus CLIENT-SOURCE.json match the signed source archive.
+candidate. Its 138 files plus CLIENT-SOURCE.json match the signed source archive.
 This root page records publication status. The private development history and engine sources
 are not part of this repository. Source changes require fresh inventory review.
 

@@ -193,6 +193,11 @@ fn register_locked(directory: &Path, data: &Path, runtime: &Path, executable: &P
     let record = Registration { version: 1, data_dir: canonical(data, true)?, runtime: canonical(runtime, true)?, executable: canonical(executable, false)? };
     validate_registration(&record)?;
     super::handover::validate_admission(&record.data_dir)?;
+    write_registration_locked(directory, &record, owner)
+}
+fn write_registration_locked(directory: &Path, record: &Registration, owner: &File) -> Result<Registration> {
+    let bytes = serde_json::to_vec(record).map_err(|_| "Cannot encode local launch registration.")?;
+    if bytes.len() as u64 > MAX_REGISTRATION { return Err("Local launch registration is too large.".into()); }
     // Do not silently change the library behind an active broker.
     let _broker_lock = try_lock(directory, "broker.lock")?.ok_or("Stop the running registered companion before changing its registration.")?;
     let mut entropy = [0u8; 16];
@@ -203,7 +208,7 @@ fn register_locked(directory: &Path, data: &Path, runtime: &Path, executable: &P
         let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&temporary)
             .map_err(|_| "Cannot stage local launch registration.")?;
-        serde_json::to_writer(&mut file, &record).map_err(|_| "Cannot encode local launch registration.")?;
+        file.write_all(&bytes).map_err(|_| "Cannot encode local launch registration.")?;
         file.write_all(b"\n").and_then(|_| file.sync_all()).map_err(|_| "Cannot flush local launch registration.")?;
         same_directory(directory, &owner)?;
         match fs::symlink_metadata(directory.join(REGISTRATION)) {
@@ -213,13 +218,13 @@ fn register_locked(directory: &Path, data: &Path, runtime: &Path, executable: &P
         }
         fs::rename(&temporary, directory.join(REGISTRATION)).map_err(|_| "Cannot publish local launch registration.")?;
         owner.sync_all().map_err(|_| "Cannot flush local launch state.")?;
-        Ok(record)
+        Ok(record.clone())
     })();
     if result.is_err() { let _ = fs::remove_file(temporary); }
     result
 }
 
-pub fn read_registration(directory: &Path) -> Result<Registration> {
+fn read_registration_metadata(directory: &Path) -> Result<Registration> {
     let owner = private_directory(directory, false)?;
     let file = private_file(&directory.join(REGISTRATION), false)?;
     if file.metadata().map_err(|_| "Cannot inspect local launch registration.")?.len() > MAX_REGISTRATION {
@@ -230,8 +235,38 @@ pub fn read_registration(directory: &Path) -> Result<Registration> {
     if bytes.len() as u64 > MAX_REGISTRATION { return Err("Local launch registration is too large.".into()); }
     let record: Registration = serde_json::from_slice(&bytes).map_err(|_| "Local launch registration is invalid.")?;
     same_directory(directory, &owner)?;
+    Ok(record)
+}
+pub fn read_registration(directory: &Path) -> Result<Registration> {
+    let record = read_registration_metadata(directory)?;
     validate_registration(&record)?;
     Ok(record)
+}
+fn validate_recovery_registration(record: &Registration) -> Result<()> {
+    if record.version != 1 || canonical(&record.data_dir, true).map_err(|_| "The saved library folder is unavailable or unsafe. Reconnect it, then rerun CLI setup; your saved selection is kept.")? != record.data_dir {
+        return Err("The saved library location is unavailable or changed. Reconnect its folder, then rerun CLI setup; no new library was selected.".into());
+    }
+    for path in [&record.runtime, &record.executable] {
+        let text = path.to_str().ok_or("The saved program location is invalid.")?;
+        if !path.is_absolute() || text.chars().any(char::is_control) || text.contains("//")
+            || text.split('/').any(|part| matches!(part, "." | "..")) {
+            return Err("The saved program location is invalid. Keep the registration and library for recovery.".into());
+        }
+    }
+    Ok(())
+}
+/// Recover only the owned library location. Removed program files do not erase
+/// that selection. This record is never sufficient authority to launch code;
+/// read_registration continues to validate every executable/runtime path.
+pub fn recovery_registration(directory: &Path) -> Result<Option<Registration>> {
+    match fs::symlink_metadata(directory.join(REGISTRATION)) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err("Cannot inspect the saved library registration. Keep it in place and retry CLI setup.".into()),
+        Ok(_) => {},
+    }
+    let record = read_registration_metadata(directory)?;
+    validate_recovery_registration(&record)?;
+    Ok(Some(record))
 }
 
 /// A pending uninstall is a durable launch barrier; registration cannot revive
@@ -291,6 +326,14 @@ impl LifecycleGuard {
     }
 }
 impl LifecycleGuard {
+    /// Restore the previously captured inactive record, including a removed old
+    /// program. Preserve its library selection without starting that program.
+    pub fn restore_registration(&self, directory: &Path, record: &Registration) -> Result<()> {
+        same_directory(directory, &self.owner)?;
+        ensure_available(directory)?;
+        validate_recovery_registration(record)?;
+        write_registration_locked(directory, record, &self.owner).map(|_| ())
+    }
     pub fn register(&self, directory:&Path, data:&Path, runtime:&Path, executable:&Path)->Result<Registration> {
         same_directory(directory, &self.owner)?;
         register_locked(directory,data,runtime,executable,&self.owner)
@@ -770,6 +813,44 @@ mod tests {
         fs::set_permissions(&fixture.root, fs::Permissions::from_mode(0o700)).unwrap();
         fs::set_permissions(&fixture.record.executable, fs::Permissions::from_mode(0o770)).unwrap();
         assert!(read_registration(&fixture.state).is_err());
+    }
+    #[test]
+    fn recovery_keeps_library_after_old_program_is_removed_without_authorizing_launch() {
+        let fixture = Fixture::new();
+        fs::remove_file(&fixture.record.executable).unwrap();
+        fs::remove_dir_all(&fixture.record.runtime).unwrap();
+        assert!(read_registration(&fixture.state).is_err());
+        assert_eq!(recovery_registration(&fixture.state).unwrap(), Some(fixture.record.clone()));
+        let guard = LifecycleGuard::acquire(&fixture.state).unwrap();
+        guard.restore_registration(&fixture.state, &fixture.record).unwrap();
+        assert_eq!(recovery_registration(&fixture.state).unwrap(), Some(fixture.record.clone()));
+        assert!(read_registration(&fixture.state).is_err(), "recovery cannot authorize missing code");
+        let before = fs::read(fixture.state.join(REGISTRATION)).unwrap();
+        let held = try_lock(&fixture.state, "broker.lock").unwrap().unwrap();
+        assert!(guard.restore_registration(&fixture.state, &fixture.record).is_err());
+        assert_eq!(fs::read(fixture.state.join(REGISTRATION)).unwrap(), before);
+        drop(held);
+    }
+    #[test]
+    fn recovery_rejects_missing_library_malformed_metadata_and_unsafe_ownership() {
+        let fixture = Fixture::new();
+        let path = fixture.state.join(REGISTRATION);
+        let mut record = fixture.record.clone();
+        record.data_dir = fixture.root.join("unavailable-library");
+        fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+        assert!(recovery_registration(&fixture.state).is_err());
+        record = fixture.record.clone(); record.executable = PathBuf::from("/removed/../program");
+        fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+        assert!(recovery_registration(&fixture.state).is_err());
+        fs::write(&path, serde_json::to_vec(&fixture.record).unwrap()).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(recovery_registration(&fixture.state).is_err());
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::remove_file(&path).unwrap();
+        std::os::unix::fs::symlink(fixture.root.join("missing-registration"), &path).unwrap();
+        assert!(recovery_registration(&fixture.state).is_err(), "a broken link cannot become an empty library");
+        fs::remove_file(&path).unwrap();
+        assert!(recovery_registration(&fixture.state).unwrap().is_none());
     }
     #[test]
     fn browser_opener_is_a_trusted_fixed_sibling() {

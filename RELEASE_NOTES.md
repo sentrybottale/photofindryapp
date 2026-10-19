@@ -1,26 +1,24 @@
-# PhotoFindry 0.2.0-beta.16 — companion launch and job recovery
+# PhotoFindry 0.2.0-beta.17 — CLI setup and retained-library recovery
 
-Open PhotoFindry now targets the standalone companion through a dedicated link.
-Retained older apps cannot claim this new entry; the one-time installer advertises
-no workspace links. Reopening setup repairs the installed helper selection. The installer follows your already registered library, including a library outside the default folder.
+This is a standalone CLI hotfix. Fresh installations use the short verified setup
+command at app.photofindry.com. No PhotoFindry application is installed in Applications.
 
-- Missing or stale launch registration repairs safely for the same library. Active
-  older work is preserved, with a clear quit-and-retry action.
-- Failed improvement answers get one scoped automatic correction. Rejected
-  answers never overwrite accepted tags; repeated failure explains Retry or
-  changing the photo review model. Historical validation details remain available.
-- AI search retains long saved evidence in bounded scoring passages instead of
-  failing the whole search at a 24 KiB record. Every retrieved candidate remains,
-  and interrupted passage scoring does not commit a partial photo score.
-- Terminal AI failures show the actual cause and recovery action.
+Setup now recovers the saved library location when an older app or companion
+program has been deleted. Missing program files no longer hide an intact custom
+library. A blocked or failed installation keeps that selection for Retry.
+Existing CLI upgrades also repair idle same-library links before draining the
+installed service. Active conflicting services and other libraries are preserved.
+Executable launch checks, local ownership checks and signed update verification
+remain enforced. Saved libraries, original photographs and model paths are kept.
 
-Existing companion users can install the signed update from Settings. Older or
-incomplete installations should download the verified installer once, open it,
-then return to app.photofindry.com. The installer exits; normal use runs through
-the background CLI and short-lived native helpers. Photos, tags, People, model
-paths, saved work and recovery copies remain in place.
+The short setup command verifies a reviewable installer script before execution.
+The script verifies the official CLI payload, installs login startup and opens the
+local browser workspace. Existing companion users can choose Install signed update
+in Settings → Background companion. If setup failed with “A registered local launch
+path is unavailable”, use the current short setup command once more.
 
-The MIT client is open source; the Rust engine cores and implementation history
-remain proprietary. No model weights, data schema or original files are changed.
-Official builds remain free. Community beta: ad-hoc macOS signing with separate
-publisher-authenticated artifacts, not Developer ID signed or notarized.
+The older native app retains its beta 16 one-time migration channel. That bridge
+exists only for existing app users; normal operation and fresh setup use the CLI.
+The MIT client is open source; Rust engine cores and private history remain private.
+No engine model/schema change, original-file modification or automatic retagging
+is included. Community beta: separate publisher signatures, not Apple notarization.

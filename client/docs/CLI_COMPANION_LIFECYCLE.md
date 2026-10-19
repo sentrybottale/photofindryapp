@@ -7,6 +7,15 @@ unrelated whole-release qualification suite. The existing publisher key is retai
 
 ## Installation and daily use
 
+New users install the CLI package directly. The website provides the reviewed
+Terminal setup with fixed official archive/envelope URLs and first-install hashes.
+It checks bytes before extraction/execution, then invokes the signed lifecycle
+installer with this account's current-library selection and a fresh recovery path.
+No application is put in Applications. The shell exits after setup; launchd owns
+the service. First-install instructions/pins need an independently trusted source;
+hashes supplied with malicious commands cannot authenticate those commands.
+
+The application channel below exists only for existing native-app users.
 The existing application update channel delivers one final migration installer
 with the same bundle identifier. It verifies the publisher-signed CLI package,
 stages an independent copy under `~/Library/Application Support/PhotoFindry Companion`,
