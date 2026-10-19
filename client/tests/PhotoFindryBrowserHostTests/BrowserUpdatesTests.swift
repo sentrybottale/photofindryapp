@@ -106,7 +106,7 @@ import XCTest
             XCTFail("A downloaded update must defer ordinary quit while the package is active")
         } catch { XCTAssertTrue(error.localizedDescription.contains("Pause that work")) }
         XCTAssertEqual(ordinaryCalls, 0)
-        XCTAssertEqual(runner.invocations.last?.arguments, ["prepare-app-update", "--data-dir", paths.library.path])
+        XCTAssertEqual(runner.invocations.last?.arguments, ["prepare-app-update", "--current-library", "--data-dir", paths.library.path])
         XCTAssertFalse(migration.hasOpenedWorkspace)
         try await updates.prepareForTermination { ordinaryCalls += 1 }
         XCTAssertEqual(ordinaryCalls, 0)

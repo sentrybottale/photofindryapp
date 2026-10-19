@@ -5,7 +5,7 @@ one bounded correction for invalid improvement answers, and scores long saved
 AI evidence in complete bounded passages. The MIT client remains separate from
 proprietary engine cores; no photo originals, model weights or data schema change.
 
-A final installer-selection correction also passed 14 native-host migration tests, 131 companion tests and a read-only assessment of the actual custom registered library. The generic installer refuses a different registered library before any shutdown.
+The final installer-selection correction passed all native host tests (38 passed, one optional skip), 131 companion tests and a read-only assessment of the actual custom registered library. The generic installer refuses a different registered library before any shutdown.
 
 Completed source checks: 131 companion tests (two opt-in cases separate),
 38 engine tests, 366 worker tests (ten live/platform cases opt-in), 42 review
@@ -48,7 +48,11 @@ tamper rejection. The one-time installer retired its disposable application copy
 after handoff, leaving only the background CLI running. The final DMG was mounted
 read-only: all 479 app entries matched the reviewed bundle and signature/audit
 checks passed. The 137-file source inventory was verified in both export and
-public submission trees. Live-delivery evidence is recorded after promotion. Required public build/security/boundary checks
+public submission trees. The last source change corrects one updater-test expectation. Exact payload
+comparison proves every native executable and CLI package byte is identical to
+the fully qualified current-library candidate; only clean-source revision
+metadata changed. The final outer app seal, DMG and signed inventory are verified
+again. Live-delivery evidence is recorded after promotion. Required public build/security/boundary checks
 remain in force; no independent approver is required by the owner. This is not
 a new exhaustive or independent security audit, external-fork test, actual
 logout/reboot, or Linux/Windows qualification. Community beta: ad-hoc macOS code

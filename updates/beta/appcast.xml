@@ -16,7 +16,7 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 
 Open PhotoFindry now targets the standalone companion through a dedicated link.
 Retained older apps cannot claim this new entry; the one-time installer advertises
-no workspace links. Reopening setup repairs the installed helper selection.
+no workspace links. Reopening setup repairs the installed helper selection. The installer follows your already registered library, including a library outside the default folder.
 
 - Missing or stale launch registration repairs safely for the same library. Active
   older work is preserved, with a clear quit-and-retry action.
@@ -39,10 +39,10 @@ remain proprietary. No model weights, data schema or original files are changed.
 Official builds remain free. Community beta: ad-hoc macOS signing with separate
 publisher-authenticated artifacts, not Developer ID signed or notarized.
 &lt;/pre&gt;</description>
-      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.16/PhotoFindry-0.2.0-beta.16-arm64-update.zip" length="398969642" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="ZiTQOCStBs0P6cUgHjdDInqJ2K5yTxn9SBynUDks2vBtG4OQde+A42SnSArY4ZspoaLarKkepdONBZg2VKniDQ=="></enclosure>
+      <enclosure url="https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.16/PhotoFindry-0.2.0-beta.16-arm64-update.zip" length="398972883" type="application/octet-stream" sparkle:installationType="application" sparkle:os="macos" sparkle:edSignature="9GRLOBOn6zfjMPLxKqiQL/ddwla3mLFtAUoPBILeQAvKE+mU0yPNl3JpLLs2/LuXUr4rFqdCs110NvnAASMrAA=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: hJHPLJ7NjpAl0OBe0f7V7oA5TZNThc05EO9uIXdsUt0UgYQNdS70ka/KxXAPcLWgtEZplR3akXfKdeYvsam6Aw==
-length: 3170
+edSignature: rnaCYZa97qE5H24lj2FtKVr9MlhfrQ4tSDee9ZopfyzAQComjNSP1OCk4HWSxtz8qGUuOluOxKWM/X//jTq4DQ==
+length: 3273
 -->

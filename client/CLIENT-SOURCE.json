@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "a36d7fbdb9cc84410c2d50332bafdd09695079569a7bf0a9cab61bdc8f3cc6ab",
+  "exportManifestSHA256": "2b290b1e5de05b588d2b2bfe25ceff5208d5c16344cdec1df6bb7ad855359f83",
   "files": [
     {
       "bytes": 1182,
@@ -382,9 +382,9 @@
       "sha256": "3e1a5dc344c6896d00c8c2a793e169bd9d26796b46eac4119ad80d3ed5cb6e35"
     },
     {
-      "bytes": 11994,
+      "bytes": 12015,
       "path": "tests/PhotoFindryBrowserHostTests/BrowserUpdatesTests.swift",
-      "sha256": "99ea443b73c8722891e982f839a5e5315dc5f47cf33e23c7ab4ca0d1f53f9d17"
+      "sha256": "124a22f842c439d57144b10f6be747b979a4d62358fd6485fbbd321d9ca0758f"
     },
     {
       "bytes": 67157,
@@ -689,6 +689,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "7ccea95ff264864892cd79e6061a375889e37a00",
+  "privateBuildRevision": "7100314361b156a9ec62186b4fc4138263262f21",
   "schema": 1
 }
