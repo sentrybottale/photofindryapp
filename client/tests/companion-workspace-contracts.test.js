@@ -454,6 +454,34 @@ test('preview settings preserve the native 800px size and an existing fractional
   } finally { await ui.close(); }
 });
 
+test('original identity recovery is visible during processing and after failure, then clears when recovered', async () => {
+  const job = { id: 'remounted', kind: 'tagging', title: 'Tag photographs', state: 'running', phase: 'preparing-photos', sourceLifecycleVersion: 1,
+    sourceId: 'another-source', sourceNextAction: { kind: 'reviewIdentity', reason: 'identity', sourceId: 'blocked-source', rootId: 'blocked-root' },
+    completed: 3, total: 20, waitingOriginalCount: 12, message: 'Checking originals; usable photos continue.' };
+  const ui = harness({ state: { jobs: { jobs: [job], activeJobId: job.id, notifications: [] } } }), opened = [];
+  ui.window.PhotoFindryPanels.show = (name, context) => opened.push({ name, context });
+  try {
+    const strip = ui.ids.get('job-strip');
+    assert.match(strip.textContent, /folder confirmation.*remount/i);
+    assert.doesNotMatch(strip.textContent, /Reading now|Preparing…/);
+    await ui.findButton('Review originals').click();
+    assert.deepEqual(structuredClone(opened), [{ name: 'sources', context: { jobId: job.id, sourceId: 'blocked-source', rootId: 'blocked-root' } }]);
+    assert(!ui.calls.some(call => ['jobAction', 'enqueueJob'].includes(call.name)), 'Opening recovery never pauses/retries or confirms originals.');
+    const failed = { ...job, state: 'failed', message: 'Tagging stopped after repeated model failures.' };
+    const card = ui.window.PhotoFindryJobs.card(failed);
+    assert.match(card.textContent, /repeated model failures/);
+    assert.match(card.textContent, /folder confirmation/);
+    const labels = card.children.at(-1).children.map(node => node.textContent);
+    assert(labels.includes('Retry')); assert(labels.includes('Review originals'));
+    const paused = ui.window.PhotoFindryJobs.card({ ...job, state: 'paused', pauseReason: 'user' });
+    assert(paused.children.at(-1).children.some(node => node.textContent === 'Resume'), 'An explicit user pause retains Resume for the usable photos.');
+    const recovered = { ...job, waitingOriginalCount: 0, sourceNextAction: undefined, phase: 'tagging', message: 'Tagging photographs' };
+    ui.state.jobs.jobs = [recovered]; ui.emit('state', ui.state);
+    assert.doesNotMatch(strip.textContent, /folder confirmation|Review originals/);
+    assert.match(strip.textContent, /Tagging photographs/);
+  } finally { await ui.close(); }
+});
+
 test('automatic source waiting can be paused without retrying, while settled missing originals expose only targeted recovery', async () => {
   const waiting = { id: 'waiting', kind: 'tagging', title: 'Waiting batch', state: 'paused', pauseReason: 'source-waiting', sourceLifecycleVersion: 1, waitingForAvailability: true, sourceNextAction: { title: 'Reconnect originals' }, sourceId: 'source-a', completed: 5, total: 10, failed: 1, skippedOriginalCount: 1, waitingOriginalCount: 5 };
   const ui = harness({ state: { jobs: { jobs: [waiting], notifications: [] } } });

@@ -770,19 +770,25 @@
     const settled = job.state === 'paused' && job.pauseReason === 'source-missing' && job.phase === 'available-finished';
     const sourceWait = job.state === 'paused' && ['safety-source', 'source-capsule', 'source-missing', 'source-waiting'].includes(job.pauseReason);
     const automaticWait = sourceWait && !settled && job.sourceLifecycleVersion === 1 && job.waitingForAvailability === true;
-    const recover = sourceWait && Boolean(job.sourceNextAction || job.pauseReason === 'safety-source') && ['tagging', 'metadata', 'faces', 'previews', 'improve'].includes(job.kind);
+    const sourceWork = ['tagging', 'metadata', 'faces', 'previews', 'improve'].includes(job.kind);
     const total = Math.max(0, num(job.total)), failed = Math.max(0, num(job.failed));
     const completed = Math.max(0, num(job.completed)), skipped = Math.max(0, num(job.skippedOriginalCount));
     const waiting = Math.max(0, num(job.waitingOriginalCount ?? job.deferredOriginalCount)), missing = Math.max(0, num(job.missingOriginalCount));
+    const recover = sourceWork && (sourceWait && Boolean(job.sourceNextAction || job.pauseReason === 'safety-source')
+      || !['completed', 'cancelled', 'paused'].includes(job.state) && waiting + missing > 0 && Boolean(job.sourceNextAction));
+    const sourceMessage = recover ? ({
+      reviewIdentity: 'Some originals need verification; folder confirmation may be needed after a move or drive remount. Review originals in Files; other usable photos can continue.',
+      allowAccess: 'Open Files, select this source, and choose its originals folder again to allow access. Saved details are kept.',
+    })[job.sourceNextAction?.kind] || '' : '';
     const status = settled ? 'Originals missing' : sourceWait ? 'Waiting for originals' : job.state === 'pausing' ? job.pauseReason === 'cancel' ? 'Stopping…' : 'Pausing…' : job.state === 'queued' && job.waitingForSchedule ? 'Scheduled' : ({ running: 'Running', queued: 'Queued', paused: 'Paused', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' })[job.state] || str(job.state);
     let message = str(job.message);
-    if (settled) message = 'Finished available photos. Saved tags and retained previews are kept. Review missing originals or tag only the recovered photos.';
+    if (settled) message = 'Finished available photos. Saved tags and retained previews are kept. Verified returning originals continue automatically; review missing originals or check recovered photos now.';
+    else if (sourceWait && job.sourceNextAction?.kind === 'reviewIdentity') message = 'Progress is saved. Review these originals in Files before they can continue.';
     else if (automaticWait) message = snapshot.jobs?.paused ? 'Progress is saved. Resume the queue when you are ready; originals are checked before this work continues.' : 'Progress is saved. Available photos can continue when their folder returns. Other jobs can keep working.';
     else if (sourceWait) message = `${message.replace(/resume the queue/ig, 'resume this job').replace(/resume queue/ig, 'resume this job') || 'Connect this source in Files, then resume this job.'} Other jobs can continue while these originals are unavailable.`;
     else if (job.state === 'queued' && snapshot.jobs?.paused) message = 'Waiting for Resume queue. This job’s schedule still applies.';
     else if (job.state === 'queued' && job.waitingForSchedule) message = 'Waiting for its scheduled window. Choose Run now to start sooner.';
     else if (job.state === 'paused' && job.pauseReason === 'user' && (!message || /^paused[. ]*$/i.test(message))) message = 'Paused individually. Resume this job to continue.';
-    if (job.sourceNextAction?.kind === 'allowAccess') message = 'Open Files, select this source, and choose its originals folder again to allow access. Then return to this job and choose Retry access. Saved details are kept.';
     const parts = job.sourceLifecycleVersion === 1
       ? [`${fmt.format(Math.max(0, completed - skipped - (job.kind === 'tagging' ? failed : 0)))} ${job.kind === 'tagging' ? 'tagged' : 'processed'}`]
       : [`${fmt.format(completed)} of ${fmt.format(total)} ${job.kind === 'aiSearch' ? 'reviewed' : 'processed'}`];
@@ -796,7 +802,7 @@
     if (waiting) parts.push(`${fmt.format(waiting)} originals waiting`);
     if (failed) parts.push(`${fmt.format(failed)} need attention`);
     if (skipped) parts.push(`${fmt.format(skipped)} removed from library`);
-    return { settled, sourceWait, automaticWait, recover, total, completed, failed, waiting, status, message, count: parts.join(' · '), meterCompleted };
+    return { settled, sourceWait, automaticWait, recover, total, completed, failed, waiting, status, message, sourceMessage, count: parts.join(' · '), meterCompleted };
   }
   function sourceProgress(job) {
     const explicit = ['prepare', 'checking', 'verify', 'connect', 'publish'].includes(job.phase) ? job.phase : null;
@@ -819,7 +825,8 @@
     }
   }
   function recoveryAction(job) {
-    jobsDialog?.close(); window.PhotoFindryPanels?.show('sources', { jobId: job.id, sourceId: job.sourceId || job.sourceNextAction?.sourceId });
+    jobsDialog?.close(); window.PhotoFindryPanels?.show('sources', { jobId: job.id,
+      sourceId: job.sourceNextAction?.sourceId || job.sourceId, ...(job.sourceNextAction?.rootId ? { rootId: job.sourceNextAction.rootId } : {}) });
   }
   function jobActions(job, compact = false) {
     const facts = jobFacts(job), actions = [];
@@ -844,7 +851,7 @@
       }
     }
     if (facts.settled) add('retryMissing', 'Tag recovered photos', () => jobAction('retryMissing', job.id));
-    if (facts.recover) add('recoverOriginals', job.sourceNextAction?.kind === 'allowAccess' ? 'Open Files' : job.sourceNextAction?.title || 'Find originals', () => recoveryAction(job), true);
+    if (facts.recover) add('recoverOriginals', job.sourceNextAction?.kind === 'reviewIdentity' ? 'Review originals' : job.sourceNextAction?.kind === 'allowAccess' ? 'Open Files' : job.sourceNextAction?.title || 'Find originals', () => recoveryAction(job), true);
     else if (job.state === 'paused' && !facts.automaticWait && !facts.settled) add('resume', 'Resume', () => jobAction('resume', job.id), true);
     else if (compact && facts.sourceWait && !facts.recover) add('recoverOriginals', 'Open Files', () => recoveryAction(job));
     if (job.state === 'paused' && job.sourceNextAction?.kind === 'allowAccess') add('retryAccess', 'Retry access', () => jobAction('resume', job.id));
@@ -859,6 +866,7 @@
     const facts = jobFacts(job), card = el('article', 'job-card');
     const heading = el('div', 'job-card-heading'); heading.append(el('h3', '', job.title || job.kind || 'Local job'), el('span', `job-badge ${job.state === 'failed' ? 'failed' : ''}`, facts.status)); card.append(heading);
     if (facts.message) card.append(el('p', '', facts.message));
+    if (facts.sourceMessage) card.append(el('p', '', facts.sourceMessage));
     const failures = list(job.failureSummary).slice(0, 3);
     const invalidReview = job.kind === 'improve' && failures.some(value => /Invalid evidence review:|invalid answer after one automatic correction/.test(str(value)));
     if (invalidReview) {
@@ -1308,7 +1316,7 @@
     if (job.kind === 'sourceRecovery') return sourceProgress(job).title;
     const ownWorker = snapshot.job?.jobId === job.id;
     const phase = job.phase || (ownWorker ? snapshot.job.phase : '');
-    return ({ 'loading model': 'Loading your model', 'checking originals': 'Checking original photographs', tagging: 'Reading the current photograph…', checking: 'Reviewing saved observations…', inspecting: 'Checking details in the photograph…', details: 'Checking details in the photograph…', 'repairing tags': 'Checking photo descriptions', 'building search': 'Saving details for search', indexing: 'Saving details for search', saving: 'Saving the photo review', 'saving review': 'Saving the photo review' })[phase] || job.message || (job.kind === 'improve' ? 'Preparing photo improvement' : 'Preparing photographs');
+    return ({ 'loading model': 'Loading your model', 'checking originals': 'Checking original photographs', 'preparing-photos': 'Checking original photographs', tagging: 'Reading the current photograph…', checking: 'Reviewing saved observations…', inspecting: 'Checking details in the photograph…', details: 'Checking details in the photograph…', 'repairing tags': 'Checking photo descriptions', 'building search': 'Saving details for search', indexing: 'Saving details for search', saving: 'Saving the photo review', 'saving review': 'Saving the photo review' })[phase] || job.message || (job.kind === 'improve' ? 'Preparing photo improvement' : 'Preparing photographs');
   }
   function reviewChangeSummary(review) {
     if (!review) return '';
@@ -1340,7 +1348,7 @@
       clearActivity(); activityIdentity = identity; activityController = new AbortController();
       if (frozenStory) { storyFrames = frozenStory.frames; storyFrame = frozenStory.frame; storyIdentity = frozenStory.identity; }
       const strip = $('job-strip'); strip.hidden = false;
-      if (photos) strip.append(activityPhoto(running ? job.kind === 'improve' ? 'Reviewing now' : 'Reading now' : job.kind === 'improve' ? 'Last reviewed' : 'Last read', leftId, running, job.id, activityController.signal, job.kind === 'improve' ? 'improvement' : 'tagging'));
+      if (photos && (!running || leftId)) strip.append(activityPhoto(running ? job.kind === 'improve' ? 'Reviewing now' : 'Reading now' : job.kind === 'improve' ? 'Last reviewed' : 'Last read', leftId, running, job.id, activityController.signal, job.kind === 'improve' ? 'improvement' : 'tagging'));
       const main = el('div', 'activity-main'); main.id = 'activity-main'; strip.append(main);
       const heading = el('h2'); heading.id = 'activity-heading';
       const stage = el('p', 'activity-stage'); stage.id = 'activity-stage';
@@ -1388,7 +1396,7 @@
     }
     set('activity-count', checking ? `${fmt.format(completed)} of ${fmt.format(total)} sample checks${job.kind === 'tagging' ? ` · ${facts.count}` : ''}` : facts.count);
     $('activity-count').hidden = total === 0;
-    set('activity-detail', checking ? job.kind === 'tagging' ? 'Tagging starts automatically when this check finishes. Sample checks do not count as tagged photographs.' : 'Finding suitable settings for this Mac. Saved photo details stay unchanged.' : facts.message);
+    set('activity-detail', checking ? job.kind === 'tagging' ? 'Tagging starts automatically when this check finishes. Sample checks do not count as tagged photographs.' : 'Finding suitable settings for this Mac. Saved photo details stay unchanged.' : [facts.message, facts.sourceMessage].filter(Boolean).join(' '));
     const timing = snapshot.monitor?.jobTiming;
     let estimate = '';
     if (!checking && job.kind === 'tagging' && timing && snapshot.job?.jobId === job.id && !facts.settled) {

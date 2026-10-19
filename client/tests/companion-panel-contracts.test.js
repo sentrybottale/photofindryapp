@@ -510,6 +510,20 @@ test('imported Files prioritizes choosing this Mac’s original folder, shows th
   } finally { await ui.close(); }
 });
 
+test('job recovery selects the supplied source root and rejects an unknown root without confirming anything', async () => {
+  const source = importedSource([{ id: 'root-a', locationLabel: '/Photos/A' }, { id: 'root-b', locationLabel: '/Photos/B' }]);
+  const ui = harness({ sources: [source] });
+  try {
+    await ui.window.PhotoFindryPanels.show('sources', { sourceId: source.id, rootId: 'root-b', jobId: 'waiting' });
+    assert.equal(ui.field('Saved originals folder').value, 'root-b');
+    assert.equal(ui.findButton('Choose originals folder…').disabled, false);
+    await ui.window.PhotoFindryPanels.show('sources', { sourceId: source.id, rootId: 'unknown', jobId: 'waiting' });
+    assert.equal(ui.field('Saved originals folder').value, '');
+    assert.equal(ui.findButton('Choose originals folder…').disabled, true);
+    assert(!ui.calls.some(call => ['confirmSourceConnection', 'locateSource', 'enqueueJob'].includes(call.action)));
+  } finally { await ui.close(); }
+});
+
 test('reconnecting multiple saved roots requires explicit root selection and uses only the matching source and native grant', async () => {
   const ui = harness({ sources: [importedSource([
     { id: 'root-a', locationLabel: '/Users/other/Photos/A' }, { id: 'root-b', locationLabel: '/Users/other/Photos/B' },
@@ -850,6 +864,56 @@ test('a failed connection stays recoverable through its exact Retry job and comp
     ui.emit('photofindry:state', structuredClone(ui.state)); await new Promise(resolve => setImmediate(resolve));
     assert.match(ui.all().find(node => node.className === 'pfp-body').textContent, /Folder confirmation finished/);
     assert.equal(ui.calls.filter(call => call.action === 'confirmSourceConnection').length, 1);
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
+
+test('job recovery recheck selects its returned root and unknown-root navigation clears an older choice',async()=>{
+ const roots=[{id:'root-a',label:'A',path:'/A'},{id:'root-b',label:'B',path:'/B'}];
+ const ui=harness({sources:[{id:'source-a',label:'Photos',roots}]},{recoverJobOriginals:{sourceId:'source-a',rootId:'root-b'}});
+ try{
+  await ui.window.PhotoFindryPanels.show('sources',{sourceId:'source-a',rootId:'root-a',jobId:'job-a'});
+  assert.equal(ui.field('Saved originals folder').value,'root-a');
+  await ui.findButton('Recheck originals for the selected job').click();
+  assert.equal(ui.field('Saved originals folder').value,'root-b');
+  await ui.window.PhotoFindryPanels.show('sources',{sourceId:'source-a',jobId:'unknown-root'});
+  assert.equal(ui.field('Saved originals folder').value,'');
+  assert(!ui.calls.some(call=>['confirmSourceConnection','confirmSourceMatch'].includes(call.action)));
+ }finally{await ui.close();}
+});
+
+test('moved-folder confirmation carries the waiting job through both reviewed recovery stages', async () => {
+  const source = importedSource();
+  const check = { id: 'my-check', sourceId: source.id, sourceRootId: 'root-a', kind: 'sourceRecovery', state: 'queued' };
+  const plan = { planId: 'review-plan', sourceId: source.id, rootId: 'root-a', previousRootLocationLabel: source.roots[0].locationLabel,
+    rootLocationLabel: '/Users/this-mac/pCloud Drive/Automatic Upload', count: 12, unresolved: 26947, examples: [{ relativePath: '2020/photo.jpg' }] };
+  const ui = harness({ sources: [source], jobs: { jobs: [] } }, {
+    locateSource: () => { ui.state.jobs.jobs.push(check); return { submittedJob: check }; }, prepareSourceConnection: plan,
+    confirmSourceConnection: { submittedJob: { id: 'confirm-exact', sourceId: source.id, kind: 'sourceRecovery', sourceAction: 'confirmLocations', state: 'queued' } },
+  });
+  ui.window.PhotoFindry.pick = async kind => ({ grantId: 'originals-grant', locationLabel: plan.rootLocationLabel });
+  try {
+    await ui.window.PhotoFindryPanels.show('sources',{sourceId:source.id,rootId:'root-a',jobId:'waiting-job'}); ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    await ui.findButton('Choose originals folder…').click();
+    assert(!ui.calls.some(call => call.action === 'prepareSourceConnection'));
+    assert.equal(ui.findButton('Choose originals folder…').disabled, true);
+    ui.state.jobs.jobs.push({ id: 'other-check', sourceId: source.id, sourceRootId: 'root-a', kind: 'sourceRecovery', state: 'running' });
+    ui.window.PhotoFindryPanels.onState(structuredClone(ui.state)); ui.state.jobs.jobs[1].state = 'completed'; ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    await new Promise(resolve => setTimeout(resolve, 240)); assert(!ui.calls.some(call => call.action === 'prepareSourceConnection'));
+    check.state = 'completed'; ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    await new Promise(resolve => setTimeout(resolve, 240));
+    assert.deepEqual(ui.calls.filter(call => call.action === 'prepareSourceConnection'), [{ action: 'prepareSourceConnection', params: { sourceId: source.id, rootId: 'root-a' } }]);
+    const review = ui.all().find(node => node.className.split(' ').includes('pfp-originals-review'));
+    assert.match(review.textContent, /\/Users\/other-mac\/pCloud Drive\/Automatic Upload/); assert.match(review.textContent, /\/Users\/this-mac\/pCloud Drive\/Automatic Upload/);
+    assert.match(review.textContent, /Other locations in this source still unresolved/);
+    assert(!ui.calls.some(call => call.action === 'confirmSourceConnection'));
+    const confirming = ui.findButton('Confirm matching locations').click(); await new Promise(resolve => setImmediate(resolve));
+    const approval = ui.findButton('Confirm 12 locations'); assert.equal(approval.disabled, true);
+    const acknowledgement = ui.all().find(node => node.tagName === 'LABEL' && node.textContent === 'I confirm this is the same originals folder.').children[0];
+    acknowledgement.checked = true; await acknowledgement.fire('change'); await approval.click(); await confirming;
+    assert.deepEqual(ui.calls.filter(call => call.action === 'confirmSourceConnection'), [{ action: 'confirmSourceConnection', params: { sourceId: source.id, planId: 'review-plan', confirmed: true, resumeJobId:'waiting-job' } }]);
+    assert.equal(ui.calls.find(call=>call.action==='locateSource').params.resumeJobId,'waiting-job');
+    assert(!ui.calls.some(call => ['addFolders', 'startModel', 'enqueueJob'].includes(call.action)));
     assert.deepEqual(ui.errors, []);
   } finally { await ui.close(); }
 });
