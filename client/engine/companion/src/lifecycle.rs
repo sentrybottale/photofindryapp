@@ -436,7 +436,7 @@ fn repair_registration(root: &Path, cfg: &Installation) -> Result<()> {
     let _owner = launch::private_directory(&cfg.launch_state, true)?;
     launch::ensure_available(&cfg.launch_state)?;
     let guard = launch::LifecycleGuard::acquire(&cfg.launch_state)?;
-    if let Ok(record)=launch::read_registration(&cfg.launch_state) {
+    if let Some(record)=launch::recovery_registration(&cfg.launch_state)? {
         if !registration_needs_repair(root,cfg,&record)? {return Ok(())}
     }
     publish_registration(root,cfg,Some(&guard)).map_err(|_| "An older PhotoFindry copy is still using this library, or its launch state cannot be repaired. Quit that copy, then open the verified installer again. Your saved work is kept.".into())
@@ -623,7 +623,12 @@ async fn switch(
     after.previous = Some(before.current);
     after.current = release.build;
     after.highest = before.highest.max(release.build);
-    if let Ok(record)=launch::read_registration(&before.launch_state) {registration_needs_repair(root,&before,&record)?;}
+    // Repair an idle stale/missing link before draining the installed service.
+    // Only verified installed software may replace that registration; the
+    // recovery reader still rejects a different retained library even if its
+    // old executable has been removed. An active older host is never rebound.
+    checked_release(root, before.current, &helper)?;
+    repair_registration(root, &before)?;
     // Busy transfer/job refusal precedes the durable transition and all launch changes.
     let guard = launch::LifecycleGuard::acquire(&before.launch_state)?;
     note(
@@ -1568,6 +1573,12 @@ mod tests {
         std::fs::remove_dir_all(&record.runtime).unwrap();
         assert!(launch::read_registration(&state).is_err());
         assert_eq!(current_library_at(&root,&state,&base.join("UnusedDefault")).unwrap(),record.data_dir);
+        let other=base.join("OtherLibrary");std::fs::create_dir(&other).unwrap();
+        let mut foreign=record.clone();foreign.data_dir=other;
+        atomic(&state,"registration.json",&serde_json::to_vec(&foreign).unwrap()).unwrap();
+        assert!(repair_registration(&root,&cfg).unwrap_err().contains("Another library"));
+        assert_eq!(launch::recovery_registration(&state).unwrap(),Some(foreign));
+        atomic(&state,"registration.json",&serde_json::to_vec(&record).unwrap()).unwrap();
         let tx=Transaction{schema:1,before:None,after:cfg.clone(),registration:Some(record.clone()),committed:false};
         save(&root,JOURNAL,&tx).unwrap();
         std::fs::remove_file(state.join("registration.json")).unwrap();

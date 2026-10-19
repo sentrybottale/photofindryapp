@@ -16,8 +16,8 @@ for file in "$archive" cli-release.json; do
 done
 # Pin the reviewed first-install bytes before extracting or running downloaded code.
 shasum -a 256 -c <<'HASHES'
-e8dd1a8f22f343a22800b482b58ce4049cc0c20230782adfffa1edbd36a2cb13  PhotoFindry-0.2.0-beta.17-arm64-companion.zip
-b3e5c5e6991b1841c3e778aa8dfddcd54842a5eca66e363d1e0bb9e1d7c70e0f  cli-release.json
+b8edb0377e366f5668c9cecc16d87f9bfb07fb89ab6057597544c98963130771  PhotoFindry-0.2.0-beta.17-arm64-companion.zip
+b5aeb3775770c63c479ff6458ac9544a7596bda211024940e1ba0ab9069dff3c  cli-release.json
 HASHES
 ditto -x -k "$archive" package
 cli="$stage/package/bin/photofindry"

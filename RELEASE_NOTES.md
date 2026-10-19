@@ -6,6 +6,8 @@ command at app.photofindry.com. No PhotoFindry application is installed in Appli
 Setup now recovers the saved library location when an older app or companion
 program has been deleted. Missing program files no longer hide an intact custom
 library. A blocked or failed installation keeps that selection for Retry.
+Existing CLI upgrades also repair idle same-library links before draining the
+installed service. Active conflicting services and other libraries are preserved.
 Executable launch checks, local ownership checks and signed update verification
 remain enforced. Saved libraries, original photographs and model paths are kept.
 
