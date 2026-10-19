@@ -1,9 +1,11 @@
 # PhotoFindry 0.2.0-beta.16 qualification
 
-Build 114 repairs companion URL ownership and stale launch registrations, adds
+Build 114 repairs companion URL ownership and stale launch registrations, follows the already registered local library during one-time setup, and adds
 one bounded correction for invalid improvement answers, and scores long saved
 AI evidence in complete bounded passages. The MIT client remains separate from
 proprietary engine cores; no photo originals, model weights or data schema change.
+
+A final installer-selection correction also passed 14 native-host migration tests, 131 companion tests and a read-only assessment of the actual custom registered library. The generic installer refuses a different registered library before any shutdown.
 
 Completed source checks: 131 companion tests (two opt-in cases separate),
 38 engine tests, 366 worker tests (ten live/platform cases opt-in), 42 review

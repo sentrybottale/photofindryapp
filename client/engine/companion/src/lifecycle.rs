@@ -448,6 +448,24 @@ fn existing_release_identity(current:u64, incoming:u64, installed:&[u8], offered
     Ok(())
 }
 
+/// The installed launcher explicitly follows this account's current library.
+/// No public URL or browser request can supply or change the selected path.
+pub fn current_library(requested: &Path, state: Option<&Path>) -> Result<PathBuf> {
+    let directory=launch::default_directory()?;
+    if requested!=directory.parent().ok_or(INSTALL_NEXT_ACTION)? || state.is_some_and(|p|p!=directory) {
+        return Err("Current-library selection is only available to this account's installed launcher.".into());
+    }
+    current_library_at(&default_root()?,&directory,requested)
+}
+fn current_library_at(root: &Path, state: &Path, fallback: &Path) -> Result<PathBuf> {
+    if root.join(STATE).exists() {
+        let cfg=read_state(root)?;
+        if cfg.launch_state!=state {return Err("The installed companion uses another launch registration. Open its workspace before changing setup.".into())}
+        return Ok(cfg.data);
+    }
+    if state.join(launch::REGISTRATION).exists() {return Ok(launch::read_registration(state)?.data_dir);}
+    Ok(fallback.to_path_buf())
+}
 /// Public launch prefers the verified standalone installation, even if an older
 /// application rewrote the legacy launch record. Custom qualification states stay isolated.
 const INSTALL_NEXT_ACTION: &str = "The standalone PhotoFindry companion is not ready. Download and open the latest verified installer from photofindry.com once, then return to Open PhotoFindry. Your saved library is kept.";
@@ -611,6 +629,7 @@ async fn switch(
     after.previous = Some(before.current);
     after.current = release.build;
     after.highest = before.highest.max(release.build);
+    if let Ok(record)=launch::read_registration(&before.launch_state) {registration_needs_repair(root,&before,&record)?;}
     // Busy transfer/job refusal precedes the durable transition and all launch changes.
     let guard = launch::LifecycleGuard::acquire(&before.launch_state)?;
     note(
@@ -1133,6 +1152,9 @@ async fn install(
         }
         return status(root);
     }
+    if let Ok(prior)=launch::read_registration(state) {
+        if prior.data_dir!=data {return Err("Another library owns the current launch registration. Open the latest verified installer to keep using that library; no program or library was changed.".into())}
+    }
     let stage = Stage(stage_version(root)?);
     release::copy_package(source, &stage.0.join("package"), &signed)?;
     commit_version(root, &stage.0, &signed, &bytes)?;
@@ -1142,7 +1164,8 @@ async fn install(
     // The existing migration command owns admission/verified recovery, never the installer.
     let exe = executable(root, signed.build);
     let prior = launch::read_registration(state).ok();
-    if prior.is_some() {
+    if let Some(prior)=&prior {
+        if prior.data_dir!=data {return Err("The registered library changed during setup. Reopen the installer to use its current location; saved work is kept.".into())}
         launch::request_update_stop(state).await?;
         let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
         while launch::try_lock(state, "broker.lock")?.is_none() {
@@ -1325,6 +1348,7 @@ pub async fn command(args: &[String]) -> Result<()> {
     let mut envelope = None;
     let mut local = None;
     let mut open = false;
+    let mut use_current_library = false;
     let mut autostart = true;
     let mut automatic_updates = true;
     let mut enabled = None;
@@ -1332,6 +1356,7 @@ pub async fn command(args: &[String]) -> Result<()> {
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--open-after" => open = true,
+            "--current-library" if !use_current_library => use_current_library = true,
             "--no-autostart" => autostart = false,
             "--no-update-checks" => automatic_updates = false,
             "--enabled" => {
@@ -1367,7 +1392,7 @@ pub async fn command(args: &[String]) -> Result<()> {
         }
     }
     if (operation != "install"
-        && (data.is_some()
+        && (use_current_library || data.is_some()
             || rollback.is_some()
             || state.is_some()
             || envelope.is_some()
@@ -1394,13 +1419,19 @@ pub async fn command(args: &[String]) -> Result<()> {
             .parent()
             .and_then(Path::parent)
             .ok_or("Cannot locate package")?;
+        let state=state.map(Ok).unwrap_or_else(launch::default_directory)?;
+        let requested=data.ok_or("Choose the existing library")?;
+        let selected=if use_current_library {
+            if root!=default_root()? {return Err("The installed launcher cannot select another program installation.".into())}
+            current_library(&requested,Some(&state))?
+        }else{requested};
         let result = install(
             &root,
             source,
             &envelope.ok_or("Choose the signed CLI release envelope")?,
-            &data.ok_or("Choose the existing library")?,
+            &selected,
             &rollback.ok_or("Choose a new recovery-copy location")?,
-            &state.map(Ok).unwrap_or_else(launch::default_directory)?,
+            &state,
             autostart,
             automatic_updates,
         )
@@ -1527,11 +1558,13 @@ mod tests {
         atomic(&state,"registration.json",&serde_json::to_vec(&record).unwrap()).unwrap();
         let before=std::fs::read(state.join("registration.json")).unwrap();
         let held=launch::try_lock(&root,"operation.lock").unwrap().unwrap();
+        assert_eq!(current_library_at(&root,&state,&base.join("UnusedDefault")).unwrap(),cfg.data);
         prefer_installed_at(&root,&state).await.unwrap();
         require_current_registration_at(&root,&state,&record).unwrap();
         let mut stale=record.clone();stale.executable=PathBuf::from("/Applications/PhotoFindry-previous.app/old");
         assert!(require_current_registration_at(&root,&state,&stale).unwrap_err().contains("registration changed"));
         std::fs::remove_file(root.join(STATE)).unwrap();
+        assert_eq!(current_library_at(&root,&state,&base.join("UnusedDefault")).unwrap(),record.data_dir);
         assert!(require_installed_at(&root,&state).unwrap_err().contains("installer"));
         assert!(require_current_registration_at(&root,&state,&record).unwrap_err().contains("installer"));
         assert_eq!(std::fs::read(state.join("registration.json")).unwrap(),before);

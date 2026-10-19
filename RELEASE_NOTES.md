@@ -2,7 +2,7 @@
 
 Open PhotoFindry now targets the standalone companion through a dedicated link.
 Retained older apps cannot claim this new entry; the one-time installer advertises
-no workspace links. Reopening setup repairs the installed helper selection.
+no workspace links. Reopening setup repairs the installed helper selection. The installer follows your already registered library, including a library outside the default folder.
 
 - Missing or stale launch registration repairs safely for the same library. Active
   older work is preserved, with a clear quit-and-retry action.

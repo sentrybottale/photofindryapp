@@ -11,9 +11,10 @@ const RESERVE: u64=256*1024*1024;
 struct Options { data:PathBuf, runtime:Option<PathBuf>, rollback:Option<PathBuf>, state:Option<PathBuf> }
 fn parse(args:&[String])->Result<Options> {
     let migrate=args.first().is_some_and(|value|value=="migrate-library");
-    let mut data=None;let mut runtime=None;let mut rollback=None;let mut state=None;
+    let mut data=None;let mut runtime=None;let mut rollback=None;let mut state=None;let mut use_current=false;
     let mut items=args.iter().skip(1);
     while let Some(option)=items.next() {
+        if option=="--current-library"&&!migrate&&!use_current {use_current=true;continue;}
         let slot=match option.as_str() {
             "--data-dir"=>&mut data,"--launch-state"=>&mut state,
             "--runtime" if migrate=>&mut runtime,"--rollback-copy" if migrate=>&mut rollback,
@@ -28,7 +29,9 @@ fn parse(args:&[String])->Result<Options> {
         if slot.replace(path).is_some(){return Err("Migration options cannot repeat.".into());}
     }
     if migrate && (runtime.is_none()||rollback.is_none()) {return Err("Choose the installed runtime and a new recovery-copy folder before switching.".into());}
-    Ok(Options{data:data.ok_or("Choose a local library directory before checking migration.")?,runtime,rollback,state})
+    let data=data.ok_or("Choose a local library directory before checking migration.")?;
+    let data=if use_current {super::lifecycle::current_library(&data,state.as_deref())?}else{data};
+    Ok(Options{data,runtime,rollback,state})
 }
 fn check_cancel(cancelled:&AtomicBool)->Result<()> {if cancelled.load(Ordering::Acquire){Err("The switch was cancelled. Your library and recovery copy are kept. Choose Retry when ready.".into())}else{Ok(())}}
 async fn wait_cancel(cancelled:&AtomicBool){while !cancelled.load(Ordering::Acquire){tokio::time::sleep(Duration::from_millis(50)).await;}}
@@ -240,7 +243,7 @@ pub async fn command(args:&[String])->Result<()> {
 mod tests {
     use super::*;
     #[test]fn strict_migration_options_never_accept_public_authority(){
-        for args in [vec!["migration-status","--data-dir","relative"],vec!["migration-status","--data-dir","/tmp/a","--data-dir","/tmp/b"],vec!["migration-status","--data-dir","/tmp/a","--worker","/tmp/arbitrary"],vec!["prepare-app-update","--data-dir","/tmp/a","--force","true"],vec!["migrate-library","--data-dir","/tmp/a","--runtime","/tmp/runtime"]] {
+        for args in [vec!["migration-status","--current-library","--data-dir","/tmp/not-account-default"],vec!["migration-status","--data-dir","relative"],vec!["migration-status","--data-dir","/tmp/a","--data-dir","/tmp/b"],vec!["migration-status","--data-dir","/tmp/a","--worker","/tmp/arbitrary"],vec!["prepare-app-update","--data-dir","/tmp/a","--force","true"],vec!["migrate-library","--data-dir","/tmp/a","--runtime","/tmp/runtime"]] {
             assert!(parse(&args.into_iter().map(String::from).collect::<Vec<_>>()).is_err());
         }
     }

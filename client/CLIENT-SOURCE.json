@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "3a4b7b84015a179dc75e0137ab6c06539bc843cc3b7f57cb8355880aff9b99e3",
+  "exportManifestSHA256": "a36d7fbdb9cc84410c2d50332bafdd09695079569a7bf0a9cab61bdc8f3cc6ab",
   "files": [
     {
       "bytes": 1182,
@@ -67,9 +67,9 @@
       "sha256": "ea512ccf68149f1eba31ceb2c12d33a27f18fd171aae97530a458452d0f281e5"
     },
     {
-      "bytes": 12803,
+      "bytes": 12866,
       "path": "Sources/PhotoFindryBrowserHost/BrowserMigration.swift",
-      "sha256": "52eeb75d0e5654a1e127f6d7dc315ee6cff3f2b7d3e82b2bb28afbe57ecec9ae"
+      "sha256": "1d384381d376ddff4f857f07626f61a76f309dd3f5dc4fd7e77430c0ec06906f"
     },
     {
       "bytes": 11105,
@@ -207,9 +207,9 @@
       "sha256": "b8ce5e1c32a960266e6efd12ed9e7d0cb012faf007392800053f86f058c88793"
     },
     {
-      "bytes": 65613,
+      "bytes": 67912,
       "path": "engine/companion/src/lifecycle.rs",
-      "sha256": "9e22f6bd8917b24e4b1707f49f57f83a1e0b1a5ced9e4b560d77ee697a4da3a2"
+      "sha256": "919ff4c1ee9379289b4c0dffcb9e161ad3b02ea47a190a4c9a1ddc8b086b279c"
     },
     {
       "bytes": 110492,
@@ -222,9 +222,9 @@
       "sha256": "e15a3e56071c1c450c15d617a7dd464c131b688ef7553fe552c80350bac64d99"
     },
     {
-      "bytes": 19801,
+      "bytes": 20118,
       "path": "engine/companion/src/migration.rs",
-      "sha256": "c27996c049dd54e59bcee9dc3adedaadf940e24802eff02d250ce332b4a97450"
+      "sha256": "5b53e39465584f413968701fa41067ca959ec91739de136889af835eea0ee4b0"
     },
     {
       "bytes": 20173,
@@ -372,9 +372,9 @@
       "sha256": "78b5ed0f1131288db3cd58384859828478de88aeb46c74711983bf28380f88f3"
     },
     {
-      "bytes": 14751,
+      "bytes": 14793,
       "path": "tests/PhotoFindryBrowserHostTests/BrowserMigrationTests.swift",
-      "sha256": "076184986f65e0f0cfe88a45e160658d05e7f1489fbd1582fff67b39f69b3d85"
+      "sha256": "5256d5af62d3823458f5915d6e77b1e6325bbe84bc91b481ce48b7fdacc12c30"
     },
     {
       "bytes": 5459,
@@ -689,6 +689,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "6d989b207ba16ac04f027d19f636b4202473c3cf",
+  "privateBuildRevision": "7ccea95ff264864892cd79e6061a375889e37a00",
   "schema": 1
 }

@@ -20,7 +20,7 @@ import XCTest
         await controller.acceptMigration()
         XCTAssertEqual(controller.screen, .ready(rollbackPath: recovery.path))
         XCTAssertEqual(runner.invocations.map(\.arguments), [
-            ["migration-status", "--data-dir", paths.library.path], paths.migrationArguments(rollback: recovery), ["open", "--launch-state", paths.launchState.path]
+            ["migration-status", "--current-library", "--data-dir", paths.library.path], paths.migrationArguments(rollback: recovery), ["open", "--launch-state", paths.launchState.path]
         ])
         XCTAssertTrue(runner.invocations.allSatisfy { $0.executable == paths.executable })
         XCTAssertTrue(controller.hasOpenedWorkspace)
@@ -50,7 +50,7 @@ import XCTest
         do { try await controller.prepareForUpdate(); XCTFail("Active package must defer installation") }
         catch { XCTAssertTrue(error.localizedDescription.contains("Pause its work")) }
         try await controller.prepareForUpdate()
-        XCTAssertEqual(runner.invocations.suffix(2).map(\.arguments), Array(repeating: ["prepare-app-update", "--data-dir", paths.library.path], count: 2))
+        XCTAssertEqual(runner.invocations.suffix(2).map(\.arguments), Array(repeating: ["prepare-app-update", "--current-library", "--data-dir", paths.library.path], count: 2))
         XCTAssertFalse(controller.hasOpenedWorkspace)
         XCTAssertFalse(runner.invocations.contains(where: { $0.arguments.first == "migrate-library" }))
     }

@@ -45,7 +45,7 @@ struct BrowserHostPaths: Equatable {
         rollbackDirectory = home.appendingPathComponent("Library/Application Support/PhotoFindry Migration Backups", isDirectory: true)
     }
     func migrationArguments(rollback: URL) -> [String] {
-        ["lifecycle", "install", "--install-root", installation.path, "--launch-state", launchState.path, "--data-dir", library.path, "--release", runtime.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("cli-release.json").path, "--rollback-copy", rollback.path]
+        ["lifecycle", "install", "--current-library", "--install-root", installation.path, "--launch-state", launchState.path, "--data-dir", library.path, "--release", runtime.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("cli-release.json").path, "--rollback-copy", rollback.path]
     }
 }
 
@@ -146,7 +146,7 @@ enum BrowserMigrationScreen: Equatable {
         do {
             if configured { try await openPendingRequest(); return }
             screen = .checking
-            let result = try await command(["migration-status", "--data-dir", paths.library.path])
+            let result = try await command(["migration-status", "--current-library", "--data-dir", paths.library.path])
             let reply = try result.decoded().checkedStatus()
             switch reply.state {
             case "new", "needs-handover":
@@ -237,7 +237,7 @@ enum BrowserMigrationScreen: Equatable {
         }
         busy = true
         defer { busy = false }
-        let result = try await command(["prepare-app-update", "--data-dir", paths.library.path])
+        let result = try await command(["prepare-app-update", "--current-library", "--data-dir", paths.library.path])
         let reply = try result.decoded()
         guard reply.ready == true else { throw reply.failure }
     }
