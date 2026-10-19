@@ -2,7 +2,7 @@
 
 This is a focused tagging/source-lifecycle CLI hotfix, qualified on this Apple-silicon Mac.
 
-- Exact packaged runtime: complete Node regression suite, 1,510 passed, 23 explicit
+- Exact packaged runtime: complete Node regression suite, 1,511 passed, 23 explicit
   opt-in skips, zero failures. Swift compatibility build and seven source-export
   boundary tests passed; mapped parity inventory passed.
 - Clean exported Svelte client: 30 tests and deterministic build check passed.
