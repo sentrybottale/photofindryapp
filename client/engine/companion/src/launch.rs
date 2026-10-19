@@ -598,7 +598,7 @@ pub async fn open_registered(directory: &Path, installed_only: bool) -> Result<L
         if let Some(root)=super::lifecycle::installed_root(&record.executable) {super::lifecycle::recover(&root,false).await?;}
     }
     let _owner = private_directory(directory, false)?;
-    let lock_deadline = tokio::time::Instant::now() + Duration::from_secs(65);
+    let lock_deadline = tokio::time::Instant::now() + Duration::from_secs(420);
     let _startup = loop {
         if let Some(lock) = try_lock(directory, "startup.lock")? { break lock; }
         if tokio::time::Instant::now() >= lock_deadline { return Err("Another PhotoFindry launch is still in progress.".into()); }
@@ -633,7 +633,7 @@ pub async fn open_registered(directory: &Path, installed_only: bool) -> Result<L
         }
         if installed_only { super::lifecycle::require_current_registration(directory, &record)?; }
         super::lifecycle::start_registered(&root).await?;
-        let deadline=tokio::time::Instant::now()+Duration::from_secs(210);
+        let deadline=tokio::time::Instant::now()+Duration::from_secs(390);
         let mut last_kick=tokio::time::Instant::now();
         loop {if let Some(target)=request_open(directory).await?{return Ok(target)}
             if let Some(error)=super::lifecycle::startup_error(&root){return Err(error)}

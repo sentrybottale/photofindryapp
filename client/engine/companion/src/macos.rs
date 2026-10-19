@@ -1622,6 +1622,11 @@ fn library_lock(data: &Path) -> Result<std::fs::File, String> {
     }
     Ok(file)
 }
+fn startup_timeout_error(stage: &'static str) -> String {
+    format!(
+        "PF-OPEN-300: The local library did not finish opening after five minutes while {stage}. PhotoFindry stopped this attempt; the library and saved jobs are kept. Choose Recover and open to try the previous verified software when available. If it also fails, report PF-OPEN-300 and this stage through photofindry.com/bugs; do not erase or restore the library."
+    )
+}
 async fn run(mut config: Config) -> Result<(), String> {
     if matches!(config.launch, Launch::New) {
         config.data = handover::create_new_library(&config.data)?;
@@ -1685,9 +1690,34 @@ async fn run(mut config: Config) -> Result<(), String> {
         worker::Worker::spawn(&config.worker, &config.data, &config.runtime)?;
     // A spawned PID is not proof of a worker lease or an opened library. Never
     // advertise pairing until the actual native host reports usable state.
-    let initial = tokio::time::timeout(Duration::from_secs(180), worker.call("state", json!({}))).await;
+    let mut state_call = Box::pin(worker.call("state", json!({})));
+    let mut deadline = Box::pin(tokio::time::sleep(Duration::from_secs(300)));
+    let mut progress = tokio::time::interval(Duration::from_secs(1));
+    let mut last_stage = "";
+    let installed_root = if config.managed && registration.is_some() {
+        lifecycle::installed_root(&executable)
+    } else {
+        None
+    };
+    let initial = loop {
+        tokio::select! {
+            result = &mut state_call => break Some(result),
+            _ = &mut deadline => break None,
+            _ = progress.tick() => {
+                let stage = worker.startup_stage();
+                if stage != last_stage {
+                    if let Some(root) = &installed_root { lifecycle::note_opening_stage(root, stage); }
+                    last_stage = stage;
+                }
+            }
+        }
+    };
+    drop(state_call);
     let admitted = (|| -> Result<(), String> {
-        let initial = initial.map_err(|_| "The local library did not finish opening.")??;
+        let initial = initial.ok_or_else(|| startup_timeout_error(worker.startup_stage()))?.map_err(|error| format!(
+            "The local worker stopped while {}: {error} Your library and saved jobs are kept.",
+            worker.startup_stage(),
+        ))?;
         let id = initial["libraryId"].as_str().filter(|id| !id.is_empty())
             .ok_or("The local library did not report its identity.")?;
         if initial["loading"] == true || !initial["libraryError"].is_null() {
@@ -2012,6 +2042,14 @@ pub async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn startup_timeout_names_the_stage_and_preserved_recovery_path() {
+        let error = startup_timeout_error("checking the photo catalog");
+        assert!(error.starts_with("PF-OPEN-300:"));
+        assert!(error.contains("checking the photo catalog"));
+        assert!(error.contains("library and saved jobs are kept"));
+        assert!(error.contains("previous verified software"));
+    }
     #[tokio::test]
     async fn companion_entry_cannot_accept_state_or_library_overrides() {
         for tail in [vec!["--launch-state","/tmp/old"],vec!["--data-dir","/tmp/photos"],vec!["photofindry-local://open"]] {

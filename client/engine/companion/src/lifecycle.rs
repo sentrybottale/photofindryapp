@@ -170,6 +170,9 @@ fn note(root: &Path, phase: &str, message: &str) {
         &json!({"phase":phase,"message":message,"updatedAt":now()}),
     );
 }
+pub(super) fn note_opening_stage(root: &Path, stage: &'static str) {
+    note(root, "opening", &format!("Opening the local library: {stage}. Saved work stays in place."));
+}
 pub fn startup_error(root: &Path) -> Option<String> {
     let bytes = release::read(&root.join("status.json"), 16384).ok()?;
     let status: Value = serde_json::from_slice(&bytes).ok()?;
@@ -378,7 +381,7 @@ async fn stop_agent(root: &Path) -> Result<()> {
     unload(format!("{}/{}", domain(), label(root)?)).await
 }
 async fn health(root: &Path, cfg: &Installation) -> Result<()> {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(210);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(390);
     loop {
         if launch::request_health(&cfg.launch_state)
             .await
@@ -387,7 +390,7 @@ async fn health(root: &Path, cfg: &Installation) -> Result<()> {
             return Ok(());
         }
         if let Some(detail) = startup_error(root) {
-            return Err(format!("The companion stopped while opening: {detail}"));
+            return Err(detail);
         }
         if tokio::time::Instant::now() > deadline {
             return Err("The companion did not become ready. The library stays in place; recovery will restore prior software when available.".into());
@@ -1097,13 +1100,24 @@ async fn background(root: &Path) -> Result<()> {
     let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
         .map_err(|_| "Cannot handle background shutdown")?;
     let mut ticks = tokio::time::interval(Duration::from_secs(30));
+    let mut readiness = tokio::time::interval(Duration::from_millis(500));
+    let mut reported_ready = false;
     let mut last_check = now().saturating_sub(21540);
     let mut last_retire = now().saturating_sub(570);
     let mut check_child: Option<tokio::process::Child> = None;
     loop {
         tokio::select! {
-         status=child.wait()=>{let status=status.map_err(|_|"Cannot inspect companion exit")?;if status.success(){return Ok(())}let detail=if let Some(mut task)=diagnostics.take(){match tokio::time::timeout(Duration::from_secs(2),&mut task).await{Ok(Ok(value))=>value,_=>{task.abort();String::new()}}}else{String::new()};let reason=if detail.is_empty(){"The companion stopped unexpectedly.".to_owned()}else{format!("The companion stopped unexpectedly: {detail}")};note(root,"error",&format!("{reason} Use Recover companion; saved work is kept."));return Err(reason)},
+         status=child.wait()=>{let status=status.map_err(|_|"Cannot inspect companion exit")?;if status.success(){return Ok(())}let detail=if let Some(mut task)=diagnostics.take(){match tokio::time::timeout(Duration::from_secs(2),&mut task).await{Ok(Ok(value))=>value,_=>{task.abort();String::new()}}}else{String::new()};let detail=detail.trim_start_matches("PhotoFindry: ");let reason=if detail.is_empty(){"The companion stopped unexpectedly. Your library and saved work are kept.".to_owned()}else{detail.to_owned()};note(root,"error",&reason);return Err(reason)},
          _=term.recv()=>{let _=launch::request_stop(&cfg.launch_state).await;if tokio::time::timeout(Duration::from_secs(30),child.wait()).await.is_err(){let _=child.kill().await;let _=child.wait().await;}return Ok(())},
+         _=readiness.tick(),if !reported_ready=>{
+          if launch::request_health(&cfg.launch_state).await.unwrap_or(false){
+           reported_ready=true;
+           let phase=release::read(&root.join("status.json"),16384).ok().and_then(|bytes|serde_json::from_slice::<Value>(&bytes).ok());
+           if phase.as_ref().is_some_and(|value|value["phase"]=="opening"||value["phase"]=="recovering"){
+            note(root,"ready","The local library is open. Saved work is kept; the queue retains its pause.");
+           }
+          }
+         },
          _=ticks.tick()=>{if now().saturating_sub(last_retire)>=600{last_retire=now();let _=retire_migration(root).await;}if let Some(c)=check_child.as_mut(){if c.try_wait().ok().flatten().is_some(){check_child=None;}}
           if let Ok(current)=read_state(root){if current.automatic_updates&&now().saturating_sub(last_check)>=21600&&check_child.is_none(){last_check=now();check_child=tokio::process::Command::new(executable(root,current.current)).args(["lifecycle","check","--install-root"]).arg(root).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true).spawn().ok();}}
          }
@@ -1493,8 +1507,23 @@ pub async fn command(args: &[String]) -> Result<()> {
         checked_release(&root, cfg.current, &verifier(&self_executable()?)?)?;
         repair_registration(&root,&cfg)?;
         note(&root, "opening", "Recovering the background companion with the current library.");
-        start_agent(&root, &cfg, false).await?;
-        health(&root, &cfg).await?;
+        let current_start = async {
+            start_agent(&root, &cfg, false).await?;
+            health(&root, &cfg).await
+        }.await;
+        if let Err(current_error) = current_start {
+            if let Some(previous) = cfg.previous.filter(|previous| *previous < cfg.current) {
+                let prior = checked_release(&root, previous, &verifier(&self_executable()?)?)
+                    .map_err(|error| format!("The current companion did not open: {current_error} Previous software cannot be authenticated: {error} Your library and saved work are kept."))?;
+                note(&root, "recovering", "The current companion did not open. Trying the previous verified software; the library stays in place.");
+                if let Err(rollback_error) = switch(&root, cfg, &prior, true, false).await {
+                    return Err(format!("The current companion did not open: {current_error} The previous verified version could not be restored: {rollback_error} Your library and saved work are kept."));
+                }
+                note(&root, "ready", "Previous verified companion software is open. Your current library and saved work were kept.");
+                return Ok(());
+            }
+            return Err(format!("{current_error} No earlier verified companion version is available for automatic software recovery. Your library is kept."));
+        }
         register_links(&root, &cfg).await?;
         note(
             &root,

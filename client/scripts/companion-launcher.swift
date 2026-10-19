@@ -24,6 +24,11 @@ func nativeLaunchRequest(_ value: String) -> NativeLaunchRequest? {
     guard value.hasPrefix(prefix), let id=archiveIdentity(String(value.dropFirst(prefix.count))) else {return nil}
     return .archive(id)
 }
+func recoveryOfferAvailable(version: URL, attempted: Bool) -> Bool {
+    version.deletingLastPathComponent().lastPathComponent == "versions"
+        && UInt64(version.lastPathComponent) != nil
+        && !attempted
+}
 
 final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
     private var launch: Process?
@@ -128,8 +133,7 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         let bin=Bundle.main.bundleURL.deletingLastPathComponent()
         let version=bin.deletingLastPathComponent().deletingLastPathComponent()
-        let canRecover = version.deletingLastPathComponent().lastPathComponent == "versions"
-            && UInt64(version.lastPathComponent) != nil && !recoveryAttempted
+        let canRecover = recoveryOfferAvailable(version: version, attempted: recoveryAttempted)
         if canRecover {
             alert.addButton(withTitle: "Recover and open")
             alert.addButton(withTitle: "Cancel")
@@ -139,7 +143,7 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
                 return
             }
         } else {
-            if recoveryAttempted { alert.informativeText += "\n\nReinstall the latest verified PhotoFindry companion from photofindry.com, then open it again. Keep your library and recovery copy in place." }
+            if recoveryAttempted && !message.contains("PF-OPEN-300") { alert.informativeText += "\n\nReinstall the latest verified PhotoFindry companion from photofindry.com, then open it again. Keep your library and recovery copy in place." }
             alert.addButton(withTitle: "OK");alert.runModal()
         }
         if launch == nil { NSApp.terminate(nil) }
