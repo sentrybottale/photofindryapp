@@ -127,6 +127,12 @@ private final class RootInput: @unchecked Sendable {
         let input = RootInput(receive: { configuration in
             generation = configuration.generation
             monitor.updateRoots(configuration.roots)
+            // A file may return before the asynchronous watch stream exists.
+            // Reconcile each new registered-root configuration once so that
+            // this startup gap cannot leave a saved job waiting indefinitely.
+            // This is only a hint; the worker still verifies locations/identity
+            // and preserves queue, source and resource holds.
+            output.emit(roots: configuration.roots, generation: generation)
         }, finish: {
             monitor.stop()
             Darwin.exit(0)

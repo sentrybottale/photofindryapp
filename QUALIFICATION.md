@@ -11,7 +11,7 @@ This is a focused tagging/source-lifecycle CLI hotfix, qualified on this Apple-s
 - Companion: 134 unit tests passed, two opt-in cases ignored; 28 handover checks
   passed. Engine: 38 unit checks passed. Worker checks include source-return,
   missing/changed distinctions, removal, cancellation and a 95,000-target indexed
-  recovery lookup. Final worker suite: 374 passed, 10 opt-in skips; five worker integration checks passed.
+  recovery lookup. Final worker suite: 376 passed, 10 opt-in skips; five worker integration checks passed.
 - Exact bundled real-model loop passed tagging, queued AI search, retained results,
   human naming, preview, backup/restore, worker restart and portable source attach.
   Synthetic original bytes stayed unchanged; saved model selections were retained.
@@ -23,6 +23,11 @@ This is a focused tagging/source-lifecycle CLI hotfix, qualified on this Apple-s
   retry installed build 116 without changing the library or highest-build watermark.
 - Normal signed 115-to-116 upgrade, active conflicting-service PID preservation,
   foreign-library refusal and software rollback to 115 passed on isolated fixtures.
+
+Actual packaged observer/browser trials completed the same missing-original job
+automatically and continued another job after acknowledged folder relocation.
+Original bytes were preserved. Existing persisted legacy jobs keep their compatible
+manual recovery behavior; new source-reading requests use the shared lifecycle.
 
 No other-Mac, reboot/new-account acceptance, arbitrary installation location,
 Apple notarization or exhaustive new independent security audit is claimed.

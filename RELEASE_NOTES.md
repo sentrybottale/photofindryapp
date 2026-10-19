@@ -5,6 +5,10 @@ now waits within bounded transport queues; cancellation and real frame limits
 remain enforced. A single OCR format repair uses a narrower checked decoder when
 copied text exceeds the aggregate schema bound; final validation remains strict.
 
+New tagging, metadata, preview, face and improvement jobs retain unavailable
+selections and share durable source recovery. Cached previews remain usable offline.
+The native filesystem observer also reconciles returns during startup.
+
 Verified originals that return to the same saved location automatically release
 their existing jobs. Missing originals keep saved tags and previews while other
 usable photos continue. Changed or uncertain locations still require identity

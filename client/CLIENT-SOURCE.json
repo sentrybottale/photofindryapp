@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "3b6b7c90377ecd724c5b59f949c132ce8aa2ef803feb0a0cc8a706bead41f7ac",
+  "exportManifestSHA256": "4202e1dbd86ed7d9c77715b89c197ac599356fc8119edc7114800a0057e2ce7d",
   "files": [
     {
       "bytes": 1182,
@@ -347,9 +347,9 @@
       "sha256": "be330e19203922ca877ffb9014eefa7e4b3a374de55aef63e215b0a4b1b29625"
     },
     {
-      "bytes": 5917,
+      "bytes": 6371,
       "path": "scripts/companion-sources.swift",
-      "sha256": "74745ac3da3bd58969a7025674fd7a1d479fee64338316b80b3b9587fe62bc98"
+      "sha256": "e5cdd3f096d69dcbd90680ce87bad057e454fad02533a204855df706e67bf7d2"
     },
     {
       "bytes": 3774,
@@ -694,6 +694,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "050bf8b79cc40c37f8de63f6a40eed92ca4bb126",
+  "privateBuildRevision": "14833d96e2709d9cf7da4d3e76f7bc24163b7f7c",
   "schema": 1
 }
