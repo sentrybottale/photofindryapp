@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.15, build 113**. This guide was updated on 18 October 2026.
+PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.16, build 114**. This guide was updated on 19 October 2026.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ PhotoFindry is a free local photo tagging and search workspace for Apple-silicon
 
 ## Official download
 
-Use the [official beta 15 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.15). The installer is [PhotoFindry-0.2.0-beta.15-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.15/PhotoFindry-0.2.0-beta.15-arm64-community-beta.dmg).
+Use the [official beta 16 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.16). The installer is [PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.16/PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg).
 
 The update ZIP is for the built-in updater. GitHub’s automatic source archives contain the open client and distribution files, not a complete runnable application or proprietary engine source. Do not install those archives.
 
@@ -37,7 +37,7 @@ Next: [Getting started](https://photofindry.com/docs/getting-started.html) · [T
 
 ## Browser workspace and native-app migration
 
-The installer runs once. Normal use needs only the background CLI companion and browser; the migration application exits and can move to Trash after successful handoff. Open PhotoFindry from app.photofindry.com. The public page requests only the fixed local launch action; it never receives your library session. The address bar changes to the trusted local workspace.
+The installer runs once. Normal use needs only the background CLI companion and browser; the migration application exits and can move to Trash after successful handoff. Open PhotoFindry from app.photofindry.com. If an older app opens or no companion is registered, install the latest verified release once to repair the companion link. The public page requests only the fixed local launch action; it never receives your library session. The address bar changes to the trusted local workspace.
 
 Existing users keep their library, original photos and chosen model paths. Read the migration screen and let it finish preparing its recovery copy. **Use current beta** opens the verified retained native version if you defer or migration fails; it does not restore old library data. Imported photo sources may need their current originals folder confirmed under Files.
 

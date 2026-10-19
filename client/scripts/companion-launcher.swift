@@ -5,6 +5,7 @@ import Foundation
 import CoreServices
 
 enum NativeLaunchRequest: Equatable {
+    case companion
     case workspace
     case archive(String)
 }
@@ -17,6 +18,7 @@ func archiveIdentity(_ value: String) -> String? {
     return value.lowercased()
 }
 func nativeLaunchRequest(_ value: String) -> NativeLaunchRequest? {
+    if value=="photofindry-companion://open" { return .companion }
     if value=="photofindry-local://open" { return .workspace }
     let prefix="photofindry://archive/v1/"
     guard value.hasPrefix(prefix), let id=archiveIdentity(String(value.dropFirst(prefix.count))) else {return nil}
@@ -29,7 +31,7 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
     private var scheduled: DispatchWorkItem?
     private var activeRequest: NativeLaunchRequest?
     private var pendingRequest: NativeLaunchRequest?
-    private var retryRequest: NativeLaunchRequest = .workspace
+    private var retryRequest: NativeLaunchRequest = .companion
     private var recoveryAttempted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -59,7 +61,7 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         return false
     }
 
-    private func openLibrary(_ request: NativeLaunchRequest = .workspace, recovering: Bool = false) {
+    private func openLibrary(_ request: NativeLaunchRequest = .companion, recovering: Bool = false) {
         if launch != nil {
             if request != activeRequest { pendingRequest=request }
             return
@@ -78,6 +80,7 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         process.executableURL = executable
         if recovering { process.arguments=["lifecycle","recover"] }
         else { switch request {
+        case .companion: process.arguments=["open-companion"]
         case .workspace: process.arguments=["open"]
         case .archive(let id): process.arguments=["open-archive",id]
         }}
@@ -206,11 +209,13 @@ typealias LinkHandlerSetter = (URL,String,@escaping (Error?)->Void)->Void
 
 // Injected functions allow qualification without changing macOS preferences.
 // The completion can arrive on the main queue, so a semaphore wait would deadlock.
+let companionLinks=[("photofindry-companion","photofindry-companion://open"),
+                    ("photofindry-local","photofindry-local://open"),
+                    ("photofindry","photofindry://archive/v1/00000000-0000-0000-0000-000000000000")]
 func selectLocalLinkHandlers(_ application:URL, timeout:TimeInterval=30,
+                            links:[(String,String)]=companionLinks,
                             setHandler:LinkHandlerSetter, resolve:(URL)->URL?) -> Bool {
     let expected=application.resolvingSymlinksInPath().standardizedFileURL
-    let links=[("photofindry-local","photofindry-local://open"),
-               ("photofindry","photofindry://archive/v1/00000000-0000-0000-0000-000000000000")]
     func yieldToCallbacks() {
         if !RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.025)) {
             Thread.sleep(forTimeInterval:0.005)
@@ -235,8 +240,16 @@ func selectLocalLinkHandlers(_ application:URL, timeout:TimeInterval=30,
     return true
 }
 
-// Only the fixed enclosing browser-product layout may become the public launch
-// handler. Standalone development packages retain their existing small helper.
+// Link ownership belongs to the short-lived helper, never its enclosing installer.
+func localLauncherApplication(_ executable:String) -> URL? {
+    let suffix="/CompanionLauncher.app/Contents/MacOS/CompanionLauncher"
+    if executable.hasSuffix(suffix) {
+        return URL(fileURLWithPath:String(executable.dropLast("/Contents/MacOS/CompanionLauncher".count)))
+    }
+    guard executable.hasSuffix("/CompanionLauncher") else {return nil}
+    return URL(fileURLWithPath:executable).deletingLastPathComponent().appendingPathComponent("CompanionLauncher.app")
+}
+// Kept for safe removal of legacy browser app layouts, never link ownership.
 func enclosingBrowserApplication(_ executable: String) -> String? {
     for suffix in ["/Contents/Resources/companion/bin/CompanionLauncher",
                    "/Contents/Resources/companion/bin/CompanionLauncher.app/Contents/MacOS/CompanionLauncher"] {
@@ -276,13 +289,12 @@ func verifiedBrowserApplication(_ path: String) -> Bool {
 
 func registerLocalLinks() -> Bool {
     let executable=URL(fileURLWithPath:CommandLine.arguments[0]).standardizedFileURL
-    let expected:URL
-    if let outer=enclosingBrowserApplication(executable.path) {
-        guard verifiedBrowserApplication(outer) else {return false}
-        expected=URL(fileURLWithPath:outer)
-    } else {
-        expected=executable.deletingLastPathComponent().appendingPathComponent("CompanionLauncher.app").resolvingSymlinksInPath().standardizedFileURL
-    }
+    guard let expected=localLauncherApplication(executable.path),
+          let info=NSDictionary(contentsOfFile:expected.appendingPathComponent("Contents/Info.plist").path),
+          info["CFBundleIdentifier"] as? String == "com.sentrybottale.photorecall.companion-launcher",
+          info["CFBundleExecutable"] as? String == "CompanionLauncher",
+          info["LSUIElement"] as? Bool == true else {return false}
+    guard LSRegisterURL(expected as CFURL,true)==noErr else {return false}
     var directory:ObjCBool=false
     guard FileManager.default.fileExists(atPath:expected.path,isDirectory:&directory),directory.boolValue else {return false}
     return selectLocalLinkHandlers(expected,setHandler:{ application,scheme,completion in
@@ -575,7 +587,7 @@ if !arguments.isEmpty {
     }
     guard success else {
         let message=arguments==["--register-links"]
-            ? "macOS did not select this exact PhotoFindry launcher for both link types. Another copy of the same build may still be selected. Keep the intended package in place and use its bin/photofindry open command to continue, then retry registration from that package.\n"
+            ? "macOS could not select the installed companion for its links. Open the verified PhotoFindry installer again to repair the links; your library and saved work are kept.\n"
             : arguments==["--confirm-uninstall"] || arguments==["--trash-package"] || arguments==["--uninstall-error"]
                 ? "PhotoFindry could not validate or uninstall its installed package. Nothing is permanently deleted.\n"
                 : "PhotoFindry could not open the local workspace.\n"

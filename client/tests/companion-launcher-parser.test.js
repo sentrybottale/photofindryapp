@@ -17,7 +17,9 @@ test('native archive and private-pipe parsers accept navigation only', { skip: p
     assert.equal(original.split(marker).length, 2);
     const driver = String.raw`
 let id="ABCDEF01-2345-6789-ABCD-EF0123456789"
+assert(nativeLaunchRequest("photofindry-companion://open") == .companion)
 assert(nativeLaunchRequest("photofindry-local://open") == .workspace)
+for invalid in ["photofindry-companion://open?path=/tmp","photofindry-companion://open/","photofindry-companion://open#token=x","photofindry-companion://user@open","photofindry-companion://open:80","PHOTOFINDRY-COMPANION://open"] {assert(nativeLaunchRequest(invalid)==nil)}
 assert(nativeLaunchRequest("photofindry://archive/v1/"+id) == .archive(id.lowercased()))
 for invalid in ["photofindry-local://open?archive="+id,"photofindry-local://open/","photofindry://archive/v1/"+id+"?attach=1","photofindry://archive/v1/"+id+"#data","photofindry://archive/v1/"+id+"/extra","photofindry://user@archive/v1/"+id,"photofindry://archive:80/v1/"+id,"photofindry://archive/v1/%61bcdef01-2345-6789-abcd-ef0123456789","photofindry://archive/v1/../../path","photofindry://archive/v2/"+id,"PHOTOFINDRY://archive/v1/"+id] { assert(nativeLaunchRequest(invalid)==nil) }
 let ticket=String(repeating:"a",count:64)
@@ -28,16 +30,18 @@ let navigation=try! JSONSerialization.data(withJSONObject:["port":23456,"ticket"
 assert(localWorkspaceURL(navigation)?.fragment=="bootstrap="+ticket+"&archive="+id.lowercased())
 for invalid in ["{\"port\":23456,\"ticket\":\""+ticket+"\",\"archiveId\":\"/private/path\"}","{\"port\":true,\"ticket\":\""+ticket+"\"}","{\"port\":\"23456\",\"ticket\":\""+ticket+"\"}","{\"port\":23456.0,\"ticket\":\""+ticket+"\"}","{\"port\":23456,\"ticket\":\""+ticket+"\",\"ticket\":\""+ticket+"\"}"] {assert(localWorkspaceURL(Data(invalid.utf8))==nil)}
 let appRoot="/private/tmp/PhotoFindry.app"
-assert(enclosingBrowserApplication(appRoot+"/Contents/Resources/companion/bin/CompanionLauncher")==appRoot)
-assert(enclosingBrowserApplication(appRoot+"/Contents/Resources/companion/bin/CompanionLauncher.app/Contents/MacOS/CompanionLauncher")==appRoot)
-for invalid in ["/private/tmp/Other/bin/CompanionLauncher",appRoot+"/Contents/Resources/other/bin/CompanionLauncher",appRoot+"/Contents/Resources/companion/bin/Other","/private/tmp/Plain/Contents/Resources/companion/bin/CompanionLauncher"] {assert(enclosingBrowserApplication(invalid)==nil)}
+let nested=appRoot+"/Contents/Resources/companion/bin/CompanionLauncher.app"
+assert(localLauncherApplication(appRoot+"/Contents/Resources/companion/bin/CompanionLauncher")?.path==nested)
+assert(localLauncherApplication(nested+"/Contents/MacOS/CompanionLauncher")?.path==nested)
+assert(localLauncherApplication("/private/tmp/standalone/bin/CompanionLauncher")?.path=="/private/tmp/standalone/bin/CompanionLauncher.app")
+assert(localLauncherApplication(appRoot+"/Contents/MacOS/PhotoFindry")==nil)
 let application=URL(fileURLWithPath:"/private/tmp/photofindry-parser-fixture/bin/CompanionLauncher.app")
 var selected=[String:URL](),requests=[String]()
 assert(selectLocalLinkHandlers(application,timeout:0.25,setHandler:{ url,scheme,completion in
     assert(url==application);requests.append(scheme)
     DispatchQueue.main.async { selected[scheme]=url;completion(nil) }
 },resolve:{selected[$0.scheme!]}))
-assert(requests==["photofindry-local","photofindry"])
+assert(requests==["photofindry-companion","photofindry-local","photofindry"])
 var calls=0
 assert(!selectLocalLinkHandlers(application,timeout:0.02,setHandler:{_,_,completion in
     calls+=1;completion(NSError(domain:"fixture-denied",code:1))
@@ -50,7 +54,7 @@ var lookups=0
 assert(selectLocalLinkHandlers(application,timeout:0.25,setHandler:{_,_,completion in completion(nil)},resolve:{_ in
     lookups+=1;return lookups==1 ? older : application
 }))
-assert(lookups>=3)
+assert(lookups>=4)
 print("Native launch parsers passed; no browser or registration was invoked.")
 `;
     const source = path.join(root, 'main.swift'), binary = path.join(root, 'parser');

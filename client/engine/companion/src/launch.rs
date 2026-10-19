@@ -12,7 +12,7 @@ use std::{
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{UnixListener, UnixStream}, sync::oneshot, task::JoinHandle};
 
 #[cfg(test)]
-const LAUNCH_URL: &str = "photofindry-local://open";
+const LAUNCH_URL: &str = "photofindry-companion://open";
 pub(super) const REGISTRATION: &str = "registration.json";
 const SOCKET: &str = "launch.sock";
 const MAX_REGISTRATION: u64 = 16 * 1024;
@@ -521,7 +521,9 @@ async fn stop_owned_startup(child: &mut tokio::process::Child) {
 }
 
 /// Native/CLI-only entry. Registered paths are revalidated before any process starts.
-pub async fn open_registered(directory: &Path) -> Result<LaunchTarget> {
+pub async fn open_registered(directory: &Path, installed_only: bool) -> Result<LaunchTarget> {
+    if installed_only { super::lifecycle::require_installed(directory)?; }
+    super::lifecycle::prefer_installed(directory).await?;
     if let Ok(record)=read_registration(directory) {
         if let Some(root)=super::lifecycle::installed_root(&record.executable) {super::lifecycle::recover(&root,false).await?;}
     }
@@ -534,6 +536,9 @@ pub async fn open_registered(directory: &Path) -> Result<LaunchTarget> {
     };
     ensure_available(directory)?;
     let record = read_registration(directory)?;
+    // Recheck after taking startup.lock: uninstall or a legacy registration may
+    // have changed authority while this launch waited. Never start that old host.
+    if installed_only { super::lifecycle::require_current_registration(directory, &record)?; }
     if let Some(target) = request_open(directory).await? { return Ok(target); }
     super::handover::validate_admission(&record.data_dir)?;
     if let Some(root)=super::lifecycle::installed_root(&record.executable) {
@@ -604,7 +609,7 @@ mod tests {
     #[test]
     fn launch_scheme_is_a_literal_operation_without_parameters() {
         assert!(validate_launch_url(LAUNCH_URL).is_ok());
-        for value in ["photofindry-local://open/", "photofindry-local://open?path=/tmp", "photofindry-local://open#ticket=x", "photofindry-local://user@open", "photofindry-local://open:42", "photofindry-local://open/../delete", "PHOTOFINDRY-LOCAL://open", "photofindry://archive/v1/test", " photofindry-local://open", "photofindry-local://%6fpen"] {
+        for value in ["photofindry-companion://open/", "photofindry-companion://open?path=/tmp", "photofindry-companion://open#ticket=x", "photofindry-companion://user@open", "photofindry-companion://open:42", "photofindry-companion://open/../delete", "PHOTOFINDRY-COMPANION://open", "photofindry://archive/v1/test", " photofindry-companion://open", "photofindry-companion://%6fpen"] {
             assert!(validate_launch_url(value).is_err(), "{value}");
         }
     }

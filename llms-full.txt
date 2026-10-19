@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.15, build 113**. This guide was updated on 18 October 2026.
+PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.16, build 114**. This guide was updated on 19 October 2026.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ PhotoFindry is a free local photo tagging and search workspace for Apple-silicon
 
 ## Official download
 
-Use the [official beta 15 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.15). The installer is [PhotoFindry-0.2.0-beta.15-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.15/PhotoFindry-0.2.0-beta.15-arm64-community-beta.dmg).
+Use the [official beta 16 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.16). The installer is [PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.16/PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg).
 
 The update ZIP is for the built-in updater. GitHub’s automatic source archives contain the open client and distribution files, not a complete runnable application or proprietary engine source. Do not install those archives.
 
@@ -209,7 +209,7 @@ Send Feedback submits directly, without an email app. Keep the receipt for follo
 
 Read [privacy and distribution](https://photofindry.com/docs/privacy.html) for what is sent.
 
-For beta 15 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
+For beta 16 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
 
 ## Legacy saved-photo search error
 
@@ -303,7 +303,7 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 - PhotoFindry uses a background CLI companion and local browser workspace for photo tagging, people and search. app.photofindry.com opens the installed workspace without receiving library authority.
 - Its client is MIT open source; its Rust engine cores remain proprietary. Official builds are free to use. No mandatory app account or subscription. Third-party components keep their own licences.
 - The public repository holds the reviewed client snapshot and distribution files. The engine implementation and private development history remain private.
-- Latest published release at this document's date: 0.2.0-beta.15, app 0.2.0 build 113. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- Latest published release at this document's date: 0.2.0-beta.16, app 0.2.0 build 114. Check the release page before recommending a version; do not assume an unreleased branch is published.
 - Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
 - No app telemetry; downloads, scheduled or manual update checks, browser links and feedback use internet. Beta 11 enables automatic checks with a Settings opt-out; downloads and installation remain user-controlled. Older betas need one manual upgrade for reminders. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
