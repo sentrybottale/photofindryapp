@@ -156,6 +156,13 @@ is not implemented; native Open obtains a fresh authenticated origin/session.
 See the private architecture record for incident evidence and the remaining
 authenticated control-plane design.
 
+The build-121 candidate also follows a completed private uninstall receipt when
+reinstalling a kept custom library. Only its validated library location is reused;
+removed program paths grant no execution authority. Pending uninstall, malformed
+receipts and unavailable kept locations block setup with an actionable failure
+instead of silently opening an empty default library. Qualification must include
+uninstall followed by reinstall and the actual current-library selection path.
+
 ## Launch routing correction — 19 October 2026 (unreleased)
 
 Beta 15 still exposes `photofindry-local://open` on the public hub. Retained

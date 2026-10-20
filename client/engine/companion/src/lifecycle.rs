@@ -592,12 +592,14 @@ pub fn current_library(requested: &Path, state: Option<&Path>) -> Result<PathBuf
     current_library_at(&default_root()?,&directory,requested)
 }
 fn current_library_at(root: &Path, state: &Path, fallback: &Path) -> Result<PathBuf> {
+    launch::ensure_available(state)?;
     if root.join(STATE).exists() {
         let cfg=read_state(root)?;
         if cfg.launch_state!=state {return Err("The installed companion uses another launch registration. Open its workspace before changing setup.".into())}
         return Ok(cfg.data);
     }
     if let Some(record)=launch::recovery_registration(state)? {return Ok(record.data_dir);}
+    if let Some(data)=uninstall::kept_library(state)? {return Ok(data);}
     Ok(fallback.to_path_buf())
 }
 /// Public launch prefers the verified standalone installation, even if an older
@@ -2189,6 +2191,35 @@ mod tests {
         let root = std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-{name}-{}", &release::digest(&nonce)[..12]));
         launch::private_directory(&root, true).unwrap();
         root
+    }
+    #[test]
+    fn reinstall_follows_the_completed_uninstall_library_without_restoring_launch_authority() {
+        let root=private_fixture("reinstall-program");let data=private_fixture("kept-library");let state=private_fixture("kept-launch");let fallback=root.join("unused-empty-default");
+        let receipt=json!({"version":1,"status":"complete","registration":{"version":1,"dataDir":data,"runtime":"/removed/program/runtime","executable":"/removed/program/photofindry"},"manifestSha256":"a".repeat(64),"trashedPath":"/removed/Trash/PhotoFindry"});
+        launch::write_uninstall_receipt(&state,&receipt).unwrap();
+        assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),data);
+        assert!(launch::read_registration(&state).is_err());assert!(!state.join("registration.json").exists());assert!(!root.join(STATE).exists());assert!(!fallback.exists());
+        // A later installation/current registration remains authoritative over
+        // an older completed receipt; the retained executable is never run.
+        let other=private_fixture("later-library");let cfg=Installation{schema:1,current:121,previous:None,highest:121,data:other.clone(),launch_state:state.clone(),autostart:false,automatic_updates:false,retire:None};
+        save(&root,STATE,&cfg).unwrap();assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),other);
+        fs::remove_file(root.join(STATE)).unwrap();
+        let record=launch::Registration{version:1,data_dir:other.clone(),runtime:PathBuf::from("/removed/other/runtime"),executable:PathBuf::from("/removed/other/photofindry")};
+        atomic(&state,"registration.json",&serde_json::to_vec(&record).unwrap()).unwrap();assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),other);
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();fs::remove_dir_all(other).unwrap();
+    }
+    #[test]
+    fn unavailable_unsafe_malformed_or_pending_kept_library_never_falls_back_to_empty() {
+        let root=private_fixture("unavailable-program");let data=private_fixture("unavailable-library");let state=private_fixture("unavailable-launch");let fallback=root.join("must-not-create");
+        let receipt=|path:&Path,status:&str|json!({"version":1,"status":status,"registration":{"version":1,"dataDir":path,"runtime":"/removed/runtime","executable":"/removed/photofindry"},"manifestSha256":"a".repeat(64),"trashedPath":"/removed/Trash/PhotoFindry"});
+        launch::write_uninstall_receipt(&state,&receipt(&root.join("missing-custom-library"),"complete")).unwrap();
+        assert!(current_library_at(&root,&state,&fallback).unwrap_err().contains("kept library folder is unavailable"));
+        let linked=root.join("linked-library");std::os::unix::fs::symlink(&data,&linked).unwrap();launch::write_uninstall_receipt(&state,&receipt(&linked,"complete")).unwrap();assert!(current_library_at(&root,&state,&fallback).is_err());
+        launch::write_uninstall_receipt(&state,&json!({"version":1,"status":"complete","registration":{"dataDir":data}})).unwrap();assert!(current_library_at(&root,&state,&fallback).is_err());
+        launch::write_uninstall_receipt(&state,&receipt(&data,"revoked")).unwrap();assert!(current_library_at(&root,&state,&fallback).unwrap_err().contains("uninstall is pending"));
+        assert!(!fallback.exists());assert!(!root.join(STATE).exists());assert!(!state.join("registration.json").exists());
+        fs::remove_file(state.join("uninstall.json")).unwrap();assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),fallback);assert!(!fallback.exists());
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();
     }
     #[test]
     fn authenticated_same_build_repair_quarantines_damaged_program_and_keeps_library_and_state() {

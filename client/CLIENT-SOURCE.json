@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "f88f932287b23634eea3fbd01a37d24e71edd00ed5dd308191f9041c64fad2fd",
+  "exportManifestSHA256": "e80d39bdec483bee67795cab9218eeb39da602ca1cbef3ee078193215667a111",
   "files": [
     {
       "bytes": 1182,
@@ -49,7 +49,7 @@
     {
       "bytes": 1471,
       "path": "Resources/Info.plist",
-      "sha256": "31d9492df9b475797c23aa9246dfef26698e5c6bfe94e7bfcbc36205559b88c1"
+      "sha256": "38f8c1668873a4af423bc3c182f4f9443fd1abae0db5ea3946065e6efe21149d"
     },
     {
       "bytes": 2536,
@@ -132,9 +132,9 @@
       "sha256": "ecbb0167987cb018d3491b90a7c1d1ac5650e70e834a88277b61085608f9506e"
     },
     {
-      "bytes": 12510,
+      "bytes": 12994,
       "path": "docs/CLI_COMPANION_LIFECYCLE.md",
-      "sha256": "7acbacb878aee70d8eae7d6d2eb6e2b1f697db5af9f82b70fc647a47686de59a"
+      "sha256": "883ad5025b17602eb93c703dda724742c8dd3055f76ae67c9c0e31c2fe3fa8d9"
     },
     {
       "bytes": 16783,
@@ -207,9 +207,9 @@
       "sha256": "d735e90b956ebbb895cf8cd8bd1c3bbf6e0cfb1fe9715a3022dcc39b621cc365"
     },
     {
-      "bytes": 130218,
+      "bytes": 134055,
       "path": "engine/companion/src/lifecycle.rs",
-      "sha256": "2c90f10bb4b8c3a2a216c76e31331679d02074bbcd5bcb18846d865eb85ca1fd"
+      "sha256": "7580b29eae29452fb067099a425c2074579f502f62a68f7b3801d3efddd7c81c"
     },
     {
       "bytes": 112344,
@@ -287,9 +287,9 @@
       "sha256": "b07fc7f3a0746f6193230ff8be69b1ba02667573fe9f87347454f2b758734706"
     },
     {
-      "bytes": 38518,
+      "bytes": 39882,
       "path": "engine/companion/src/uninstall.rs",
-      "sha256": "dc293501f77aa9df24374c0571bcafc3a5d820822db29768ad5260eff7d594ed"
+      "sha256": "d6c3328e3014562526b4b86c0f803f71d1189ca9ccb0fcf7024d3ad9ca8f942e"
     },
     {
       "bytes": 22913,
@@ -694,6 +694,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "bd598168447fa3f8a3f3924cbf9c68acf8a0fd8d",
+  "privateBuildRevision": "7d420018fd38d94c3363344dc3849105fe18cda4",
   "schema": 1
 }

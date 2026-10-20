@@ -245,6 +245,22 @@ async fn helper(executable: &Path, operation: &str, input: serde_json::Value, ti
 fn read_receipt(state: &Path) -> Result<Option<Receipt>> {
     launch::read_uninstall_receipt(state)?.map(|value|serde_json::from_value(value).map_err(|_|"Uninstall recovery state is incompatible.".into())).transpose()
 }
+/// A completed uninstall retains only this inert library selection for an
+/// explicitly requested reinstall. Removed executable/runtime paths are never
+/// reused as launch authority, and unfinished uninstall cannot be bypassed.
+pub(super) fn kept_library(state: &Path) -> Result<Option<PathBuf>> {
+    let Some(receipt)=read_receipt(state)? else {return Ok(None);};
+    if receipt.version!=1 || receipt.registration.version!=1 || !super::cli_release::sha_valid(&receipt.manifest_sha256)
+        || receipt.trashed_path.as_ref().is_none_or(|path|!path.is_absolute()) {
+        return Err("The kept-library uninstall receipt is invalid. Keep your saved library and choose its folder explicitly during verified setup; no empty library was selected.".into());
+    }
+    if receipt.status!="complete" {return Err("PhotoFindry uninstall is pending. Finish it before reinstalling; your saved library selection is kept.".into());}
+    let data=receipt.registration.data_dir;
+    if launch::canonical(&data,true).map_err(|_|"Your kept library folder is unavailable or unsafe. Reconnect its disk or restore its folder access, then retry verified setup. No empty library was selected.")?!=data {
+        return Err("The kept library path changed. Choose its real folder explicitly during verified setup; no empty library was selected.".into());
+    }
+    Ok(Some(data))
+}
 fn registered_or_pending(state: &Path, executable: &Path) -> Result<(Registration, Option<Receipt>)> {
     let receipt = read_receipt(state)?.filter(|r|r.status != "complete");
     if let Some(receipt) = receipt {
