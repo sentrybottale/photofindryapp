@@ -9,6 +9,112 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
+test('stable native entry authenticates the selected CLI and offers only verified retained recovery', { skip: process.platform !== 'darwin' }, () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pf-installed-entry-')));
+  try {
+    fs.chmodSync(root, 0o700);
+    const original = fs.readFileSync(path.join(__dirname, '../scripts/companion-launcher.swift'), 'utf8');
+    const driver = String.raw`
+let root=URL(fileURLWithPath:CommandLine.arguments[1]),manager=FileManager.default
+let app=root.appendingPathComponent("entry/PhotoFindry.app")
+func directory(_ url:URL) {try! manager.createDirectory(at:url,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])}
+func write(_ value:Data,_ path:URL) {directory(path.deletingLastPathComponent());try! value.write(to:path);try! manager.setAttributes([.posixPermissions:0o600],ofItemAtPath:path.path)}
+func json(_ value:[String:Any])->Data {try! JSONSerialization.data(withJSONObject:value,options:[.sortedKeys])}
+let key=Curve25519.Signing.PrivateKey(),pin=key.publicKey.rawRepresentation.base64EncodedString()
+let config=app.appendingPathComponent("Contents/Resources/installed-entry.json")
+write(json(["schema":1,"installRoot":root.path]),config)
+assert(installedEntryRoot(app)==root)
+assert(localLauncherApplication(app.appendingPathComponent("Contents/MacOS/CompanionLauncher").path)?.path==app.path)
+func release(_ build:UInt64)->URL {
+ let version=root.appendingPathComponent("versions/\(build)"),exe=version.appendingPathComponent("package/bin/photofindry")
+ let bytes=Data("#!/bin/sh\nexit 0\n".utf8)
+ write(bytes,exe);try! manager.setAttributes([.posixPermissions:0o700],ofItemAtPath:exe.path)
+ var rows=[String]()
+ for name in ["photofindry","CompanionReleaseVerify","CompanionLauncher"] {
+  let file=version.appendingPathComponent("package/bin/"+name);write(bytes,file);try! manager.setAttributes([.posixPermissions:0o700],ofItemAtPath:file.path)
+  rows.append(installedEntryDigest(bytes)+"  bin/"+name)
+ }
+ let inventory=Data((rows.joined(separator:"\n")+"\n").utf8)
+ write(inventory,version.appendingPathComponent("package/SHA256SUMS.txt"))
+ let payload=json(["schema":1,"kind":"photofindry-cli-release","build":build,"platform":"macos-arm64","dataContract":"photofindry-library-compatible-v1","inventorySHA256":installedEntryDigest(inventory)])
+ let signature=try! key.signature(for:payload)
+ write(json(["payload":payload.base64EncodedString(),"signature":signature.base64EncodedString()]),version.appendingPathComponent("release.json"))
+ return exe
+}
+let current=release(120),previous=release(119)
+let state=root.appendingPathComponent("installation.json")
+write(json(["schema":1,"current":120,"previous":119]),state)
+assert(installedEntryExecutable(app,recovering:false,publisherPin:pin)==current)
+assert(installedEntryExecutable(app,recovering:true,publisherPin:pin)==current)
+assert(installedEntryRecoveryAvailable(app,attempted:false,publisherPin:pin))
+assert(!installedEntryRecoveryAvailable(app,attempted:true,publisherPin:pin))
+let packaged=root.appendingPathComponent("versions/120/package/bin/CompanionLauncher.app")
+directory(packaged)
+assert(installedEntryRepairTarget(packaged,publisherPin:pin)?.executable==current)
+assert(installedEntryRepairTarget(packaged,publisherPin:pin)?.root==root)
+assert(installedEntryRepairTarget(root.appendingPathComponent("download/bin/CompanionLauncher.app"),publisherPin:pin)==nil)
+assert(installedEntryExecutable(app,recovering:false)==nil,"A disposable key never matches the publisher pin")
+write(Data("changed".utf8),current)
+assert(installedEntryExecutable(app,recovering:false,publisherPin:pin)==nil)
+assert(installedEntryRepairTarget(packaged,publisherPin:pin)==nil)
+assert(installedEntryExecutable(app,recovering:true,publisherPin:pin)==previous)
+try! manager.removeItem(at:current)
+assert(installedEntryExecutable(app,recovering:true,publisherPin:pin)==previous)
+try! manager.createSymbolicLink(at:current,withDestinationURL:previous)
+assert(installedEntryExecutable(app,recovering:false,publisherPin:pin)==nil)
+try! manager.removeItem(at:current);_ = release(120)
+let sums=root.appendingPathComponent("versions/120/package/SHA256SUMS.txt")
+write(Data((String(repeating:"0",count:64)+"  bin/photofindry\n").utf8),sums)
+assert(installedEntryExecutable(app,recovering:false,publisherPin:pin)==nil)
+_ = release(120)
+write(json(["payload":Data("{}".utf8).base64EncodedString(),"signature":Data(repeating:0,count:64).base64EncodedString()]),root.appendingPathComponent("versions/120/release.json"))
+assert(installedEntryExecutable(app,recovering:false,publisherPin:pin)==nil)
+// A separately authenticated bootstrap controller remains available even when
+// current software and its metadata are missing. It is not selected for Open.
+let resources=app.appendingPathComponent("Contents/Resources"),bootstrap=resources.appendingPathComponent("bootstrap")
+_ = release(120)
+for name in ["photofindry","CompanionReleaseVerify","CompanionLauncher"] {
+ let data=try! Data(contentsOf:root.appendingPathComponent("versions/120/package/bin/"+name))
+ let file=bootstrap.appendingPathComponent(name);write(data,file);try! manager.setAttributes([.posixPermissions:0o700],ofItemAtPath:file.path)
+}
+for (source,target) in [("release.json","bootstrap-release.json"),("package/SHA256SUMS.txt","bootstrap-SHA256SUMS.txt")] {
+ write(try! Data(contentsOf:root.appendingPathComponent("versions/120/"+source)),resources.appendingPathComponent(target))
+}
+try! manager.removeItem(at:root.appendingPathComponent("versions/120"))
+assert(installedEntryExecutable(app,recovering:false,publisherPin:pin)==nil)
+assert(installedEntryExecutable(app,recovering:true,publisherPin:pin)?.path==bootstrap.appendingPathComponent("photofindry").path)
+try! manager.removeItem(at:state)
+assert(installedEntryExecutable(app,recovering:true,publisherPin:pin)?.path==bootstrap.appendingPathComponent("photofindry").path)
+assert(!installedEntryRecoveryAvailable(app,attempted:false,publisherPin:pin),"A retained controller alone cannot recover a cancelled initial installation")
+let journal=root.appendingPathComponent("transaction.json")
+write(json(["schema":1,"committed":false,"after":["schema":1,"current":120,"previous":119]]),journal)
+assert(installedEntryRecoveryAvailable(app,attempted:false,publisherPin:pin))
+write(json(["schema":1,"committed":true,"after":["schema":1,"current":120,"previous":119]]),journal)
+assert(!installedEntryRecoveryAvailable(app,attempted:false,publisherPin:pin))
+write(Data("invalid transaction".utf8),journal)
+assert(!installedEntryRecoveryAvailable(app,attempted:false,publisherPin:pin))
+try! manager.removeItem(at:journal)
+write(Data("wrong verifier".utf8),bootstrap.appendingPathComponent("CompanionReleaseVerify"))
+assert(installedEntryRecoveryExecutable(app,publisherPin:pin)==nil)
+write(json(["schema":1,"installRoot":root.appendingPathComponent("other").path]),config)
+assert(installedEntryRoot(app)==nil)
+write(json(["schema":1,"installRoot":root.path,"executable":"/bin/sh"]),config)
+assert(installedEntryRoot(app)==nil)
+write(json(["schema":1,"installRoot":root.path]),config)
+try! manager.setAttributes([.posixPermissions:0o755],ofItemAtPath:root.path)
+assert(installedEntryRoot(app)==nil)
+print("Stable entry signed CLI and recovery checks passed; no executable was launched.")
+`;
+    const source = path.join(root, 'main.swift'), binary = path.join(root, 'entry-test');
+    fs.writeFileSync(source, original.slice(0, original.indexOf('// Native launcher entry point.')) + driver);
+    const compiled = spawnSync('/usr/bin/xcrun', ['swiftc', '-framework', 'AppKit', '-framework', 'CoreServices', source, '-o', binary], { encoding: 'utf8', timeout: 30000 });
+    assert.equal(compiled.status, 0, compiled.stderr);
+    const result = spawnSync(binary, [root], { encoding: 'utf8', timeout: 5000 });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Stable entry signed CLI and recovery checks passed/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('native archive and private-pipe parsers accept navigation only', { skip: process.platform !== 'darwin' }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pf-archive-parser-'));
   try {
