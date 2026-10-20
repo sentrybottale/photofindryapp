@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "5435df5500f177784bb5b51374cfc79414da1a5f39afb14129b05426f9f8efe6",
+  "exportManifestSHA256": "bc35f3081ac7ffe8ae38f68fca5dd1ba9f62ee13b05e22f935dfcbf2bb2dfac7",
   "files": [
     {
       "bytes": 1182,
@@ -207,9 +207,9 @@
       "sha256": "d735e90b956ebbb895cf8cd8bd1c3bbf6e0cfb1fe9715a3022dcc39b621cc365"
     },
     {
-      "bytes": 82073,
+      "bytes": 82125,
       "path": "engine/companion/src/lifecycle.rs",
-      "sha256": "910034ec872ee1f673cc5c5a48e596dec998c62007c9507dfc6eec016f5edb98"
+      "sha256": "9af7c54d59ef25760b4854e60bf73665bcb1f2ea901c75a348025ccba0f6fd93"
     },
     {
       "bytes": 112344,
@@ -359,7 +359,7 @@
     {
       "bytes": 1972,
       "path": "scripts/install-companion.sh",
-      "sha256": "1dce749cf214b5cdb7286607efc5d5c5416f6e2d04a9c2b338cba3ab9cbba9eb"
+      "sha256": "a8280952ab75262de6c3be5613b3903f385248fe2d136fa68e59c8b4cc4b2467"
     },
     {
       "bytes": 8058,
@@ -694,6 +694,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "f18702a1d1614896c3ada57bc6f370c8e857eb17",
+  "privateBuildRevision": "70a4a190f0221df9e27c4e7e56e8d801f5df1365",
   "schema": 1
 }

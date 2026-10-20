@@ -1623,7 +1623,7 @@ pub async fn command(args: &[String]) -> Result<()> {
     }
     if operation == "open-update" {
         refresh_on_open_at(&root).await?;
-        println!("{}",status(&root)?);
+        println!("Signed update check finished. Use lifecycle status for local details.");
         return Ok(());
     }
     let _owner = launch::private_directory(&root, false)?;
