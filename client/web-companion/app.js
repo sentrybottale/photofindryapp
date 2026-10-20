@@ -526,6 +526,9 @@
     pollState();
     $('search').focus();
     await loadLibrary(0);
+    void api('/api/lifecycle/status', {}).then(value => {
+      if (state.token && value?.openUpdate?.message) showMessage('global-notice', value.openUpdate.message);
+    }).catch(() => {});
     if (pendingLaunchArchive) { await refreshState(); await applyLaunchArchive(state.nativeState); }
   }
 

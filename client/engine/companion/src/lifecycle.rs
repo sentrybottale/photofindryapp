@@ -727,6 +727,7 @@ async fn download(url: &str, path: &Path, maximum: u64) -> Result<()> {
     {
         return Err("Unsupported update destination".into());
     }
+    let feed=url==release::FEED;
     let mut child = tokio::process::Command::new("/usr/bin/curl")
         .args([
             "--fail",
@@ -740,9 +741,9 @@ async fn download(url: &str, path: &Path, maximum: u64) -> Result<()> {
             "--max-redirs",
             "5",
             "--connect-timeout",
-            "15",
+            if feed {"4"} else {"15"},
             "--max-time",
-            "600",
+            if feed {"8"} else {"600"},
             url,
         ])
         .stdin(Stdio::null())
@@ -793,7 +794,7 @@ async fn download(url: &str, path: &Path, maximum: u64) -> Result<()> {
         }
         Ok::<(), String>(())
     };
-    match tokio::time::timeout(Duration::from_secs(620), transfer).await {
+    match tokio::time::timeout(if feed {Duration::from_secs(12)} else {Duration::from_secs(620)}, transfer).await {
         Ok(Ok(())) => Ok(()),
         result => {
             let _ = child.kill().await;
@@ -900,8 +901,19 @@ async fn update(root: &Path, local: Option<&Path>, open: bool) -> Result<()> {
     } else {
         fetch(root, &helper).await?
     };
+    update_verified(root,cfg,next,bytes,local,open).await
+}
+async fn update_verified(root:&Path,cfg:Installation,next:release::Release,bytes:Vec<u8>,local:Option<&Path>,open:bool)->Result<()> {
     if next.build <= cfg.current || next.build < cfg.highest {
         return Err("No newer signed release is available. Current software is unchanged.".into());
+    }
+    let retained=root.join("versions").join(next.build.to_string());
+    if retained.exists() {
+        note(root,"verifying","Verifying retained signed companion software before reopening the library.");
+        let installed=release::read(&retained.join("release.json"),131072)?;
+        existing_release_identity(next.build,next.build,&installed,&bytes)?;
+        checked_release(root,next.build,&verifier(&self_executable()?)?)?;
+        return switch(root,cfg,&next,false,open).await;
     }
     let stage = Stage(stage_version(root)?);
     if let Some(path) = local {
@@ -919,6 +931,81 @@ async fn update(root: &Path, local: Option<&Path>, open: bool) -> Result<()> {
     }
     commit_version(root, &stage.0, &next, &bytes)?;
     switch(root, cfg, &next, false, open).await
+}
+/// An explicit Open attempts an authenticated update before choosing the local
+/// UI. Offline or busy work must never strand a usable verified installation.
+/// Background-check preferences affect only the six-hour unattended check.
+pub async fn refresh_on_open(directory:&Path)->Result<()> {
+    if directory!=launch::default_directory()? {return Ok(())}
+    let root=default_root()?;
+    refresh_on_open_at(&root).await
+}
+pub async fn wait_for_open_maintenance(directory:&Path)->Result<()> {
+    if directory!=launch::default_directory()? {return Ok(())}
+    let root=default_root()?;
+    if !root.exists() {return Ok(())}
+    wait_for_open_maintenance_at(&root).await
+}
+async fn wait_for_open_maintenance_at(root:&Path)->Result<()> {
+    let _owner=launch::private_directory(root,false)?;
+    let deadline=tokio::time::Instant::now()+Duration::from_secs(420);
+    loop {
+        if let Some(lock)=launch::try_lock(root,"operation.lock")? {drop(lock);return Ok(())}
+        if tokio::time::Instant::now()>=deadline {return Err("The companion update is still finishing. Your library is kept; open PhotoFindry again after it completes.".into())}
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+async fn refresh_on_open_at(root:&Path)->Result<()> {
+    if !root.join(STATE).exists() {return Ok(())}
+    let _owner=launch::private_directory(root,false)?;
+    let deadline=tokio::time::Instant::now()+Duration::from_secs(420);
+    let _lock=loop {
+        if let Some(lock)=launch::try_lock(root,"operation.lock")? {break lock}
+        if tokio::time::Instant::now()>=deadline {
+            return Err("Another companion update is still running. Wait for it to finish, then open PhotoFindry again.".into());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    recover_locked_before_open(root).await?;
+    let cfg=read_state(root)?;
+    let helper=verifier(&self_executable()?)?;
+    let fetched=fetch(root,&helper).await;
+    let (next,bytes)=match fetched {
+        Ok(value)=>value,
+        Err(error)=>{open_update_warning(root,&format!("Update check could not finish: {error} The installed verified companion is opening."));return Ok(())}
+    };
+    if next.build<cfg.highest {
+        open_update_warning(root,"The update feed offered an older build. The installed verified companion is opening.");
+        return Ok(());
+    }
+    if next.build<=cfg.current {clear(root,"open-update.json")?;return Ok(())}
+    let _=save(root,"available.json",&json!({"release":&next,"envelope":serde_json::from_slice::<Value>(&bytes).map_err(|_|"Invalid verified envelope")?,"checkedAt":now()}));
+    match launch::registered_work_busy(&cfg.launch_state,&cfg.data).await {
+        Ok(true)=>{open_update_warning(root,"A newer signed companion is ready, but current work is active. Pause it in Jobs or open again after it finishes; this verified version is opening now.");return Ok(())},
+        Err(error)=>{open_update_warning(root,&format!("Update readiness could not be checked: {error} The installed verified companion is opening."));return Ok(())},
+        Ok(false)=>{},
+    }
+    note(root,"verifying","A newer signed companion is available. Verifying it before opening the library.");
+    match update_verified(root,cfg,next,bytes,None,false).await {
+        Ok(())=>{clear(root,"open-update.json")?;Ok(())},
+        Err(error)=>{
+            if root.join(JOURNAL).exists() {return Err(error)}
+            let current=read_state(root)?;
+            checked_release(root,current.current,&helper)?;
+            open_update_warning(root,&format!("Signed update did not finish: {error} The verified companion is opening with saved work kept."));
+            Ok(())
+        }
+    }
+}
+fn open_update_warning(root:&Path,message:&str) {
+    let bounded:String=message.chars().filter(|c|!c.is_control()).take(512).collect();
+    let _=save(root,"open-update.json",&json!({"message":bounded,"checkedAt":now()}));
+}
+async fn recover_locked_before_open(root:&Path)->Result<()> {
+    // The ordinary Open path already calls recover() after this lock is
+    // released. Do not recursively acquire operation.lock here.
+    if root.join(JOURNAL).exists() {return Err("Companion recovery is pending. Choose Recover and open; your library is kept.".into())}
+    Ok(())
 }
 pub fn status(root: &Path) -> Result<Value> {
     let cfg = read_state(root)?;
@@ -939,8 +1026,10 @@ pub fn status(root: &Path) -> Result<Value> {
     let available = release::read(&root.join("available.json"), 131072)
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok());
+    let open_update=release::read(&root.join("open-update.json"),4096)
+        .ok().and_then(|b|serde_json::from_slice::<Value>(&b).ok());
     Ok(
-        json!({"installed":true,"version":release.version,"build":cfg.current,"previousBuild":cfg.previous,"autostart":cfg.autostart,"automaticUpdates":cfg.automatic_updates,"status":detail,"available":available.as_ref().map(|v|&v["release"]),"recoveryPending":root.join(JOURNAL).exists(),"appCleanupPending":cfg.retire.is_some()}),
+        json!({"installed":true,"version":release.version,"build":cfg.current,"previousBuild":cfg.previous,"autostart":cfg.autostart,"automaticUpdates":cfg.automatic_updates,"status":detail,"available":available.as_ref().map(|v|&v["release"]),"openUpdate":open_update,"recoveryPending":root.join(JOURNAL).exists(),"appCleanupPending":cfg.retire.is_some()}),
     )
 }
 pub async fn start_registered(root: &Path) -> Result<()> {
@@ -1387,7 +1476,7 @@ pub fn finish_uninstall(exe: &Path) -> Result<()> {
 }
 pub async fn command(args: &[String]) -> Result<()> {
     let operation = args.get(1).map(String::as_str).ok_or(
-        "Choose lifecycle install, status, check, update, rollback, recover or background",
+        "Choose lifecycle install, status, check, open-update, update, rollback, recover or background",
     )?;
     let mut root = None;
     let mut data = None;
@@ -1532,6 +1621,11 @@ pub async fn command(args: &[String]) -> Result<()> {
         );
         return Ok(());
     }
+    if operation == "open-update" {
+        refresh_on_open_at(&root).await?;
+        println!("{}",status(&root)?);
+        return Ok(());
+    }
     let _owner = launch::private_directory(&root, false)?;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     let _scheduled = loop {
@@ -1611,6 +1705,18 @@ pub async fn command(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn a_second_open_waits_for_the_owned_update_instead_of_failing_during_its_switch() {
+        let root=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-open-maintenance-{}-{}",std::process::id(),now()));
+        launch::private_directory(&root,true).unwrap();
+        let held=launch::try_lock(&root,"operation.lock").unwrap().unwrap();
+        let waiting=tokio::spawn({let root=root.clone();async move{wait_for_open_maintenance_at(&root).await}});
+        tokio::time::sleep(Duration::from_millis(220)).await;
+        assert!(!waiting.is_finished());
+        drop(held);
+        tokio::time::timeout(Duration::from_secs(3),waiting).await.unwrap().unwrap().unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[tokio::test]
     async fn readiness_reports_a_failed_background_launch_without_waiting_for_the_full_deadline() {
         let base=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-health-{}-{}",std::process::id(),now()));

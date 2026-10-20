@@ -55,10 +55,14 @@ Its Ed25519 envelope authenticates release/build/platform/data contract, archive
 URL/size/hash and the complete package inventory. The installed verifier contains
 the same trusted publisher pin; the server cannot supply a replacement key.
 
-Settings → Background companion controls login startup and automatic checks.
-Checks do not silently install. Choose Install signed update when ready. Failed
-or interrupted switches retain verified prior software and never automatically
-restore an older library. The local opening helper offers Recover and open.
+Settings → Background companion controls login startup and background checks.
+Background checks do not install by themselves. Every explicit Open checks the
+fixed authenticated feed and installs a newer signed CLI build when saved work
+can safely drain. Offline checks or active work keep the verified current
+build open with a visible deferred-update reason. You can also choose Install
+signed update. Failed or interrupted switches retain verified prior software
+and never automatically restore an older library. The local opening helper
+offers Recover and open.
 
 The app bundle uses ad-hoc macOS signatures. These are distinct from the
 maintainer's Ed25519 download/update signatures and do not provide Apple publisher

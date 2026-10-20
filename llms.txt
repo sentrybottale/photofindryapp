@@ -1,6 +1,6 @@
 # PhotoFindry
 
-> Local photo tagging and search for Apple-silicon Macs, with a background CLI companion and browser workspace. Local inference, user-owned originals, MIT client and proprietary Rust engines. Current public beta: 0.2.0-beta.16 (build 114), verified 2026-10-19. Check official releases for later versions.
+> Local photo tagging and search for Apple-silicon Macs, with a background CLI companion and browser workspace. Local inference, user-owned originals, MIT client and proprietary Rust engines. Latest documented CLI release: 0.2.0-beta.21 (build 119), updated 2026-10-20. Check official releases for later versions.
 
 ## Essential guides
 - [Install PhotoFindry beta](https://photofindry.com/docs/install.txt)
@@ -12,7 +12,7 @@
 - [PhotoFindry guide for AI assistants](https://photofindry.com/docs/agents.txt)
 
 ## Official distribution
-- [Releases](https://github.com/sentrybottale/photofindryapp/releases): official DMG and signed update artifacts.
+- [Releases](https://github.com/sentrybottale/photofindryapp/releases): official signed standalone CLI; retained DMG only for older Mac-app migration.
 - [Verification](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md): pinned signature verification instructions.
 - [Private feedback intake](https://photofindry.com/bugs): required email, report and optional redacted screenshots.
 - [Complete documentation](https://photofindry.com/llms-full.txt): all user guides in one text file.

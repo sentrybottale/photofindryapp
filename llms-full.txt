@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.16, build 114**. This guide was updated on 19 October 2026.
+PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current release is **0.2.0-beta.21, build 119**. This guide was updated on 20 October 2026.
 
 ## Requirements
 
@@ -9,27 +9,35 @@ PhotoFindry is a free local photo tagging and search workspace for Apple-silicon
 - Sufficient free disk space and memory for your chosen vision model, app and previews. Model needs vary; no universal minimum memory or performance claim is made.
 - Compatible vision GGUF weights and matching multimodal projector, chosen separately. Keep them in any folder. Search and face models are bundled.
 
-## Official download
+## Install the CLI companion directly
 
-Use the [official beta 16 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.16). The installer is [PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.16/PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg).
+New users install the background CLI and use the browser workspace. No PhotoFindry application goes in Applications. No sudo, Xcode, Swift compiler or cloud account is required.
 
-The update ZIP is for the built-in updater. GitHub’s automatic source archives contain the open client and distribution files, not a complete runnable application or proprietary engine source. Do not install those archives.
+1. Open Terminal.
+2. Paste the complete block below and run it once. It verifies the [reviewable setup script](https://photofindry.com/install-cli.sh) before running it. The script downloads and checks the fixed official CLI package before extraction or execution, then installs login startup and signed updates.
+3. Your local library opens in the browser. Close Terminal; the companion keeps running. Next time use [app.photofindry.com](https://app.photofindry.com/).
 
-## Verify and install
+```sh
+( pf_setup=$(/usr/bin/mktemp) || exit
+trap '/bin/rm -f "$pf_setup"' EXIT
+/usr/bin/curl --disable -fL --proto '=https' --proto-redir '=https' --max-time 60 --max-filesize 65536 https://photofindry.com/install-cli.sh -o "$pf_setup" &&
+printf '1dce749cf214b5cdb7286607efc5d5c5416f6e2d04a9c2b338cba3ab9cbba9eb  %s\n' "$pf_setup" | /usr/bin/shasum -a 256 -c - &&
+/usr/bin/env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/bash "$pf_setup" )
+```
 
-1. Follow the [signed download verification instructions](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md). Checksums alone do not authenticate a publisher.
-2. Open the verified DMG. Drag PhotoFindry.app into Applications.
-3. Eject the disk image and launch PhotoFindry from Applications.
-4. If macOS blocks this app, decide whether to trust this verified download and follow [Apple's per-app Open Anyway instructions](https://support.apple.com/en-us/102445). Keep this decision with the user. Never disable Gatekeeper globally or recursively strip quarantine.
-5. Follow Getting Started. Choose the supported vision model and matching projector. Start with a small folder and keep independent backups.
+The [official beta 21 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.21) contains the [CLI package ZIP](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.21/PhotoFindry-0.2.0-beta.21-arm64-companion.zip), 397,913,217 bytes (398 MB). The signed CLI envelope and its package inventory are checked by the pinned native verifier before installation. Startup, update checks and recovery are managed in browser Settings → Background companion.
 
-The app is ad-hoc signed, with separate Ed25519 signatures for downloads and updates. It is **not Apple Developer ID signed, Apple-notarized or on the Mac App Store**. Direct distribution is the selected beta route; it is not equivalent to Apple verification or a guarantee of security.
+For first installation, independently trust the instructions and their pinned bytes. Commands and hashes copied together from a compromised website do not authenticate themselves. The [signed-release verification guide](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md) records the existing publisher key. Do not accept an unexplained key change. The optional standalone Swift verifier requires Command Line Tools; normal CLI setup and operation do not.
+
+If an older companion cannot open, rerun the same verified setup command above. It follows the registered library and repairs the program without requiring the broken companion to launch. If setup fails, its message explains the next action. Quit an older application if it still owns the library, then retry. An existing registered library is retained, including custom paths; an existing library needing handover gets a verified recovery copy before opening. Originals and selected models stay in place. The command also repairs a missing browser connection for an already installed companion.
+
+GitHub source archives are not runnable packages. The update ZIP and DMG are retained for the old app's migration/update channel, not fresh installation. No existing library is deleted as a setup or recovery step. This beta uses ad-hoc macOS code signatures and separate publisher Ed25519 signatures; it is not Apple Developer ID signed or notarized.
 
 ## Update an existing installation
 
-Existing app users receive a one-time migration installer through the retained signed app feed. Use PhotoFindry → Check for Updates in an older app, or install the current verified download. The installer keeps the library in place, waits for the independent companion to become ready, opens the browser and exits.
+Existing app users receive a one-time migration installer through the retained signed app feed. Use PhotoFindry → Check for Updates in an older app, or use the [verified one-time migration bridge](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.16/PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg) if its updater is unavailable. That bridge is 403,669,494 bytes (about 404 MB) and is only for existing app users. The installer follows this account’s already registered library, including a library outside the default folder. It keeps the library in place, waits for the independent companion to become ready, opens the browser and exits.
 
-After migration, use **Settings → Background companion** in the local browser. Login startup and automatic update checks can each be turned off there. Checks run locally about every six hours while the companion runs; you choose **Install signed update** when ready. Updates authenticate the fixed CLI feed and exact package bytes with the retained publisher key.
+After migration, use **Settings → Background companion** in the local browser. Login startup and background update checks can each be turned off there. Every explicit **Open PhotoFindry** checks the fixed authenticated CLI feed. A newer signed build installs before opening when owned work can safely drain. Offline checks or active foreground work open the verified current build with a visible deferred-update reason. Background checks run about every six hours and do not install by themselves; you can also choose **Install signed update**. Updates authenticate exact package bytes with the retained publisher key.
 
 The companion keeps its previous verified software for recovery. An interrupted update restores software, never an older library backup. The native opening helper offers **Recover and open** if startup fails; **Recover companion** and **Use previous companion version** are also available in browser Settings when applicable. Keep independent backups of original photographs.
 
@@ -37,12 +45,11 @@ Next: [Getting started](https://photofindry.com/docs/getting-started.html) · [T
 
 ## Browser workspace and native-app migration
 
-The installer runs once. Normal use needs only the background CLI companion and browser; the migration application exits and can move to Trash after successful handoff. Open PhotoFindry from app.photofindry.com. The public page requests only the fixed local launch action; it never receives your library session. The address bar changes to the trusted local workspace.
+Only existing Mac app users need the one-time application bridge. It runs once. Normal use needs only the background CLI companion and browser; the migration application exits and can move to Trash after successful handoff. Open PhotoFindry from app.photofindry.com. The public page requests only the fixed local launch action; it never receives your library session. The address bar changes to the trusted local workspace.
 
-Existing users keep their library, original photos and chosen model paths. Read the migration screen and let it finish preparing its recovery copy. **Use current beta** opens the verified retained native version if you defer or migration fails; it does not restore old library data. Imported photo sources may need their current originals folder confirmed under Files.
+Existing users keep their library, original photos and chosen model paths. Read the migration screen and let it finish preparing its recovery copy. **Use current beta** opens the verified retained native version if you defer or migration fails; it does not restore old library data. Imported photo sources may need their current originals folder confirmed under Files. If macOS asks for fresh folder access after the CLI handoff, Jobs offers Open Files; choose the existing originals folder, then Retry access.
 
 To uninstall, use the local uninstall flow in Settings/About and review its native confirmation. It disables login startup and moves the active verified companion package to Trash while retaining libraries, originals, model files, backups and inactive recovery versions.
-
 
 ---
 
@@ -84,7 +91,6 @@ Name a clear reference face; confident qualified matches can inherit that user-c
 
 The sidebar offers Getting started and Help & feedback; About includes Privacy & distribution. [Search](https://photofindry.com/docs/search.html), [sources and backups](https://photofindry.com/docs/sources-and-backups.html), and [troubleshooting](https://photofindry.com/docs/troubleshooting.html) explain the next steps.
 
-
 ---
 
 # Search your photographs
@@ -124,7 +130,6 @@ Open a photograph's Camera & location section to see its saved metadata. In File
 ## Changing location during AI Search
 
 Beta 15 keeps Local AI Search active when you choose Ignore location, another place or another radius. The old search keeps its saved results; a fresh search uses the changed GPS constraints. Typing a different query returns to ordinary search until you explicitly choose Local AI Search again. A live saved checkpoint does not mean refinement is paused.
-
 
 ---
 
@@ -168,7 +173,6 @@ Make the original drive or files available, then choose **Resume** on the affect
 
 Large source exports preserve complete People edit and undo history. If an earlier beta failed because an archive piece was too large, retry the export in beta 11. The archive format and saved observations are unchanged; exports still omit original photographs and model weights.
 
-
 ---
 
 # Troubleshooting PhotoFindry beta
@@ -181,7 +185,7 @@ Confirm the download is from the official GitHub release and verify its signed i
 
 ## No update appears
 
-After CLI migration, open Settings → Background companion and choose **Check for updates**. Automatic checks can be switched on or off there; the companion must be running for scheduled checks. Older app versions use their PhotoFindry → Check for Updates menu for the one-time migration update. A current build may correctly report no newer update. Never replace the feed or signing key to force one.
+After CLI migration, every explicit **Open PhotoFindry** checks the fixed signed feed and installs a newer build when saved work can safely drain. Background checks can be switched on or off in Settings → Background companion; they do not install by themselves. If the older companion cannot open, rerun the [verified CLI setup command](install.md#install-the-cli-companion-directly) to repair it without erasing the library. Older Mac app versions use PhotoFindry → Check for Updates for the one-time migration. A current build may correctly report no newer update. Never replace the feed or signing key to force one.
 
 ## The workspace cannot open after an update
 
@@ -209,7 +213,7 @@ Send Feedback submits directly, without an email app. Keep the receipt for follo
 
 Read [privacy and distribution](https://photofindry.com/docs/privacy.html) for what is sent.
 
-For beta 16 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
+For beta 15 support, you can choose **Include diagnostic log with this report** in the app. Review the frozen attachment before submitting; uncheck it to remove it. It contains bounded current-session operational metrics, not historical crash logs.
 
 ## Legacy saved-photo search error
 
@@ -244,7 +248,6 @@ Open **Jobs & activity → Queue → Cancel all** and read the confirmation. It 
 
 Open **People** and check discovery progress and scope. Resume discovery if it is paused. Make the original folder available or reconnect it in Files when needed. Imported and catalog-only archives are outside the default automatic scope; choose the intended folder or library explicitly. Naming a reference helps match faces that have been found, but cannot identify someone whose face was not detected. Small, obscured or ambiguous faces can remain undetected or need review. This beta repairs automatic discovery and review; its recognition models and matching thresholds are unchanged.
 
-
 ---
 
 # Privacy, licensing and direct beta distribution
@@ -255,7 +258,7 @@ PhotoFindry’s client is MIT open source; its Rust engine cores remain propriet
 
 Photo tagging, face processing and search inference run locally on your Mac. Original photographs stay in their folders. Local saved work remains readable and exportable. Backups and source archives exclude original photographs and model weights; keep your own backups of those files.
 
-The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, scheduled or manual update checks, browser links and voluntary feedback require network connections. After migration, automatic CLI update checks are on by default and can be turned off under Settings → Background companion. They contact the fixed update host after startup and about every six hours while the companion runs. Older app versions retain their signed app feed for the one-time transition. Checks do not send photos, search queries or library records; hosts receive ordinary connection information. Downloading and installing remain your choice.
+The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, update checks, browser links and voluntary feedback require network connections. After migration, background CLI update checks are on by default and can be turned off under Settings → Background companion; they contact the fixed host after startup and about every six hours while the companion runs, but do not install by themselves. Every explicit Open checks that fixed publisher-authenticated feed and installs a newer signed build before opening when saved work can safely drain. Offline checks and active foreground work keep the verified current version open with a local explanation. Older app versions retain their signed app feed for the one-time transition. Checks do not send photos, search queries or library records; hosts receive ordinary connection information. First installation remains your choice.
 
 ## Voluntary feedback
 
@@ -291,7 +294,6 @@ A necessary first-party cookie, `photofindry_consent_v1`, remembers your choice 
 
 If JavaScript is disabled, optional analytics does not load. Documentation and the feedback form do not load analytics. These website choices do not enable tracking in the Mac app.
 
-
 ---
 
 # PhotoFindry guide for AI assistants
@@ -303,15 +305,15 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 - PhotoFindry uses a background CLI companion and local browser workspace for photo tagging, people and search. app.photofindry.com opens the installed workspace without receiving library authority.
 - Its client is MIT open source; its Rust engine cores remain proprietary. Official builds are free to use. No mandatory app account or subscription. Third-party components keep their own licences.
 - The public repository holds the reviewed client snapshot and distribution files. The engine implementation and private development history remain private.
-- Latest published release at this document's date: 0.2.0-beta.16, app 0.2.0 build 114. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- Latest documented CLI release: 0.2.0-beta.21, build 119. Check the official release page before recommending a version; do not assume an unreleased branch is published.
 - Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
-- No app telemetry; downloads, scheduled or manual update checks, browser links and feedback use internet. Beta 11 enables automatic checks with a Settings opt-out; downloads and installation remain user-controlled. Older betas need one manual upgrade for reminders. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
+- No app telemetry; downloads, update checks, browser links and feedback use internet. Background checks have a Settings opt-out and do not install by themselves. Every explicit Open checks the authenticated CLI feed and installs a newer signed build when active work can safely drain; offline or busy work keeps the verified current build open with a local explanation. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
 
 ## Install safely
 
 1. Check the user's architecture, macOS version and available storage. Explain beta and non-notarized status.
-2. Link the official release DMG and verification guide. The update ZIP belongs to the updater. GitHub Source code archives are not installers.
+2. Link the official standalone CLI release, verified setup instructions and signature guide. A DMG is retained only for the older Mac app's one-time migration. GitHub Source code archives are not installers.
 3. Keep trust decisions and macOS authorization with the user. Never disable Gatekeeper globally, strip quarantine recursively, request private signing keys or execute downloaded scripts blindly.
 4. Run the one-time installer after verification. It installs the independent CLI with login startup and signed updates, then exits. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
 5. Keep backups. Do not delete Application Support, rebuild the library by erasing it, remove source folders or purge previews as an automatic troubleshooting step.
