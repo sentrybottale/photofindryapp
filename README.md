@@ -12,13 +12,14 @@ launcher, generic Rust companion bridge and selected macOS interaction helpers.
 The Rust engine cores remain proprietary, supplied in official builds. Rust is a
 language, not the licensing boundary. Official builds remain free to use.
 
-## Current beta: 0.2.0-beta.20
+## Current beta: 0.2.0-beta.21
 
-[Download the CLI companion](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.20)
+[Download the CLI companion](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.21)
 · [Install and migrate](INSTALLATION.md) · [Qualification](QUALIFICATION.md)
 
-Build 118 installs the CLI directly through the [short setup command](https://app.photofindry.com/#installation). The old application download is only a migration bridge for existing native users. Login startup, signed CLI updates and recovery are controlled in the local browser.
-This hotfix keeps slow library startup diagnosable and gives Recovery a signed previous-software fallback. Saved libraries, originals, model paths and jobs stay in place. Libraries, originals, model paths and saved work stay in place. Verify the signed release inventory before installation.
+Build 119 installs the CLI directly through the [verified setup command](https://app.photofindry.com/#installation). Run that command again if an older companion cannot open; it repairs the same library without deleting it. The old application download is only a migration bridge for existing native users. Every explicit Open checks the authenticated CLI feed and installs a newer signed build when active work can safely drain. An offline check or active foreground job opens the verified current build with a visible reason. Login startup, background update checks and recovery remain in the local browser.
+
+This hotfix repairs takeover from older Open-only companions and stale macOS link handlers. It keeps saved libraries, originals, model paths and jobs in place. Verify the signed release inventory before installation.
 
 The client directory is the exact reviewed snapshot associated with the release
 candidate. Its 138 files plus CLIENT-SOURCE.json match the signed source archive.

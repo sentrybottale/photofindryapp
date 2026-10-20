@@ -8,7 +8,7 @@ Confirm the download is from the official GitHub release and verify its signed i
 
 ## No update appears
 
-After CLI migration, open Settings → Background companion and choose **Check for updates**. Automatic checks can be switched on or off there; the companion must be running for scheduled checks. Older app versions use their PhotoFindry → Check for Updates menu for the one-time migration update. A current build may correctly report no newer update. Never replace the feed or signing key to force one.
+After CLI migration, every explicit **Open PhotoFindry** checks the fixed signed feed and installs a newer build when saved work can safely drain. Background checks can be switched on or off in Settings → Background companion; they do not install by themselves. If the older companion cannot open, rerun the [verified CLI setup command](install.md#install-the-cli-companion-directly) to repair it without erasing the library. Older Mac app versions use PhotoFindry → Check for Updates for the one-time migration. A current build may correctly report no newer update. Never replace the feed or signing key to force one.
 
 ## The workspace cannot open after an update
 

@@ -6,10 +6,11 @@ use std::{
     os::{fd::AsRawFd, unix::{fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt}, process::CommandExt}},
     path::{Path, PathBuf},
     process::Stdio,
+    net::{Ipv4Addr, SocketAddrV4},
     sync::Arc,
     time::Duration,
 };
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{UnixListener, UnixStream}, sync::oneshot, task::JoinHandle};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{TcpStream, UnixListener, UnixStream}, sync::oneshot, task::JoinHandle};
 
 #[cfg(test)]
 const LAUNCH_URL: &str = "photofindry-companion://open";
@@ -347,7 +348,115 @@ pub(super) async fn request_stop(directory: &Path) -> Result<bool> {
     request_shutdown(directory, false).await
 }
 pub(super) async fn request_update_stop(directory: &Path) -> Result<bool> {
-    request_shutdown(directory, true).await
+    match request_shutdown(directory, true).await {
+        Err(error) if error == LEGACY_OPEN_ONLY => legacy_update_stop(directory).await,
+        result => result,
+    }
+}
+const LEGACY_OPEN_ONLY: &str = "The registered companion has an older Open-only launch broker.";
+/// The first browser companion's private broker only understood Open. Its
+/// authenticated local API already supported Quit. Use that exact old path
+/// only after proving the broker and API still own the registered library;
+/// never treat a modern broker's busy/refused update as permission to quit.
+async fn legacy_update_stop(directory: &Path) -> Result<bool> {
+    let record = read_registration(directory)?;
+    let target = request_open(directory).await?
+        .ok_or("The previous companion stopped during setup. Retry the verified installer.")?;
+    target.url()?;
+    if target.ticket.len()!=64 || !target.ticket.bytes().all(|b|b.is_ascii_hexdigit()) {
+        return Err("The previous companion gave an invalid local launch ticket.".into());
+    }
+    let auth=legacy_post(target.port,"/api/bootstrap",&serde_json::json!({"ticket":target.ticket}),None).await?;
+    let token=auth["token"].as_str().filter(|s|s.len()==64 && s.bytes().all(|b|b.is_ascii_hexdigit()))
+        .ok_or("The previous companion did not authenticate local setup.")?;
+    let info=legacy_post(target.port,"/api/library-info",&serde_json::json!({}),Some(token)).await?;
+    if info["locationLabel"].as_str()!=Some(record.data_dir.to_string_lossy().as_ref())
+        || read_registration(directory)?!=record {
+        return Err("The registered library changed during setup. No companion was stopped.".into());
+    }
+    let state=legacy_post(target.port,"/api/state",&serde_json::json!({}),Some(token)).await?;
+    if active_work(&state,true) {return Err("Pause active work in Jobs before installing the new companion; saved progress is kept.".into())}
+    if read_registration(directory)?!=record {return Err("The registered library changed during setup. No companion was stopped.".into())}
+    let reply=legacy_post(target.port,"/api/quit",&serde_json::json!({}),Some(token)).await?;
+    if reply["stopping"]!=true {return Err("The previous companion did not acknowledge its safe shutdown.".into())}
+    Ok(true)
+}
+fn active_work(state:&serde_json::Value,include_background:bool)->bool {
+    let jobs=state["jobs"]["jobs"].as_array();
+    let background_active=state["jobs"]["activeJobId"].as_str().is_some_and(|id|jobs.is_some_and(|rows|
+        rows.iter().any(|job|job["id"]==id&&job["background"]==true)));
+    let queued_active=state["jobs"]["counts"]["running"].as_u64().unwrap_or(0)>0;
+    let unlisted_active=queued_active && !jobs.is_some_and(|rows|rows.iter().any(|job|
+        matches!(job["state"].as_str(),Some("running"|"starting"|"stopping"|"pausing"))));
+    // Older hosts can leave a stale legacy activity flag after the durable
+    // queue has no active job. The definitive update drain rechecks ownership.
+    (state["job"]["running"]==true && (include_background||queued_active&&!background_active))
+        || state["storageJob"]["running"]==true
+        || state["sourceTransfer"]["running"]==true || state["download"]["running"]==true
+        || (!include_background&&unlisted_active)
+        || jobs.is_some_and(|rows|rows.iter().any(|job|
+            matches!(job["state"].as_str(),Some("running"|"starting"|"stopping"|"pausing"))
+                && (include_background||job["background"]!=true)))
+}
+/// Avoid a large archive download on an explicit Open when the same library
+/// already has active work. The definitive update handover still rechecks this
+/// state under its lifecycle locks after the download.
+pub(super) async fn registered_work_busy(directory:&Path,data:&Path)->Result<bool> {
+    if socket_metadata(&socket_path(directory)?)?.is_none() {return Ok(false)}
+    let record=read_registration(directory)?;
+    if record.data_dir!=data {return Err("Another library owns the local companion registration.".into())}
+    let Some(target)=request_open(directory).await? else {return Ok(false)};
+    target.url()?;
+    if target.ticket.len()!=64 || !target.ticket.bytes().all(|b|b.is_ascii_hexdigit()) {
+        return Err("The local launch broker gave an invalid ticket.".into());
+    }
+    let auth=legacy_post(target.port,"/api/bootstrap",&serde_json::json!({"ticket":target.ticket}),None).await?;
+    let token=auth["token"].as_str().filter(|s|s.len()==64&&s.bytes().all(|b|b.is_ascii_hexdigit()))
+        .ok_or("The companion did not authenticate its local readiness check.")?;
+    let info=legacy_post(target.port,"/api/library-info",&serde_json::json!({}),Some(token)).await?;
+    if info["locationLabel"].as_str()!=Some(data.to_string_lossy().as_ref()) || read_registration(directory)?!=record {
+        return Err("The local library changed during the update check.".into());
+    }
+    // A very old host can have a larger status document. An unreadable status
+    // only skips this optimization; the signed update's drain is authoritative.
+    let state=match legacy_post(target.port,"/api/state",&serde_json::json!({}),Some(token)).await {
+        Ok(state)=>state,
+        Err(_)=>return Ok(false),
+    };
+    Ok(active_work(&state,false))
+}
+async fn legacy_post(port:u16,path:&str,body:&serde_json::Value,token:Option<&str>)->Result<serde_json::Value>{
+    if port==0 || !matches!(path,"/api/bootstrap"|"/api/library-info"|"/api/state"|"/api/quit") {
+        return Err("Invalid previous-companion request.".into());
+    }
+    let encoded=serde_json::to_vec(body).map_err(|_|"Cannot encode previous-companion request.")?;
+    if encoded.len()>4096 {return Err("Previous-companion request exceeds its limit.".into())}
+    let origin=format!("http://127.0.0.1:{port}");
+    let mut request=format!("POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: {origin}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",encoded.len());
+    if let Some(token)=token {
+        if token.len()!=64 || !token.bytes().all(|b|b.is_ascii_hexdigit()) {return Err("Invalid previous-companion session.".into())}
+        request.push_str("Authorization: Bearer ");request.push_str(token);request.push_str("\r\n");
+    }
+    request.push_str("\r\n");
+    let maximum=if path=="/api/state" {4*1024*1024} else {16384};
+    let operation=async {
+        let mut stream=TcpStream::connect(SocketAddrV4::new(Ipv4Addr::LOCALHOST,port)).await
+            .map_err(|_|"Cannot contact the registered previous companion.")?;
+        stream.write_all(request.as_bytes()).await.map_err(|_|"Cannot request previous-companion shutdown.")?;
+        stream.write_all(&encoded).await.map_err(|_|"Cannot finish previous-companion request.")?;
+        let mut bytes=Vec::new();stream.take((maximum+1) as u64).read_to_end(&mut bytes).await
+            .map_err(|_|"Cannot read previous-companion response.")?;
+        if bytes.len()>maximum {return Err("Previous-companion response exceeds its limit.".into())}
+        let split=bytes.windows(4).position(|w|w==b"\r\n\r\n")
+            .ok_or("Invalid previous-companion response.")?;
+        let head=&bytes[..split];
+        if !(head.starts_with(b"HTTP/1.1 200 ")||head.starts_with(b"HTTP/1.0 200 ")) {
+            return Err("The previous companion refused local setup; its library was kept.".into());
+        }
+        serde_json::from_slice(&bytes[split+4..]).map_err(|_|"Invalid previous-companion response.".into())
+    };
+    tokio::time::timeout(Duration::from_secs(8),operation).await
+        .map_err(|_|String::from("The previous companion did not respond to local setup in time."))?
 }
 async fn request_shutdown(directory: &Path, update: bool) -> Result<bool> {
     let path = socket_path(directory)?;
@@ -362,7 +471,11 @@ async fn request_shutdown(directory: &Path, update: bool) -> Result<bool> {
         let command=if update {b"{\"version\":1,\"operation\":\"prepare-update\"}\n".as_slice()} else {b"{\"version\":1,\"operation\":\"stop\"}\n".as_slice()};
         stream.write_all(command).await.map_err(|_| "Cannot request local shutdown.")?;
         stream.shutdown().await.map_err(|_| "Cannot finish local shutdown request.")?;
-        let bytes = read_frame(&mut stream, REPLY_LIMIT).await?;
+        let mut bytes=Vec::new();
+        stream.take((REPLY_LIMIT+1) as u64).read_to_end(&mut bytes).await
+            .map_err(|_|"Cannot read local shutdown reply.")?;
+        if update && bytes.is_empty() {return Err(LEGACY_OPEN_ONLY.into())}
+        if bytes.is_empty() || bytes.len()>REPLY_LIMIT {return Err("Invalid local shutdown reply.".into())}
         let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| "This running companion does not support safe uninstall. Quit it, then retry.")?;
         if value != serde_json::json!({"stopping":true}) {
             if value.get("stopping") == Some(&serde_json::Value::Bool(false)) {
@@ -592,8 +705,10 @@ async fn stop_owned_startup(child: &mut tokio::process::Child) {
 
 /// Native/CLI-only entry. Registered paths are revalidated before any process starts.
 pub async fn open_registered(directory: &Path, installed_only: bool) -> Result<LaunchTarget> {
+    super::lifecycle::wait_for_open_maintenance(directory).await?;
     if installed_only { super::lifecycle::require_installed(directory)?; }
     super::lifecycle::prefer_installed(directory).await?;
+    super::lifecycle::refresh_on_open(directory).await?;
     if let Ok(record)=read_registration(directory) {
         if let Some(root)=super::lifecycle::installed_root(&record.executable) {super::lifecycle::recover(&root,false).await?;}
     }
@@ -804,6 +919,83 @@ mod tests {
         assert!(request_open(&fixture.state).await.unwrap().is_some(),"A deferred update leaves normal launch authority usable");
         allowed.store(true,std::sync::atomic::Ordering::Release);
         assert!(request_update_stop(&fixture.state).await.unwrap());broker.stop().await;
+    }
+    async fn open_only_broker_case(busy:bool) {
+        use tokio::net::TcpListener;
+        let fixture=Fixture::new();
+        let listener=TcpListener::bind((Ipv4Addr::LOCALHOST,0)).await.unwrap();
+        let port=listener.local_addr().unwrap().port();
+        let data=fixture.record.data_dir.to_string_lossy().into_owned();
+        let http=tokio::spawn(async move {
+            let mut paths=Vec::new();
+            for _ in 0..if busy {3}else{4} {
+                let (mut stream,_)=listener.accept().await.unwrap();
+                let mut bytes=Vec::new();let mut buffer=[0u8;4096];
+                loop {
+                    if let Some(split)=bytes.windows(4).position(|w|w==b"\r\n\r\n") {
+                        let head=String::from_utf8_lossy(&bytes[..split]);
+                        let length=head.lines().find_map(|line|{
+                            let lower=line.to_ascii_lowercase();
+                            lower.strip_prefix("content-length: ").and_then(|value|value.trim().parse::<usize>().ok())
+                        }).unwrap();
+                        if bytes.len()>=split+4+length {break}
+                    }
+                    let n=stream.read(&mut buffer).await.unwrap();assert!(n>0);bytes.extend_from_slice(&buffer[..n]);
+                }
+                let request=String::from_utf8(bytes).unwrap();
+                let path=request.split_whitespace().nth(1).unwrap().to_string();
+                if path!="/api/bootstrap" {assert!(request.contains(&format!("Authorization: Bearer {}", "b".repeat(64))))}
+                let response=match path.as_str(){
+                    "/api/bootstrap"=>serde_json::json!({"token":"b".repeat(64)}),
+                    "/api/library-info"=>serde_json::json!({"locationLabel":data}),
+                    "/api/state"=>serde_json::json!({"job":{"running":busy},"jobs":{"jobs":[]},"boundedOldSnapshot":"x".repeat(320000)}),
+                    "/api/quit"=>serde_json::json!({"stopping":true}),
+                    _=>panic!("unexpected local route"),
+                };
+                let body=response.to_string();let wire=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+                stream.write_all(wire.as_bytes()).await.unwrap();stream.shutdown().await.unwrap();paths.push(path);
+            }
+            paths
+        });
+        let socket=fixture.state.join(SOCKET);
+        let legacy=UnixListener::bind(&socket).unwrap();
+        fs::set_permissions(&socket,fs::Permissions::from_mode(0o600)).unwrap();
+        let unix=tokio::spawn(async move {
+            let mut operations=Vec::new();
+            for _ in 0..2 {
+                let (mut stream,_)=legacy.accept().await.unwrap();
+                let mut bytes=Vec::new();stream.read_to_end(&mut bytes).await.unwrap();
+                let value:serde_json::Value=serde_json::from_slice(&bytes).unwrap();
+                let operation=value["operation"].as_str().unwrap().to_string();
+                if operation=="open" {
+                    let target=serde_json::json!({"port":port,"ticket":"a".repeat(64)});
+                    stream.write_all(target.to_string().as_bytes()).await.unwrap();
+                }
+                stream.shutdown().await.unwrap();operations.push(operation);
+            }
+            operations
+        });
+        let result=request_update_stop(&fixture.state).await;
+        if busy {assert!(result.unwrap_err().contains("Pause active work"))}else{assert_eq!(result.unwrap(),true)}
+        assert_eq!(unix.await.unwrap(),["prepare-update","open"]);
+        let paths=http.await.unwrap();
+        assert_eq!(paths.last().map(String::as_str),Some(if busy{"/api/state"}else{"/api/quit"}));
+    }
+    #[tokio::test]
+    async fn old_open_only_broker_uses_authenticated_idle_quit_for_installation() {open_only_broker_case(false).await;}
+    #[tokio::test]
+    async fn old_open_only_broker_keeps_active_work_running() {open_only_broker_case(true).await;}
+    #[test]
+    fn explicit_open_may_preflight_a_background_job_but_never_foreground_or_transfer_work() {
+        let mut state=serde_json::json!({"job":{"running":false},"jobs":{"activeJobId":"background","jobs":[{"id":"background","state":"running","background":true}]}});
+        assert!(!active_work(&state,false));assert!(active_work(&state,true));
+        state["jobs"]["jobs"][0]["background"]=serde_json::json!(false);
+        assert!(active_work(&state,false));
+        state["jobs"]["jobs"][0]["background"]=serde_json::json!(true);
+        state["sourceTransfer"]["running"]=serde_json::json!(true);
+        assert!(active_work(&state,false));
+        let stale=serde_json::json!({"job":{"running":true},"jobs":{"counts":{"running":0},"activeJobId":null,"jobs":[]}});
+        assert!(!active_work(&stale,false));assert!(active_work(&stale,true));
     }
     #[tokio::test]
     async fn closing_broker_refuses_a_new_ticket_without_turning_open_into_a_fatal_error() {

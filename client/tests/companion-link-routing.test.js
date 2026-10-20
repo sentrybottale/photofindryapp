@@ -11,12 +11,12 @@ test('website companion link survives deleted installer and an older app reclaim
  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(),'Library/Application Support/PhotoFindry Link Test-')));
  const id=crypto.randomUUID().toLowerCase(),currentScheme='pfcomp-'+id,legacyScheme='pflegacy-'+id,archiveScheme='pfarchive-'+id;
  const source=fs.readFileSync(path.join(__dirname,'../scripts/companion-launcher.swift'),'utf8');
- const helper=path.join(root,'installed/bin/CompanionLauncher.app'),installer=path.join(root,'PhotoFindry.app'),previous=path.join(root,'PhotoFindry-previous.app');
- const bundles=[helper,installer,previous],marker=path.join(root,'opened-command.txt');
+ const helper=path.join(root,'installed/bin/CompanionLauncher.app'),oldHelper=path.join(root,'OldCompanionLauncher.app'),installer=path.join(root,'PhotoFindry.app'),previous=path.join(root,'PhotoFindry-previous.app');
+ const bundles=[helper,oldHelper,installer,previous],marker=path.join(root,'opened-command.txt');
  const run=(command,args,options={})=>{const native=command.startsWith(root)?['/bin/launchctl',['asuser',String(process.getuid()),command,...args]]:[command,args];const r=spawnSync(native[0],native[1],{encoding:'utf8',timeout:45000,...options});assert.equal(r.status,0,r.stderr||r.error?.message);return r.stdout.trim();};
- function bundle(where,bundleId,schemes,binary){
+ function bundle(where,bundleId,schemes,binary,version='1'){
   fs.mkdirSync(path.join(where,'Contents/MacOS'),{recursive:true});fs.copyFileSync(binary,path.join(where,'Contents/MacOS/CompanionLauncher'));
-  const info={CFBundleIdentifier:bundleId,CFBundleName:'PhotoFindry launch qualification',CFBundleExecutable:'CompanionLauncher',CFBundlePackageType:'APPL',CFBundleVersion:'1',CFBundleShortVersionString:'1.0',LSUIElement:true};
+  const info={CFBundleIdentifier:bundleId,CFBundleName:'PhotoFindry launch qualification',CFBundleExecutable:'CompanionLauncher',CFBundlePackageType:'APPL',CFBundleVersion:version,CFBundleShortVersionString:'1.0',LSUIElement:true};
   if(schemes.length)info.CFBundleURLTypes=schemes.map(s=>({CFBundleURLSchemes:[s],CFBundleTypeRole:'Viewer'}));
   const json=path.join(where,'Contents/Info.json');fs.writeFileSync(json,JSON.stringify(info));run('/usr/bin/plutil',['-convert','xml1','-o',path.join(where,'Contents/Info.plist'),json]);fs.unlinkSync(json);
   run('/usr/bin/codesign',['--force','--sign','-',where]);
@@ -29,7 +29,8 @@ test('website companion link survives deleted installer and an older app reclaim
   const declarations=isolated.slice(isolated.indexOf('let companionLinks='),isolated.indexOf('func selectLocalLinkHandlers'));
   assert(!declarations.includes('\"photofindry'),'Test must never select production scheme defaults');
   fs.writeFileSync(helperSource,isolated);run('/usr/bin/xcrun',['swiftc','-framework','AppKit','-framework','CoreServices',helperSource,'-o',helperBinary]);
-  bundle(helper,'com.photofindry.qualification.'+id+'.helper',[currentScheme,legacyScheme,archiveScheme],helperBinary);
+  bundle(helper,'com.photofindry.qualification.'+id+'.helper.b119',[currentScheme,legacyScheme,archiveScheme],helperBinary,'119');
+  bundle(oldHelper,'com.photofindry.qualification.'+id+'.helper',[currentScheme,legacyScheme,archiveScheme],helperBinary,'118');
   bundle(installer,'com.photofindry.qualification.'+id+'.installer',[legacyScheme],helperBinary);
   bundle(previous,'com.photofindry.qualification.'+id+'.previous',[legacyScheme],helperBinary);
   const bareHelper=path.join(root,'installed/bin/CompanionLauncher');fs.copyFileSync(helperBinary,bareHelper);
@@ -54,8 +55,9 @@ if args[1]=="select" {
   const driverSource=path.join(root,'driver.swift'),rawDriver=path.join(root,'driver');fs.writeFileSync(driverSource,driver);run('/usr/bin/xcrun',['swiftc','-framework','AppKit','-framework','CoreServices',driverSource,'-o',rawDriver]);const driverBundle=path.join(root,'RegistrationDriver.app');bundle(driverBundle,'com.photofindry.qualification.'+id+'.driver',[],rawDriver);bundles.push(driverBundle);const driverBinary=path.join(driverBundle,'Contents/MacOS/CompanionLauncher');
   run(driverBinary,['select',previous,legacyScheme]);
   run(driverBinary,['select',installer,legacyScheme]);
+  run(driverBinary,['select',oldHelper,currentScheme]);
   run(bareHelper,['--register-links']);
-  assert.equal(run(driverBinary,['resolve',helper,currentScheme]),helper);
+  assert.equal(run(driverBinary,['resolve',helper,currentScheme]),helper,'A new build must win over an older companion launcher with the same product links');
   // The migration application disappears, while a previous app remains and
   // actually reclaims the legacy default. The companion entry must be independent.
   fs.rmSync(installer,{recursive:true});run(driverBinary,['select',previous,legacyScheme]);

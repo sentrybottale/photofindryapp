@@ -38,6 +38,8 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
     private var pendingRequest: NativeLaunchRequest?
     private var retryRequest: NativeLaunchRequest = .companion
     private var recoveryAttempted = false
+    private var progress: NSPanel?
+    private var progressWork: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -106,6 +108,8 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
             let message = captured.message()
             DispatchQueue.main.async {
                 guard let self else { return }
+                self.progressWork?.cancel();self.progressWork=nil
+                self.progress?.close();self.progress=nil
                 self.launch = nil
                 self.activeRequest=nil
                 if recovering { self.recoveryAttempted = true }
@@ -117,8 +121,31 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
                 else { self.showError(message?.isEmpty == false ? message! : "PhotoFindry could not open its local library. Open the installed setup launcher to review the registration.") }
             }
         }
-        do { try process.run() }
+        do {
+            try process.run()
+            let work=DispatchWorkItem { [weak self] in
+                guard let self,self.launch===process,self.progress==nil else {return}
+                let panel=NSPanel(contentRect:NSRect(x:0,y:0,width:390,height:116),
+                                  styleMask:[.titled],backing:.buffered,defer:false)
+                panel.title="Opening PhotoFindry"
+                panel.isReleasedWhenClosed=false
+                let label=NSTextField(labelWithString:"Checking for a signed update and opening your library. Saved work is kept.")
+                label.frame=NSRect(x:60,y:38,width:310,height:55)
+                label.lineBreakMode = .byWordWrapping
+                label.maximumNumberOfLines=3
+                let indicator=NSProgressIndicator(frame:NSRect(x:22,y:48,width:22,height:22))
+                indicator.style = .spinning;indicator.startAnimation(nil)
+                panel.contentView?.addSubview(label);panel.contentView?.addSubview(indicator)
+                panel.center();panel.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps:true)
+                self.progress=panel
+            }
+            progressWork=work
+            DispatchQueue.main.asyncAfter(deadline:.now()+1.5,execute:work)
+        }
         catch {
+            progressWork?.cancel();progressWork=nil
+            progress?.close();progress=nil
             launch = nil
             activeRequest=nil;pendingRequest=nil
             showError("PhotoFindry could not start its installed local companion.")
@@ -295,7 +322,8 @@ func registerLocalLinks() -> Bool {
     let executable=URL(fileURLWithPath:CommandLine.arguments[0]).standardizedFileURL
     guard let expected=localLauncherApplication(executable.path),
           let info=NSDictionary(contentsOfFile:expected.appendingPathComponent("Contents/Info.plist").path),
-          info["CFBundleIdentifier"] as? String == "com.sentrybottale.photorecall.companion-launcher",
+          let build=info["CFBundleVersion"] as? String,let buildNumber=UInt64(build),
+          info["CFBundleIdentifier"] as? String == "com.sentrybottale.photorecall.companion-launcher"+(buildNumber>=119 ? ".b"+build : ""),
           info["CFBundleExecutable"] as? String == "CompanionLauncher",
           info["LSUIElement"] as? Bool == true else {return false}
     guard LSRegisterURL(expected as CFURL,true)==noErr else {return false}

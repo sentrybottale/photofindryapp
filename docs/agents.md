@@ -7,15 +7,15 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 - PhotoFindry uses a background CLI companion and local browser workspace for photo tagging, people and search. app.photofindry.com opens the installed workspace without receiving library authority.
 - Its client is MIT open source; its Rust engine cores remain proprietary. Official builds are free to use. No mandatory app account or subscription. Third-party components keep their own licences.
 - The public repository holds the reviewed client snapshot and distribution files. The engine implementation and private development history remain private.
-- Latest published release at this document's date: 0.2.0-beta.15, app 0.2.0 build 113. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- Latest documented CLI release: 0.2.0-beta.21, build 119. Check the official release page before recommending a version; do not assume an unreleased branch is published.
 - Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
-- No app telemetry; downloads, scheduled or manual update checks, browser links and feedback use internet. Beta 11 enables automatic checks with a Settings opt-out; downloads and installation remain user-controlled. Older betas need one manual upgrade for reminders. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
+- No app telemetry; downloads, update checks, browser links and feedback use internet. Background checks have a Settings opt-out and do not install by themselves. Every explicit Open checks the authenticated CLI feed and installs a newer signed build when active work can safely drain; offline or busy work keeps the verified current build open with a local explanation. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
 
 ## Install safely
 
 1. Check the user's architecture, macOS version and available storage. Explain beta and non-notarized status.
-2. Link the official release DMG and verification guide. The update ZIP belongs to the updater. GitHub Source code archives are not installers.
+2. Link the official standalone CLI release, verified setup instructions and signature guide. A DMG is retained only for the older Mac app's one-time migration. GitHub Source code archives are not installers.
 3. Keep trust decisions and macOS authorization with the user. Never disable Gatekeeper globally, strip quarantine recursively, request private signing keys or execute downloaded scripts blindly.
 4. Run the one-time installer after verification. It installs the independent CLI with login startup and signed updates, then exits. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
 5. Keep backups. Do not delete Application Support, rebuild the library by erasing it, remove source folders or purge previews as an automatic troubleshooting step.

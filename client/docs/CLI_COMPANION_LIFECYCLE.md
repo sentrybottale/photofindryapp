@@ -62,7 +62,11 @@ A separate, transient maintenance LaunchAgent performs browser-requested updates
 and uninstall so stopping the main service cannot kill its updater. Browser
 operations are authenticated finite action names; they carry no executable URL,
 trust key or filesystem authority. The public website has no update/install API
-access. Automatic checks report availability; installation remains explicit.
+access. Background checks report availability; they do not silently install.
+An explicit **Open PhotoFindry** checks the authenticated feed and installs a
+newer signed build before opening when owned work can safely drain. Offline
+checks and foreground work keep the current verified build available and show
+a local warning. The background-check switch does not disable the Open check.
 
 Uninstall requires the existing local confirmation, drains owned work, disables
 login startup, removes its LaunchAgent and moves the verified active program
@@ -81,6 +85,16 @@ versions remain. No background registration can resurrect the removed program.
   exercises real launchd login startup, authenticated controls, wrong signatures,
   killing an updater after its durable switch, software rollback, saved-evidence
   preservation and confirmed uninstall. It never targets the owner's library.
+- `scripts/qualify-cli-core.py` runs against an already installed, signed
+  candidate in an isolated, explicitly marked library. It uses the installed
+  browser API and real local models to check ordinary search, a completed
+  refined AI search, explicit single-photo tagging, Cancel all, Quit/Recover,
+  then confirmed uninstall. Its receipt records timings and verifies the
+  original photo bytes, catalog header, photo count and pre-existing jobs.
+  Run this after installation on a representative full-library copy for each
+  release; a responsive-layout test or empty-library lifecycle test cannot
+  substitute for it. Keep any failed fixture for diagnosis and do not publish
+  until its installed workflows pass.
 - The opt-in Rust `signed_candidate_archive_and_tampering` test verifies the exact
   signed envelope, archive extraction and tamper rejection with the shipped helper.
 
@@ -88,6 +102,29 @@ Candidate results and publication receipts belong in the hotfix record. A passin
 small fixture is not a claim of another-Mac acceptance, notarization, a full engine
 requalification or an independent security review. Required public repository
 checks and the client/proprietary-core export boundary remain in force.
+
+## Post-beta-20 Open and installer repair — 20 October 2026 candidate
+
+The installed beta-20 script copied signed build 118 on the owner's Mac, but
+its older registered development broker only understood Open. Setup could not
+receive `prepare-update` and remained unregistered. After a controlled Quit,
+the same signed build opened the library but LaunchServices resolved its Open
+link to an older bundle with the same internal helper identifier; setup restored
+the old registration. The next installer uses a one-use same-user broker ticket
+and authenticated local API to check the registered library and idle state
+before stopping an Open-only host. It refuses active legacy work.
+
+Each new versioned Open-link helper has its own internal build identity so
+retained launchers do not compete for one LaunchServices identity. The main
+PhotoFindry application identifier, library directory and saved data keys do
+not change. A visible native progress panel covers the signed check, package
+verification and opening wait. A retained exact signed version may be reused
+after full package verification instead of downloaded again; the highest-build
+watermark and startup health check still apply. If Open finds foreground work,
+it defers the update without downloading the archive. Background work may be
+drained by the authoritative updater, while an offline check opens the current
+verified build and reports the failure locally. Direct `lifecycle open-update`
+uses the same signed path for CLI recovery and isolated qualification.
 
 ## Launch routing correction — 19 October 2026 (unreleased)
 

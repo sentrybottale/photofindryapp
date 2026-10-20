@@ -223,10 +223,10 @@
       if (!visible()) return;
       controls.replaceChildren();
       if (!value?.installed) { message.textContent = str(value?.message) || 'Open the latest verified installer once to enable background startup and signed CLI updates.'; return; }
-      message.textContent = `Version ${str(value.version)} · build ${num(value.build)}. ${str(value.status?.message)}`;
+      message.textContent = `Version ${str(value.version)} · build ${num(value.build)}. ${str(value.status?.message)}${value.openUpdate?.message ? ' '+str(value.openUpdate.message) : ''}`;
       const actions = [
         [value.autostart ? 'Turn off login startup' : 'Start at login', value.autostart ? 'disable-autostart' : 'enable-autostart'],
-        [value.automaticUpdates ? 'Turn off automatic update checks' : 'Check for updates automatically', value.automaticUpdates ? 'disable-update-checks' : 'enable-update-checks'],
+        [value.automaticUpdates ? 'Turn off background update checks' : 'Check for updates in the background', value.automaticUpdates ? 'disable-update-checks' : 'enable-update-checks'],
         ['Check for updates', 'check'],
       ];
       if (num(value.available?.build) > num(value.build)) actions.push(['Install signed update', 'update']);

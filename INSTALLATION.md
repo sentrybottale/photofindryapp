@@ -1,6 +1,6 @@
 # Install PhotoFindry beta
 
-PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current public release is **0.2.0-beta.20, build 118**. This guide was updated on 19 October 2026.
+PhotoFindry is a free local photo tagging and search workspace for Apple-silicon Macs, with a background companion and browser interface. The current release is **0.2.0-beta.21, build 119**. This guide was updated on 20 October 2026.
 
 ## Requirements
 
@@ -21,15 +21,15 @@ New users install the background CLI and use the browser workspace. No PhotoFind
 ( pf_setup=$(/usr/bin/mktemp) || exit
 trap '/bin/rm -f "$pf_setup"' EXIT
 /usr/bin/curl --disable -fL --proto '=https' --proto-redir '=https' --max-time 60 --max-filesize 65536 https://photofindry.com/install-cli.sh -o "$pf_setup" &&
-printf '9aee0f2c1455c7a674ddfde27eb45399d44d8415f7bae6f0357a1ba737bf0b87  %s\n' "$pf_setup" | /usr/bin/shasum -a 256 -c - &&
+printf 'a8280952ab75262de6c3be5613b3903f385248fe2d136fa68e59c8b4cc4b2467  %s\n' "$pf_setup" | /usr/bin/shasum -a 256 -c - &&
 /usr/bin/env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/bash "$pf_setup" )
 ```
 
-The [official beta 20 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.20) contains the [CLI package ZIP](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.20/PhotoFindry-0.2.0-beta.20-arm64-companion.zip), 397,885,476 bytes (398 MB). The signed CLI envelope and its package inventory are checked by the pinned native verifier before installation. Startup, update checks and recovery are managed in browser Settings → Background companion.
+The [official beta 21 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.21) contains the [CLI package ZIP](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.21/PhotoFindry-0.2.0-beta.21-arm64-companion.zip), 397,913,297 bytes (398 MB). The signed CLI envelope and its package inventory are checked by the pinned native verifier before installation. Startup, update checks and recovery are managed in browser Settings → Background companion.
 
 For first installation, independently trust the instructions and their pinned bytes. Commands and hashes copied together from a compromised website do not authenticate themselves. The [signed-release verification guide](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md) records the existing publisher key. Do not accept an unexplained key change. The optional standalone Swift verifier requires Command Line Tools; normal CLI setup and operation do not.
 
-If setup fails, its message explains the next action. Quit an older application if it still owns the library, then rerun the same command. An existing registered library is retained, including custom paths; an existing library needing handover gets a verified recovery copy before opening. Originals and selected models stay in place. The command also repairs a missing browser connection for an already installed companion.
+If an older companion cannot open, rerun the same verified setup command above. It follows the registered library and repairs the program without requiring the broken companion to launch. If setup fails, its message explains the next action. Quit an older application if it still owns the library, then retry. An existing registered library is retained, including custom paths; an existing library needing handover gets a verified recovery copy before opening. Originals and selected models stay in place. The command also repairs a missing browser connection for an already installed companion.
 
 GitHub source archives are not runnable packages. The update ZIP and DMG are retained for the old app's migration/update channel, not fresh installation. No existing library is deleted as a setup or recovery step. This beta uses ad-hoc macOS code signatures and separate publisher Ed25519 signatures; it is not Apple Developer ID signed or notarized.
 
@@ -37,7 +37,7 @@ GitHub source archives are not runnable packages. The update ZIP and DMG are ret
 
 Existing app users receive a one-time migration installer through the retained signed app feed. Use PhotoFindry → Check for Updates in an older app, or use the [verified one-time migration bridge](https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.16/PhotoFindry-0.2.0-beta.16-arm64-community-beta.dmg) if its updater is unavailable. That bridge is 403,669,494 bytes (about 404 MB) and is only for existing app users. The installer follows this account’s already registered library, including a library outside the default folder. It keeps the library in place, waits for the independent companion to become ready, opens the browser and exits.
 
-After migration, use **Settings → Background companion** in the local browser. Login startup and automatic update checks can each be turned off there. Checks run locally about every six hours while the companion runs; you choose **Install signed update** when ready. Updates authenticate the fixed CLI feed and exact package bytes with the retained publisher key.
+After migration, use **Settings → Background companion** in the local browser. Login startup and background update checks can each be turned off there. Every explicit **Open PhotoFindry** checks the fixed authenticated CLI feed. A newer signed build installs before opening when owned work can safely drain. Offline checks or active foreground work open the verified current build with a visible deferred-update reason. Background checks run about every six hours and do not install by themselves; you can also choose **Install signed update**. Updates authenticate exact package bytes with the retained publisher key.
 
 The companion keeps its previous verified software for recovery. An interrupted update restores software, never an older library backup. The native opening helper offers **Recover and open** if startup fails; **Recover companion** and **Use previous companion version** are also available in browser Settings when applicable. Keep independent backups of original photographs.
 
