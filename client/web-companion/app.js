@@ -112,12 +112,38 @@
 
   class SessionError extends Error {}
   const SESSION_KEY = 'photofindry.local-session.v2';
-  const SESSION_ENDED = 'Local access ended. Open PhotoFindry again, or type pair in its terminal for a new code.';
+  const SESSION_ENDED = 'Local access ended. Open PhotoFindry to reconnect to the verified companion. Your saved library is kept.';
   let resumeRecord = null;
   let resumeTask = null;
   const retrySession = element('button', 'secondary-button', 'Retry local connection');
   retrySession.type = 'button'; retrySession.hidden = true;
   $('pair-form').append(retrySession);
+  // A dead process cannot authenticate a replacement port. Keep its browser
+  // credential local and offer the registered native trust boundary instead of
+  // scanning ports, sending it to the public site or replaying the last action.
+  const connection = { lost: false, attempt: 0, timer: null, task: null, expected: '' };
+  const reconnectDelays = [1000, 2000, 4000, 8000, 15000];
+  const connectionPanel = element('section', 'connection-recovery');
+  connectionPanel.hidden = true;
+  connectionPanel.setAttribute('aria-label', 'Companion connection');
+  const connectionMessage = element('p');
+  connectionMessage.setAttribute('role', 'status');
+  const connectionActions = element('div', 'button-row');
+  const retryConnection = element('button', 'secondary-button', 'Retry connection');
+  retryConnection.type = 'button';
+  const reopenCompanion = element('a', 'primary-button', 'Open PhotoFindry');
+  reopenCompanion.href = 'photofindry-companion://open';
+  const repairCompanion = element('a', 'secondary-button', 'Repair installation');
+  repairCompanion.href = 'https://app.photofindry.com/#installation';
+  repairCompanion.target = '_blank'; repairCompanion.rel = 'noopener noreferrer';
+  repairCompanion.referrerPolicy = 'no-referrer';
+  const pairRepairCompanion = element('a', 'secondary-button', 'Repair installation');
+  pairRepairCompanion.href = repairCompanion.href; pairRepairCompanion.target = '_blank';
+  pairRepairCompanion.rel = 'noopener noreferrer'; pairRepairCompanion.referrerPolicy = 'no-referrer';
+  $('pair-form').append(pairRepairCompanion);
+  connectionActions.append(retryConnection, reopenCompanion, repairCompanion);
+  connectionPanel.append(connectionMessage, connectionActions);
+  $('library-error').parentNode.insertBefore(connectionPanel, $('library-error'));
 
   function sessionOrigin() {
     const origin = window.location?.origin;
@@ -161,6 +187,7 @@
 
   function notifyEvent(name, detail) { window.dispatchEvent(new CustomEvent(`photofindry:${name}`, { detail })); }
   function showMessage(id, message) {
+    if (id === 'global-error' && connection.lost && /^(The companion connection was interrupted\.|PhotoFindry is restarting\.|The companion did not respond in time\.|The request finished, but the latest state could not be read\.)/.test(text(message))) return;
     const target = $(id);
     target.replaceChildren(element('span', '', text(message)));
     const close = element('button', 'icon-button', '×');
@@ -263,11 +290,12 @@
   }
 
   async function pollState() {
+    if (connection.lost) return;
     const token = state.token;
     const generation = state.requestGeneration;
     try { await refreshState(); }
-    catch (error) { if (!isAbort(error) && !(error instanceof SessionError) && state.token) showMessage('global-error', error.message); }
-    finally { if (generation === state.requestGeneration && !state.pageSuspended && state.token && state.token === token) state.stateTimer = setTimeout(pollState, 1200); }
+    catch (error) { if (!isAbort(error) && !(error instanceof SessionError) && !connection.lost && state.token) showMessage('global-error', error.message); }
+    finally { if (generation === state.requestGeneration && !state.pageSuspended && !connection.lost && state.token && state.token === token) { clearTimeout(state.stateTimer); state.stateTimer = setTimeout(pollState, 1200); } }
   }
   async function action(name, params = {}) {
     const generation = state.requestGeneration;
@@ -319,15 +347,82 @@
     returnToLibrary: () => { state.aiJobId = null; return loadLibrary(0); },
     previewBlob: (photoId, signal, faceId) => fetchPreview(photoId, signal, { params: { photoId, ...(faceId ? { faceId } : {}) } }),
     activityPreviewBlob: (jobId, photoId, signal, kind = 'tagging') => fetchPreview(photoId, signal, { path: '/api/activity-preview', params: { jobId, photoId, kind } }),
-    isConnected: () => Boolean(state.token),
+    isConnected: () => Boolean(state.token) && !connection.lost,
+    expectCompanionRestart: (operation) => { if (['update', 'rollback', 'recover'].includes(operation)) connection.expected = operation; },
+    finishCompanionRestart: () => { if (!connection.lost) connection.expected = ''; },
   });
 
   function setConnection(available) {
+    const recovered = available && connection.lost;
+    if (available) {
+      connection.lost = false; connection.attempt = 0;
+      clearTimeout(connection.timer); connection.timer = null;
+      connectionPanel.hidden = true;
+      if (recovered) {
+        connection.expected = '';
+        clearTimeout(state.stateTimer);
+        if (state.token && !state.pageSuspended) state.stateTimer = setTimeout(pollState, 1200);
+        notifyEvent('connection', { available: true });
+      }
+    }
     const badge = $('connection-status');
     badge.replaceChildren(element('span', 'local-dot'), document.createTextNode(available ? 'Connected to this Mac' : 'Companion unavailable'));
     badge.firstChild.setAttribute('aria-hidden', 'true');
     badge.classList.toggle('unavailable', !available);
   }
+
+  function connectionHelp(exhausted = false) {
+    connectionMessage.textContent = connection.expected
+      ? 'PhotoFindry is restarting for the requested change. Saved work is kept. The updated workspace opens when it is ready. Use Open PhotoFindry to follow its progress or recover.'
+      : exhausted
+        ? 'This browser could not reconnect. Open PhotoFindry to start or recover the verified companion. If it cannot open, use Repair installation. Your saved library stays in place.'
+        : 'The companion connection was interrupted. Reconnecting automatically… Your current view and unsaved inputs are kept. Open PhotoFindry can start or recover it.';
+  }
+  function connectionLost() {
+    if (!state.token || state.pageSuspended || connection.lost) return;
+    connection.lost = true; connection.attempt = 0;
+    clearTimeout(state.stateTimer);
+    setConnection(false); connectionHelp(); connectionPanel.hidden = false;
+    notifyEvent('connection', { available: false });
+    scheduleReconnect();
+  }
+  function scheduleReconnect() {
+    if (!connection.lost || connection.timer || connection.task || !state.token || state.pageSuspended) return;
+    if (connection.attempt >= reconnectDelays.length) { connectionHelp(true); return; }
+    connection.timer = setTimeout(() => { connection.timer = null; void reconnect(); }, reconnectDelays[connection.attempt]);
+  }
+  async function reconnect() {
+    if (connection.task || !connection.lost || !state.token || state.pageSuspended) return;
+    const token = state.token, generation = state.requestGeneration, record = savedSession();
+    connection.attempt += 1; retryConnection.disabled = true;
+    const task = (async () => {
+      try {
+        const result = await api('/api/session', {}, { token, reconnecting: true, timeoutMs: 4000 });
+        if (token !== state.token || generation !== state.requestGeneration || state.pageSuspended) return;
+        if (!validSessionResponse(result) || !record || result.instanceId !== record.instanceId) {
+          resetSession('The local companion changed. Open PhotoFindry to reconnect securely. Your saved library is kept.'); return;
+        }
+        // Validate before resuming reads. Never repeat the mutation that lost
+        // its response: it may already have committed in the durable queue.
+        await refreshState();
+        if (token === state.token && generation === state.requestGeneration && !state.pageSuspended) await loadLibrary(state.offset, true);
+      } catch (error) {
+        if (token !== state.token || generation !== state.requestGeneration || state.pageSuspended || isAbort(error)) return;
+        if (error instanceof SessionError) return;
+        connectionHelp(connection.attempt >= reconnectDelays.length);
+      } finally {
+        if (connection.task === task) connection.task = null;
+        retryConnection.disabled = false;
+        scheduleReconnect();
+      }
+    })();
+    connection.task = task;
+    await task;
+  }
+  retryConnection.addEventListener('click', () => {
+    clearTimeout(connection.timer); connection.timer = null; connection.attempt = 0;
+    return reconnect();
+  });
 
   function requestTimeout(path, body) {
     if (path === '/api/pick') return 310000;
@@ -337,7 +432,7 @@
     if (['startModel', 'switchModel', 'configure', 'optimizeModel', 'prepareSourceArchive', 'inspectSourceArchive', 'attachSourceArchive', 'exportSourceArchive', 'inspectBackup', 'restoreLibrary', 'exportLibrary'].includes(body.action)) return 1900000;
     return 120000;
   }
-  async function api(path, body, { signal, binary = false, pairing = false, token = state.token, timeoutMs } = {}) {
+  async function api(path, body, { signal, binary = false, pairing = false, token = state.token, timeoutMs, reconnecting = false } = {}) {
     if (state.pageSuspended) throw abortError();
     const generation = state.requestGeneration;
     const controller = new AbortController();
@@ -392,11 +487,16 @@
       return result;
     } catch (error) {
       if (generation !== state.requestGeneration || state.pageSuspended) throw abortError();
-      if (timedOut) throw new Error('The companion did not respond in time. Check Background companion in Settings for its current status.');
+      if (timedOut) {
+        if (!reconnecting && state.token === token && !pairing) connectionLost();
+        throw new Error('The companion did not respond in time. Reconnecting automatically; use Open PhotoFindry in the connection panel if needed.');
+      }
       if (isAbort(error) || error instanceof SessionError) throw error;
-      if (error instanceof TypeError) {
-        if (state.token === token && !pairing) setConnection(false);
-        throw new Error('The companion could not be reached. Check it is still running, then try again.');
+      if (error instanceof TypeError || error?.name === 'TypeError') {
+        if (!reconnecting && state.token === token && !pairing) connectionLost();
+        throw new Error(connection.expected
+          ? 'PhotoFindry is restarting. Use Open PhotoFindry to follow its progress; saved work is kept.'
+          : 'The companion connection was interrupted. Reconnecting automatically. Your last action was not repeated; use Open PhotoFindry if it does not return.');
       }
       if (error instanceof SyntaxError) throw new Error('The companion returned an unreadable response.');
       throw error;
@@ -455,6 +555,9 @@
   }
 
   function resetSession(message = '', { preserveCredential = false } = {}) {
+    clearTimeout(connection.timer); connection.timer = null;
+    connection.task = null; connection.lost = false; connection.attempt = 0; connection.expected = '';
+    connectionPanel.hidden = true;
     state.requestGeneration += 1;
     for (const controller of state.requests) controller.abort();
     state.requests.clear();
@@ -527,7 +630,8 @@
     $('search').focus();
     await loadLibrary(0);
     void api('/api/lifecycle/status', {}).then(value => {
-      if (state.token && value?.openUpdate?.message) showMessage('global-notice', value.openUpdate.message);
+      const messages=[value?.openUpdate?.message,value?.linkRepair?.message].filter(message => typeof message==='string' && message.length>0);
+      if (state.token && messages.length) showMessage('global-notice', messages.join(' '));
     }).catch(() => {});
     if (pendingLaunchArchive) { await refreshState(); await applyLaunchArchive(state.nativeState); }
   }
@@ -571,7 +675,7 @@
           resetSession('This local launch expired or was already used. Open PhotoFindry again.'); return;
         }
         if (error instanceof SessionError) { resetSession(SESSION_ENDED); return; }
-        $('pair-error').textContent = 'The companion could not be reached. Check it is still running, then retry the local connection.';
+        $('pair-error').textContent = 'The companion could not be reached; retry the local connection, or use Open PhotoFindry above to start or recover it. Your saved library is kept.';
         $('pair-error').hidden = false; retrySession.hidden = false;
       } finally {
         if (resumeTask === task) resumeTask = null;

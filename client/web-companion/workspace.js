@@ -186,6 +186,8 @@
     message.setAttribute('role', 'status');
     const controls = el('div', 'button-row');
     const reopen = el('a', 'secondary-button', 'Open PhotoFindry'); reopen.href = 'photofindry-local://open';
+    const repairLinks = el('a', 'secondary-button', 'Repair Open PhotoFindry links');
+    repairLinks.href = 'https://app.photofindry.com/#installation'; repairLinks.target = '_blank'; repairLinks.rel = 'noopener noreferrer'; repairLinks.referrerPolicy = 'no-referrer'; repairLinks.hidden = true;
     const refresh = button('Refresh status', load);
     let pending = false;
     const controller = new AbortController();
@@ -197,6 +199,7 @@
       const restarting = ['update', 'rollback', 'recover'].includes(action);
       try {
         await P.api('/api/lifecycle/action', { action }, { signal: controller.signal });
+        if (restarting) P.expectCompanionRestart?.(action);
         message.textContent = restarting
           ? 'Finishing saved work and restarting the companion. Your library stays in place. The new workspace opens automatically after an update; Open PhotoFindry below is also available.'
           : 'Working… This panel will show the result automatically.';
@@ -216,14 +219,15 @@
           await new Promise(resolve => setTimeout(resolve, 1500));
         }
         if (visible()) message.textContent = 'The operation is taking longer than expected. Choose Refresh status to check it, or Open PhotoFindry for local recovery. Your library is kept.';
-      } finally { pending = false; }
+      } finally { pending = false; P.finishCompanionRestart?.(); }
     }
     async function load() {
       const value = await P.api('/api/lifecycle/status', {}, { signal: controller.signal });
       if (!visible()) return;
       controls.replaceChildren();
       if (!value?.installed) { message.textContent = str(value?.message) || 'Open the latest verified installer once to enable background startup and signed CLI updates.'; return; }
-      message.textContent = `Version ${str(value.version)} · build ${num(value.build)}. ${str(value.status?.message)}${value.openUpdate?.message ? ' '+str(value.openUpdate.message) : ''}`;
+      repairLinks.hidden = !value.linkRepair?.message;
+      message.textContent = `Version ${str(value.version)} · build ${num(value.build)}. ${str(value.status?.message)}${value.openUpdate?.message ? ' '+str(value.openUpdate.message) : ''}${value.linkRepair?.message ? ' Open PhotoFindry links need repair: '+str(value.linkRepair.message) : ''}`;
       const actions = [
         [value.autostart ? 'Turn off login startup' : 'Start at login', value.autostart ? 'disable-autostart' : 'enable-autostart'],
         [value.automaticUpdates ? 'Turn off background update checks' : 'Check for updates in the background', value.automaticUpdates ? 'disable-update-checks' : 'enable-update-checks'],
@@ -234,7 +238,7 @@
       if (value.recoveryPending || value.status?.phase === 'error') actions.push(['Recover companion', 'recover']);
       for (const [title, action] of actions) controls.append(button(title, () => act(action), action === 'update'));
     }
-    panel.append(message, controls, refresh, reopen);
+    panel.append(message, controls, refresh, reopen, repairLinks);
     queueMicrotask(() => { if (panel.isConnected) run(load); });
     return panel;
   }

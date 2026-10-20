@@ -87,9 +87,9 @@ function harness({ storage = new Map(), origin = 'http://127.0.0.1:54321', fragm
     throw Error(`Unhandled fixture route ${route}`);
   };
   const urls = { createObjectURL() { const url = `blob:fixture-${createdURLs.length}`; createdURLs.push(url); return url; }, revokeObjectURL(url) { revokedURLs.push(url); } };
-  const timers = new Map();
-  const timeout = (fn, ms) => { const timer = setTimeout(() => { timers.delete(timer); fn(); }, ms); timers.set(timer, ms); return timer; };
-  const clear = timer => { timers.delete(timer); clearTimeout(timer); };
+  const timers = new Map(), timerCallbacks = new Map();
+  const timeout = (fn, ms) => { const timer = setTimeout(() => { timers.delete(timer); timerCallbacks.delete(timer); fn(); }, ms); timers.set(timer, ms); timerCallbacks.set(timer, fn); return timer; };
+  const clear = timer => { timers.delete(timer); timerCallbacks.delete(timer); clearTimeout(timer); };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../web-companion/app.js'), 'utf8'), {
     window, document, CustomEvent, fetch, URL: urls, AbortController, DOMException, Blob, Response,
     setTimeout: timeout, clearTimeout: clear, queueMicrotask, Intl, Date: Clock, getComputedStyle: () => ({ gridTemplateColumns: '1fr 1fr' }),
@@ -98,6 +98,8 @@ function harness({ storage = new Map(), origin = 'http://127.0.0.1:54321', fragm
   return { ids, window, document, calls, createdURLs, revokedURLs, handlers, state, flush, storage, timers, history, confirmations,
     emit(type, extra = {}) { window.dispatchEvent({ type, ...extra }); },
     retrySession() { return descendants(ids.get('pair-form')).find(node => node.textContent === 'Retry local connection'); },
+    connectionPanel() { return descendants(body).find(node => node.className === 'connection-recovery'); },
+    async runTimer(ms) { const timer = [...timers].find(([, delay]) => delay === ms)?.[0]; assert(timer, `Missing ${ms}ms timer`); const callback = timerCallbacks.get(timer); clear(timer); callback(); await flush(); },
     advance(ms) { elapsed += ms; },
     setLibrary(next) { library = next; },
     async pair() { ids.get('pair-code').value = 'test-code'; await ids.get('pair-form').fire('submit'); await flush(); },
@@ -574,6 +576,85 @@ test('temporary restoration failure retains access for retry; true revocation cl
     assert.equal(ui.retrySession().hidden, true);
     assert.match(ui.ids.get('pair-error').textContent, /access ended/);
   } finally { await ui.close(); }
+});
+
+test('a dropped mutation response reconnects only read access, preserves the view and never replays the mutation', async () => {
+  const ui = harness(); let mutations = 0;
+  try {
+    await ui.pair();
+    const [tile] = ui.ids.get('gallery').children;
+    ui.ids.get('search').value = 'unsaved query';
+    ui.handlers['/api/action'] = () => { mutations += 1; throw new TypeError('Lost response after commit'); };
+    await assert.rejects(ui.window.PhotoFindry.action('enqueueJob', { kind: 'tagging' }), /not repeated/);
+    assert.equal(mutations, 1); assert.equal(ui.window.PhotoFindry.isConnected(), false);
+    assert.equal(ui.ids.get('gallery').children[0], tile);
+    assert.equal(ui.ids.get('search').value, 'unsaved query');
+    assert.equal(ui.connectionPanel().hidden, false);
+    assert.match(ui.connectionPanel().textContent, /Reconnecting automatically/);
+    ui.window.PhotoFindry.showError('The companion connection was interrupted. Reconnecting automatically.');
+    assert.equal(ui.ids.get('global-error').hidden, true);
+    assert.equal([...ui.timers.values()].filter(ms => ms === 1200).length, 0);
+    await ui.runTimer(1000);
+    assert.equal(mutations, 1);
+    assert.equal(ui.calls.filter(call => call.route === '/api/session').length, 1);
+    assert.equal(ui.window.PhotoFindry.isConnected(), true);
+    assert.equal(ui.connectionPanel().hidden, true);
+    assert.equal(ui.ids.get('search').value, 'unsaved query');
+    assert.equal([...ui.timers.values()].filter(ms => ms === 1200).length, 1);
+  } finally { await ui.close(); }
+});
+
+test('lost companion retries are bounded and expose native recovery and credential-free verified setup', async () => {
+  const ui = harness();
+  try {
+    await ui.pair();
+    ui.handlers['/api/state'] = () => { throw new TypeError('Process stopped'); };
+    ui.handlers['/api/session'] = () => { throw new TypeError('Process still stopped'); };
+    await assert.rejects(ui.window.PhotoFindry.refreshState(), /connection was interrupted/);
+    for (const delay of [1000, 2000, 4000, 8000, 15000]) await ui.runTimer(delay);
+    assert.equal(ui.calls.filter(call => call.route === '/api/session').length, 5);
+    assert.equal(ui.timers.size, 0);
+    const panel = ui.connectionPanel();
+    assert.match(panel.textContent, /could not reconnect.*Open PhotoFindry.*Repair installation/);
+    const links = panel.children[1].children.filter(node => node.tagName === 'A');
+    assert.equal(links[0].href, 'photofindry-companion://open');
+    assert.equal(links[1].href, 'https://app.photofindry.com/#installation');
+    assert.equal(links[1].rel, 'noopener noreferrer'); assert.equal(links[1].referrerPolicy, 'no-referrer');
+    assert(!links.some(node => node.href.includes('a'.repeat(64))));
+    delete ui.handlers['/api/session']; delete ui.handlers['/api/state'];
+    await panel.children[1].children[0].click(); await ui.flush();
+    assert.equal(ui.window.PhotoFindry.isConnected(), true);
+  } finally { await ui.close(); }
+});
+
+test('expected update restart is explained while a replaced or revoked process credential fails closed', async () => {
+  const ui = harness();
+  try {
+    await ui.pair(); ui.window.PhotoFindry.expectCompanionRestart('update');
+    ui.handlers['/api/state'] = () => { throw new TypeError('Expected close'); };
+    await assert.rejects(ui.window.PhotoFindry.refreshState(), /restarting/);
+    assert.match(ui.connectionPanel().textContent, /restarting for the requested change/);
+    ui.handlers['/api/session'] = () => Response.json({ error: 'Session revoked' }, { status: 401 });
+    await ui.runTimer(1000);
+    assert.equal(ui.window.PhotoFindry.isConnected(), false); assert.equal(ui.storage.size, 0);
+    assert.equal(ui.ids.get('app').hidden, true); assert.match(ui.ids.get('pair-error').textContent, /Local access ended.*Open PhotoFindry/);
+    assert.equal(ui.ids.get('pair-form').children.find(node => node.textContent === 'Repair installation').href, 'https://app.photofindry.com/#installation');
+    assert.equal(ui.timers.size, 0);
+  } finally { await ui.close(); }
+});
+
+test('disconnect fences an in-flight reconnect validation and no late reply restores access', async () => {
+  const ui = harness(), validation = deferred();
+  try {
+    await ui.pair(); ui.handlers['/api/state'] = () => { throw new TypeError('Lost connection'); };
+    await assert.rejects(ui.window.PhotoFindry.refreshState());
+    ui.handlers['/api/session'] = () => validation.promise;
+    await ui.runTimer(1000);
+    const pending = ui.calls.find(call => call.route === '/api/session');
+    await ui.close(); assert.equal(pending.signal.aborted, true);
+    validation.resolve({ apiVersion: 4, instanceId: 'b'.repeat(64), sessionLifetime: 'process' }); await ui.flush();
+    assert.equal(ui.window.PhotoFindry.isConnected(), false); assert.equal(ui.storage.size, 0); assert.equal(ui.timers.size, 0);
+  } finally { validation.resolve({}); await ui.close(); }
 });
 
 test('cross-origin, malformed, incompatible and changed-instance restored credentials fail closed', async () => {

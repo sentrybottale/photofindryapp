@@ -7,9 +7,12 @@ unrelated whole-release qualification suite. The existing publisher key is retai
 
 ## Installation and daily use
 
-New users install the CLI package directly. The website provides the reviewed
-Terminal setup with fixed official archive/envelope URLs and first-install hashes.
-It checks bytes before extraction/execution, then invokes the signed lifecycle
+New users install the CLI package directly. From build 120 the website provides
+a stable Terminal setup pinned to an immutable content-addressed script and
+native verifier. The retained publisher key authenticates the fixed feed before
+setup parses its metadata or downloads the exact signed archive. A copied command
+therefore continues to install later signed releases without changing its shell
+bytes. It checks bytes before extraction/execution, then invokes the signed lifecycle
 installer with this account's current-library selection and a fresh recovery path.
 No application is put in Applications. The shell exits after setup; launchd owns
 the service. First-install instructions/pins need an independently trusted source;
@@ -58,7 +61,8 @@ software. **Recovery never automatically restores an older library backup.**
 User edits and completed work stay in the current library. Explicit software
 rollback does not lower the anti-replay watermark.
 
-A separate, transient maintenance LaunchAgent performs browser-requested updates
+A separate, transient maintenance LaunchAgent performs browser-requested and
+explicit-Open updates
 and uninstall so stopping the main service cannot kill its updater. Browser
 operations are authenticated finite action names; they carry no executable URL,
 trust key or filesystem authority. The public website has no update/install API
@@ -126,6 +130,39 @@ drained by the authoritative updater, while an offline check opens the current
 verified build and reports the failure locally. Direct `lifecycle open-update`
 uses the same signed path for CLI recovery and isolated qualification.
 
+## Account-installed entry and failure isolation — build 120 candidate
+
+Build-scoped identities did not prevent multiple test copies of the same helper
+from claiming macOS links. From build 120, packaged helpers declare no product
+URL schemes. Only the generated `entry/PhotoFindry.app` under the account's
+installation root declares them, with a unique stable installation identity.
+This short-lived helper verifies publisher-signed inventory and exact controller
+bytes before running them. It also retains an independently authenticated small
+recovery controller, so missing current software does not need to execute itself.
+
+A read-only probe in launchd's actual background context checks folder access
+before stopping the old companion. Software readiness and link selection are
+separate outcomes: a failed link repair keeps healthy software running and records
+its specific failure. The durable last failure survives rollback and an absent
+installation record. Explicit Open maintenance has a nonce-bound completion
+receipt and survives the requesting launcher closing. Unexpected crashes of a
+previously healthy service receive bounded restart attempts; initial failure,
+Quit and maintenance shutdown do not become restart loops.
+
+Transient browser failures retry reads with bounded backoff, preserve visible
+results and pending edits, and never replay mutations. A persistent panel offers
+native Open and verified installation repair. Automatic cross-process tab handoff
+is not implemented; native Open obtains a fresh authenticated origin/session.
+See the private architecture record for incident evidence and the remaining
+authenticated control-plane design.
+
+The build-121 candidate also follows a completed private uninstall receipt when
+reinstalling a kept custom library. Only its validated library location is reused;
+removed program paths grant no execution authority. Pending uninstall, malformed
+receipts and unavailable kept locations block setup with an actionable failure
+instead of silently opening an empty default library. Qualification must include
+uninstall followed by reinstall and the actual current-library selection path.
+
 ## Launch routing correction — 19 October 2026 (unreleased)
 
 Beta 15 still exposes `photofindry-local://open` on the public hub. Retained
@@ -159,3 +196,9 @@ switch the public hub. The prepared website branch gates deployment on that
 minimum verified release and a matching download link. The owner authorized the coordinated build 114 hotfix on 19 October.
 Publication still depends on exact-candidate upgrade and delivery qualification;
 this is not an other-Mac acceptance claim.
+
+Background readiness checks execute a byte-verified, freshly materialized controller
+inside the private program installation. They do not execute the setup copy from
+Documents/Downloads or preserve that copy's filesystem provenance. The library
+remains in its selected location. Build 122 qualifies this protected-installer
+origin case alongside actual library access and retained-service failure behavior.

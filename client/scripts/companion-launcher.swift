@@ -3,6 +3,141 @@
 import AppKit
 import Foundation
 import CoreServices
+import CryptoKit
+
+let installedEntryPublisherPin = "G363x/YCT07qbJyyI5minQjp3v+6SEw9sB7dU3pL6cM="
+struct InstalledEntryConfiguration: Decodable { let schema: UInt32; let installRoot: String }
+struct InstalledEntryState: Decodable { let schema: UInt32; let current: UInt64; let previous: UInt64? }
+struct InstalledEntryTransaction: Decodable { let schema: UInt32; let after: InstalledEntryState; let committed: Bool }
+struct InstalledEntryEnvelope: Decodable { let payload: String; let signature: String }
+struct InstalledEntryRelease: Decodable {
+    let schema: UInt32; let kind: String; let build: UInt64; let platform: String
+    let dataContract: String; let inventorySHA256: String
+}
+
+func installedEntryRead(_ url: URL, maximum: Int, executable: Bool = false) -> Data? {
+    guard uninstallPath(url.path), realDirectoryChain(url.deletingLastPathComponent().path, inspect:nativeUninstallIdentity) != nil else { return nil }
+    let descriptor = url.path.withCString { open($0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK) }
+    guard descriptor >= 0 else { return nil }
+    defer { close(descriptor) }
+    var before=stat(),after=stat()
+    guard fstat(descriptor,&before)==0, (before.st_mode & S_IFMT)==S_IFREG,
+          before.st_uid==geteuid(), before.st_nlink==1, before.st_mode & 0o022==0,
+          before.st_size>0,before.st_size<=maximum, !executable || before.st_mode & 0o111 != 0 else {return nil}
+    var bytes=Data(),buffer=[UInt8](repeating:0,count:65536)
+    while bytes.count<=maximum {
+        let count=read(descriptor,&buffer,min(buffer.count,maximum+1-bytes.count))
+        if count<0 {return nil};if count==0 {break};bytes.append(contentsOf:buffer.prefix(count))
+    }
+    guard bytes.count<=maximum,fstat(descriptor,&after)==0,
+          before.st_dev==after.st_dev,before.st_ino==after.st_ino,before.st_size==after.st_size,
+          before.st_mtimespec.tv_sec==after.st_mtimespec.tv_sec,before.st_mtimespec.tv_nsec==after.st_mtimespec.tv_nsec,
+          before.st_ctimespec.tv_sec==after.st_ctimespec.tv_sec,before.st_ctimespec.tv_nsec==after.st_ctimespec.tv_nsec else {return nil}
+    return bytes
+}
+func installedEntryRoot(_ application: URL) -> URL? {
+    guard application.lastPathComponent=="PhotoFindry.app",application.deletingLastPathComponent().lastPathComponent=="entry",
+          let raw=installedEntryRead(application.appendingPathComponent("Contents/Resources/installed-entry.json"),maximum:8192),
+          let object=(try? JSONSerialization.jsonObject(with:raw)) as? [String:Any],Set(object.keys)==Set(["schema","installRoot"]),
+          let config=try? JSONDecoder().decode(InstalledEntryConfiguration.self,from:raw),config.schema==1,
+          uninstallPath(config.installRoot),
+          let identity=nativeUninstallIdentity(config.installRoot),identity.isDirectory,identity.owner==geteuid(),identity.mode & 0o077==0 else {return nil}
+    let root=URL(fileURLWithPath:config.installRoot)
+    guard root.appendingPathComponent("entry/PhotoFindry.app").path==application.path else {return nil}
+    return root
+}
+func installedEntryDigest(_ bytes: Data) -> String { SHA256.hash(data:bytes).map{String(format:"%02x",$0)}.joined() }
+func installedEntryVerifiedPayload(envelopeURL: URL, inventoryURL: URL, executableDirectory: URL,
+                                 build: UInt64?, publisherPin: String) -> URL? {
+    guard let raw=installedEntryRead(envelopeURL,maximum:131072),
+          let envelope=try? JSONDecoder().decode(InstalledEntryEnvelope.self,from:raw),
+          let body=Data(base64Encoded:envelope.payload),body.count<=65536,
+          let signature=Data(base64Encoded:envelope.signature),signature.count==64,
+          let keyBytes=Data(base64Encoded:publisherPin),let key=try? Curve25519.Signing.PublicKey(rawRepresentation:keyBytes),
+          key.isValidSignature(signature,for:body),
+          let release=try? JSONDecoder().decode(InstalledEntryRelease.self,from:body),
+          release.schema==1,release.kind=="photofindry-cli-release",(1...1_000_000_000).contains(release.build),build==nil || release.build==build,
+          release.platform=="macos-arm64",release.dataContract=="photofindry-library-compatible-v1" else {return nil}
+    guard let inventory=installedEntryRead(inventoryURL,maximum:2*1024*1024),
+          installedEntryDigest(inventory)==release.inventorySHA256,
+          let text=String(data:inventory,encoding:.utf8) else {return nil}
+    var names=Set<String>(),expected=[String:String]()
+    for line in text.split(separator:"\n") {
+        let parts=line.components(separatedBy:"  ")
+        guard parts.count==2,parts[0].utf8.count==64,parts[0].utf8.allSatisfy({(48...57).contains($0)||(97...102).contains($0)}),
+              !parts[1].isEmpty,!parts[1].hasPrefix("/"),!parts[1].contains("\\"),
+              !parts[1].split(separator:"/",omittingEmptySubsequences:false).contains(where:{$0.isEmpty || $0=="." || $0==".."}),
+              names.insert(parts[1]).inserted,names.count<=8192 else {return nil}
+        expected[parts[1]]=parts[0]
+    }
+    // The first authenticated CLI may invoke its verifier and native launcher
+    // before it admits the rest of the package. Authenticate that bootstrap
+    // chain here, without executing a verifier selected by mutable metadata.
+    for name in ["photofindry","CompanionReleaseVerify","CompanionLauncher"] {
+        guard let hash=expected["bin/"+name],let bytes=installedEntryRead(executableDirectory.appendingPathComponent(name),maximum:128*1024*1024,executable:true),installedEntryDigest(bytes)==hash else {return nil}
+    }
+    return executableDirectory.appendingPathComponent("photofindry")
+}
+func installedEntryVerifiedExecutable(root: URL, build: UInt64, publisherPin: String = installedEntryPublisherPin) -> URL? {
+    let version=root.appendingPathComponent("versions/\(build)")
+    return installedEntryVerifiedPayload(envelopeURL:version.appendingPathComponent("release.json"),inventoryURL:version.appendingPathComponent("package/SHA256SUMS.txt"),executableDirectory:version.appendingPathComponent("package/bin"),build:build,publisherPin:publisherPin)
+}
+func installedEntryRecoveryExecutable(_ application: URL, publisherPin: String = installedEntryPublisherPin) -> URL? {
+    guard installedEntryRoot(application) != nil else {return nil}
+    let resources=application.appendingPathComponent("Contents/Resources")
+    return installedEntryVerifiedPayload(envelopeURL:resources.appendingPathComponent("bootstrap-release.json"),inventoryURL:resources.appendingPathComponent("bootstrap-SHA256SUMS.txt"),executableDirectory:resources.appendingPathComponent("bootstrap"),build:nil,publisherPin:publisherPin)
+}
+func installedEntryExecutable(_ application: URL, recovering: Bool, publisherPin: String = installedEntryPublisherPin) -> URL? {
+    if recovering,let bootstrap=installedEntryRecoveryExecutable(application,publisherPin:publisherPin) {return bootstrap}
+    guard let root=installedEntryRoot(application),
+          let data=installedEntryRead(root.appendingPathComponent("installation.json"),maximum:32768),
+          let state=try? JSONDecoder().decode(InstalledEntryState.self,from:data),state.schema==1 else {return nil}
+    if let current=installedEntryVerifiedExecutable(root:root,build:state.current,publisherPin:publisherPin) {return current}
+    if recovering,let previous=state.previous,previous<state.current {
+        return installedEntryVerifiedExecutable(root:root,build:previous,publisherPin:publisherPin)
+    }
+    return nil
+}
+func installedEntryRecoveryAvailable(_ application: URL, attempted: Bool, publisherPin: String = installedEntryPublisherPin) -> Bool {
+    guard !attempted,let root=installedEntryRoot(application) else {return false}
+    func valid(_ state:InstalledEntryState)->Bool {state.schema==1 && (1...1_000_000_000).contains(state.current) && state.previous != state.current}
+    let state=installedEntryRead(root.appendingPathComponent("installation.json"),maximum:32768)
+        .flatMap{try? JSONDecoder().decode(InstalledEntryState.self,from:$0)}
+    let transaction=installedEntryRead(root.appendingPathComponent("transaction.json"),maximum:65536)
+        .flatMap{try? JSONDecoder().decode(InstalledEntryTransaction.self,from:$0)}
+    // A retained controller is executable proof, not an installation record.
+    // A cancelled first setup may keep it while clearing all recoverable state.
+    let recoverable=state.map(valid)==true || transaction.map{$0.schema==1 && !$0.committed && valid($0.after)}==true
+    return recoverable && installedEntryExecutable(application,recovering:true,publisherPin:publisherPin) != nil
+}
+func installedEntryRepairTarget(_ application: URL, publisherPin: String = installedEntryPublisherPin) -> (executable:URL,root:URL)? {
+    let bin=application.deletingLastPathComponent(),package=bin.deletingLastPathComponent()
+    let version=package.deletingLastPathComponent(),versions=version.deletingLastPathComponent(),root=versions.deletingLastPathComponent()
+    guard application.lastPathComponent=="CompanionLauncher.app",bin.lastPathComponent=="bin",package.lastPathComponent=="package",
+          versions.lastPathComponent=="versions",let number=UInt64(version.lastPathComponent),number>=120,
+          realDirectoryChain(application.path,inspect:nativeUninstallIdentity) != nil,
+          let identity=nativeUninstallIdentity(root.path),identity.owner==geteuid(),identity.mode & 0o077==0,
+          let raw=installedEntryRead(root.appendingPathComponent("installation.json"),maximum:32768),
+          let state=try? JSONDecoder().decode(InstalledEntryState.self,from:raw),state.schema==1,
+          let executable=installedEntryVerifiedExecutable(root:root,build:state.current,publisherPin:publisherPin) else {return nil}
+    return (executable,root)
+}
+func delegateInstalledEntryRepair(_ application: URL) -> Bool {
+    guard let target=installedEntryRepairTarget(application) else {return false}
+    // Compatibility with an older updater: it still calls the new packaged
+    // helper's --register-links. That helper claims no schemes; the selected
+    // authenticated CLI provisions the one stable entry under its entry lock.
+    let process=Process();process.executableURL=target.executable
+    process.arguments=["lifecycle","repair-entry","--install-root",target.root.path]
+    process.standardInput=FileHandle.nullDevice;process.standardOutput=FileHandle.nullDevice;process.standardError=FileHandle.nullDevice
+    do {try process.run()} catch {return false}
+    let deadline=ProcessInfo.processInfo.systemUptime+100
+    while process.isRunning && ProcessInfo.processInfo.systemUptime<deadline {
+        if !RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.025)) {Thread.sleep(forTimeInterval:0.005)}
+    }
+    if process.isRunning {process.terminate();return false}
+    return process.terminationStatus==0
+}
 
 enum NativeLaunchRequest: Equatable {
     case companion
@@ -74,7 +209,17 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
             return
         }
         retryRequest = request
-        let executable = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("photofindry")
+        let application=Bundle.main.bundleURL
+        let entryRoot=installedEntryRoot(application)
+        let isInstalledEntry=application.lastPathComponent=="PhotoFindry.app" && application.deletingLastPathComponent().lastPathComponent=="entry"
+        let executable:URL
+        if isInstalledEntry {
+            guard let verified=installedEntryExecutable(application,recovering:recovering) else {
+                showError("The installed companion software could not be authenticated or is missing. Your library is kept. Choose Recover and open when a verified earlier version is available, or Repair installation.")
+                return
+            }
+            executable=verified
+        } else { executable=application.deletingLastPathComponent().appendingPathComponent("photofindry") }
         var info: stat = stat()
         guard executable.withUnsafeFileSystemRepresentation({ pointer in
             guard let pointer else { return false }
@@ -85,7 +230,7 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         }
         let process = Process()
         process.executableURL = executable
-        if recovering { process.arguments=["lifecycle","recover"] }
+        if recovering { process.arguments=["lifecycle","recover"]+(entryRoot.map{["--install-root",$0.path]} ?? []) }
         else { switch request {
         case .companion: process.arguments=["open-companion"]
         case .workspace: process.arguments=["open"]
@@ -160,20 +305,31 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         let bin=Bundle.main.bundleURL.deletingLastPathComponent()
         let version=bin.deletingLastPathComponent().deletingLastPathComponent()
-        let canRecover = recoveryOfferAvailable(version: version, attempted: recoveryAttempted)
+        let application=Bundle.main.bundleURL
+        let canRecover = installedEntryRecoveryAvailable(application,attempted:recoveryAttempted)
+            || recoveryOfferAvailable(version: version, attempted: recoveryAttempted)
         if canRecover {
             alert.addButton(withTitle: "Recover and open")
+            alert.addButton(withTitle: "Repair installation")
             alert.addButton(withTitle: "Cancel")
             alert.informativeText += "\n\nRecovery restarts verified companion software. Your current library stays in place."
-            if alert.runModal() == .alertFirstButtonReturn {
+            let response=alert.runModal()
+            if response == .alertFirstButtonReturn {
                 openLibrary(retryRequest,recovering:true)
                 return
             }
+            if response == .alertSecondButtonReturn { openVerifiedRepair() }
         } else {
             if recoveryAttempted && !message.contains("PF-OPEN-300") { alert.informativeText += "\n\nReinstall the latest verified PhotoFindry companion from photofindry.com, then open it again. Keep your library and recovery copy in place." }
-            alert.addButton(withTitle: "OK");alert.runModal()
+            alert.addButton(withTitle: "Repair installation");alert.addButton(withTitle:"Cancel")
+            if alert.runModal() == .alertFirstButtonReturn { openVerifiedRepair() }
         }
         if launch == nil { NSApp.terminate(nil) }
+    }
+
+    private func openVerifiedRepair() {
+        // This public help URL receives no local path, session or diagnostics.
+        if let url=URL(string:"https://app.photofindry.com/#installation") {NSWorkspace.shared.open(url)}
     }
 }
 
@@ -273,6 +429,11 @@ func selectLocalLinkHandlers(_ application:URL, timeout:TimeInterval=30,
 
 // Link ownership belongs to the short-lived helper, never its enclosing installer.
 func localLauncherApplication(_ executable:String) -> URL? {
+    let stableSuffix="/entry/PhotoFindry.app/Contents/MacOS/CompanionLauncher"
+    if executable.hasSuffix(stableSuffix) {
+        let app=URL(fileURLWithPath:String(executable.dropLast("/Contents/MacOS/CompanionLauncher".count)))
+        return installedEntryRoot(app) != nil ? app : nil
+    }
     let suffix="/CompanionLauncher.app/Contents/MacOS/CompanionLauncher"
     if executable.hasSuffix(suffix) {
         return URL(fileURLWithPath:String(executable.dropLast("/Contents/MacOS/CompanionLauncher".count)))
@@ -323,9 +484,15 @@ func registerLocalLinks() -> Bool {
     guard let expected=localLauncherApplication(executable.path),
           let info=NSDictionary(contentsOfFile:expected.appendingPathComponent("Contents/Info.plist").path),
           let build=info["CFBundleVersion"] as? String,let buildNumber=UInt64(build),
-          info["CFBundleIdentifier"] as? String == "com.sentrybottale.photorecall.companion-launcher"+(buildNumber>=119 ? ".b"+build : ""),
           info["CFBundleExecutable"] as? String == "CompanionLauncher",
           info["LSUIElement"] as? Bool == true else {return false}
+    if installedEntryRoot(expected) != nil {
+        guard let identifier=info["CFBundleIdentifier"] as? String,
+              identifier.range(of:#"\Acom\.photofindry\.companion\.entry\.[0-9a-f]{32}\z"#,options:.regularExpression) != nil else {return false}
+    } else {
+        if buildNumber>=120 {return delegateInstalledEntryRepair(expected)}
+        guard info["CFBundleIdentifier"] as? String == "com.sentrybottale.photorecall.companion-launcher"+(buildNumber>=119 ? ".b"+build : "") else {return false}
+    }
     guard LSRegisterURL(expected as CFURL,true)==noErr else {return false}
     var directory:ObjCBool=false
     guard FileManager.default.fileExists(atPath:expected.path,isDirectory:&directory),directory.boolValue else {return false}

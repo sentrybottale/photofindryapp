@@ -5,16 +5,33 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     process::Stdio,
+    sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 type Result<T> = std::result::Result<T, String>;
 const STATE: &str = "installation.json";
 const JOURNAL: &str = "transaction.json";
+const OPEN_REQUEST: &str = "open-update-request.json";
+const LAST_FAILURE: &str = "last-failure.json";
+const ACCESS_RECEIPT: &str = "access-check.json";
+const OPEN_OPERATION_TIMEOUT: Duration = Duration::from_secs(1800);
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct OpenRequest {
+    schema: u32,
+    id: String,
+    complete: bool,
+    #[serde(default)]
+    error: Option<String>,
+    #[serde(default)]
+    pid: Option<u32>,
+    updated_at: u64,
+}
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Installation {
@@ -170,6 +187,12 @@ fn note(root: &Path, phase: &str, message: &str) {
         &json!({"phase":phase,"message":message,"updatedAt":now()}),
     );
 }
+fn failure(root: &Path, operation: &str, message: &str) {
+    let bounded: String = message.chars().filter(|c| !c.is_control()).take(2048).collect();
+    let current = read_state(root).ok().map(|state| state.current);
+    let _ = save(root, LAST_FAILURE, &json!({"schema":1,"operation":operation,"build":current,"message":bounded,"updatedAt":now()}));
+    note(root, "error", &bounded);
+}
 pub(super) fn note_opening_stage(root: &Path, stage: &'static str) {
     note(root, "opening", &format!("Opening the local library: {stage}. Saved work stays in place."));
 }
@@ -231,6 +254,9 @@ fn xml(s: &str) -> String {
         .replace('\'', "&apos;")
 }
 fn plist(root: &Path, cfg: &Installation, operation: Option<&str>) -> Result<Vec<u8>> {
+    plist_with_request(root, cfg, operation, None)
+}
+fn plist_with_request(root: &Path, cfg: &Installation, operation: Option<&str>, request: Option<&str>) -> Result<Vec<u8>> {
     let mut args = vec![
         executable(root, cfg.current).to_string_lossy().into_owned(),
         "lifecycle".into(),
@@ -238,6 +264,12 @@ fn plist(root: &Path, cfg: &Installation, operation: Option<&str>) -> Result<Vec
         "--install-root".into(),
         root.to_string_lossy().into_owned(),
     ];
+    if let Some(id) = request {
+        if operation != Some("open-update") || !request_id(id) {
+            return Err("Invalid companion Open request identity".into());
+        }
+        args.extend(["--open-request".into(), id.into()]);
+    }
     if matches!(operation, Some("update" | "rollback")) {
         args.push("--open-after".into());
     }
@@ -306,6 +338,134 @@ fn write_agent(root: &Path, cfg: &Installation) -> Result<PathBuf> {
     }
     Ok(path)
 }
+/// Confirm access in launchd's actual user bootstrap before stopping a usable
+/// host. A Terminal/native caller can have TCC access that its LaunchAgent lacks.
+fn check_library_access(data: &Path) -> Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let inaccessible = "The background companion cannot inspect this library folder. Check macOS Privacy & Security before retrying. The current program and library are kept.";
+    let (directory, present) = match fs::symlink_metadata(data) {
+        Ok(_) => (data, true),
+        Err(error) if error.kind()==std::io::ErrorKind::NotFound => {
+            let mut parent=None;
+            for path in data.ancestors().skip(1) {
+                match fs::symlink_metadata(path) {
+                    Ok(_) => {parent=Some(path);break;},
+                    Err(error) if error.kind()==std::io::ErrorKind::NotFound => {},
+                    Err(_) => return Err(inaccessible.into()),
+                }
+            }
+            (parent.ok_or("The library disk is unavailable. Reconnect it before setup.")?, false)
+        },
+        Err(_) => return Err(inaccessible.into()),
+    };
+    launch::canonical(directory, true).map_err(|_| "The background companion cannot access this library folder. Check macOS Privacy & Security or explicitly choose an accessible library copy. The current program and library are kept.")?;
+    let mut entries = fs::read_dir(directory).map_err(|_| "The background companion cannot access this library folder. Allow PhotoFindry access in macOS Privacy & Security, or explicitly choose an accessible library copy. The existing program and library are kept.")?;
+    let _ = entries.next().transpose().map_err(|_| "The background companion cannot list this library folder. Check macOS Privacy & Security before retrying.")?;
+    let path=std::ffi::CString::new(directory.as_os_str().as_bytes()).map_err(|_|"The library folder path is invalid")?;
+    if unsafe {libc::access(path.as_ptr(),libc::W_OK|libc::X_OK)}!=0 {
+        return Err("The background companion cannot write in this library folder. Allow PhotoFindry access in macOS Privacy & Security, then retry. The current program and library are kept.".into());
+    }
+    if !present {return Ok(());}
+    // Fresh and legacy libraries may not have every lazy store yet. Admission
+    // owns format validation; this probe tests OS access without creating files.
+    for name in ["catalog.json", "catalog.sqlite", "jobs.sqlite", "people.sqlite", "source-host.sqlite"] {
+        let path = data.join(name);
+        match fs::symlink_metadata(&path) {
+            Err(error) if error.kind()==std::io::ErrorKind::NotFound => continue,
+            Err(_) => return Err("The background companion cannot inspect the saved library catalog. Check macOS folder access before retrying.".into()),
+            Ok(_) => {},
+        }
+        let mut file = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
+            .open(&path).map_err(|_| "The background companion cannot read the library's saved catalog. Allow PhotoFindry access in macOS Privacy & Security, or explicitly choose an accessible library copy. No library was moved or replaced.")?;
+        if !file.metadata().map_err(|_| "Cannot inspect the saved library catalog")?.is_file() {
+            return Err("The library catalog is not an ordinary file. Keep it in place for recovery.".into());
+        }
+        let mut prefix = [0u8; 32];
+        let _ = file.read(&mut prefix).map_err(|_| "The background companion could not read the saved library catalog. Check macOS folder access before retrying.")?;
+    }
+    Ok(())
+}
+fn access_check_plist(root: &Path, data: &Path, exe: &Path, id: &str) -> Result<Vec<u8>> {
+    if !request_id(id) { return Err("Invalid background access request identity".into()); }
+    let args = [exe.to_string_lossy().into_owned(), "lifecycle".into(), "access-check".into(), "--install-root".into(), root.to_string_lossy().into_owned(), "--data-dir".into(), data.to_string_lossy().into_owned(), "--open-request".into(), id.into()]
+        .iter().map(|s| format!("<string>{}</string>", xml(s))).collect::<String>();
+    Ok(format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>Label</key><string>{}.access-check</string><key>ProgramArguments</key><array>{args}</array><key>RunAtLoad</key><true/><key>ProcessType</key><string>Background</string><key>KeepAlive</key><false/></dict></plist>", xml(&label(root)?)).into_bytes())
+}
+/// launchd cannot inherit a Terminal parent's Documents/Downloads permission.
+/// Copy only the caller-authenticated controller into the private program store
+/// before launching the read-only probe; the library remains untouched.
+fn stage_access_controller(root: &Path, exe: &Path, id: &str) -> Result<PathBuf> {
+    let source=launch::canonical(exe,false)?;
+    let expected=release::file_hash(&source,64*1024*1024)?;
+    let directory=root.join("access-controller");launch::private_directory(&directory,true)?;
+    let stage=Stage::new(directory.join(format!(".stage-{id}")));launch::private_directory(&stage.0,true)?;
+    let copied=stage.0.join("photofindry");
+    // Materialize bytes rather than cloning/copying provenance attributes from
+    // a protected Documents/Downloads build. The embedded code seal is retained.
+    let mut input=OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW|libc::O_CLOEXEC|libc::O_NONBLOCK).open(&source)
+        .map_err(|_|"Cannot read the authenticated background-access controller")?;
+    let mut output=OpenOptions::new().write(true).create_new(true).mode(0o700).custom_flags(libc::O_NOFOLLOW|libc::O_CLOEXEC).open(&copied)
+        .map_err(|_|"Cannot stage the authenticated background-access controller")?;
+    let mut buffer=[0u8;65536];let mut total=0u64;
+    loop {
+        let count=input.read(&mut buffer).map_err(|_|"Cannot read the background-access controller")?;
+        if count==0 {break;}
+        total=total.checked_add(count as u64).ok_or("Background-access controller exceeds its bound")?;
+        if total>64*1024*1024 {return Err("Background-access controller exceeds its bound".into());}
+        output.write_all(&buffer[..count]).map_err(|_|"Cannot stage the background-access controller")?;
+    }
+    output.sync_all().map_err(|_|"Cannot flush the background-access controller")?;
+    drop(output);drop(input);
+    if release::file_hash(&copied,64*1024*1024)?!=expected {return Err("The background-access controller changed while being staged. The current program and library are kept.".into());}
+    let target=directory.join("photofindry");
+    if target.symlink_metadata().is_ok() {launch::private_file(&target,false)?;}
+    fs::rename(&copied,&target).map_err(|_|"Cannot publish the authenticated background-access controller")?;
+    launch::private_directory(&directory,false)?.sync_all().map_err(|_|"Cannot flush the background-access controller directory")?;
+    Ok(target)
+}
+fn access_timeout(receipt: &OpenRequest) -> String {
+    if receipt.pid.is_none() {
+        "The background companion did not report startup from the verified program store within 15 seconds. Rerun verified setup; the current program and library are kept.".into()
+    } else {
+        "The background companion started but could not finish checking the library folder within 15 seconds. Reconnect its disk or check macOS folder access, then retry. The current program and library are kept.".into()
+    }
+}
+async fn preflight_background_access(root: &Path, data: &Path, exe: &Path) -> Result<()> {
+    let mut nonce = [0u8; 32];
+    getrandom::fill(&mut nonce).map_err(|_| "Cannot identify background library access check")?;
+    let id = release::digest(&nonce);
+    let controller=stage_access_controller(root,exe,&id)?;
+    save(root, ACCESS_RECEIPT, &OpenRequest { schema: 1, id: id.clone(), complete: false, error: None, pid: None, updated_at: now() })?;
+    atomic(root, "access-check.plist", &access_check_plist(root, data, &controller, &id)?)?;
+    let job = format!("{}/{}.access-check", domain(), label(root)?);
+    unload(job.clone()).await?;
+    launchctl(&["bootstrap".into(), domain(), root.join("access-check.plist").to_string_lossy().into_owned()], true).await?;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    let result = loop {
+        let receipt = match read_request(root, ACCESS_RECEIPT, &id) { Ok(value) => value, Err(reason) => break Err(reason) };
+        if receipt.complete { break receipt.error.map_or(Ok(()), Err); }
+        if tokio::time::Instant::now() >= deadline {
+            break Err(access_timeout(&receipt));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let _ = unload(job).await;
+    if let Err(reason) = &result { failure(root, "background-access", reason); }
+    result
+}
+fn finish_access_check(root: &Path, data: &Path, id: &str) -> Result<()> {
+    let mut receipt = read_request(root, ACCESS_RECEIPT, id)?;
+    if receipt.complete { return Err("This background access check has already finished.".into()); }
+    receipt.pid=Some(std::process::id());receipt.updated_at=now();
+    save(root, ACCESS_RECEIPT, &receipt)?;
+    let result = check_library_access(data);
+    receipt.complete = true;
+    receipt.error = result.as_ref().err().cloned();
+    receipt.updated_at = now();
+    save(root, ACCESS_RECEIPT, &receipt)?;
+    result
+}
+
 async fn launchctl(args: &[String], required: bool) -> Result<()> {
     let status = tokio::time::timeout(
         Duration::from_secs(20),
@@ -474,12 +634,14 @@ pub fn current_library(requested: &Path, state: Option<&Path>) -> Result<PathBuf
     current_library_at(&default_root()?,&directory,requested)
 }
 fn current_library_at(root: &Path, state: &Path, fallback: &Path) -> Result<PathBuf> {
+    launch::ensure_available(state)?;
     if root.join(STATE).exists() {
         let cfg=read_state(root)?;
         if cfg.launch_state!=state {return Err("The installed companion uses another launch registration. Open its workspace before changing setup.".into())}
         return Ok(cfg.data);
     }
     if let Some(record)=launch::recovery_registration(state)? {return Ok(record.data_dir);}
+    if let Some(data)=uninstall::kept_library(state)? {return Ok(data);}
     Ok(fallback.to_path_buf())
 }
 /// Public launch prefers the verified standalone installation, even if an older
@@ -519,7 +681,17 @@ async fn prefer_installed_at(root: &Path, directory: &Path) -> Result<()> {
     // A healthy current broker needs no package rehash or restart. Starting its
     // service later still performs the normal signed-package verification.
     if let Ok(record)=launch::read_registration(directory) {
-        if !registration_needs_repair(root,&cfg,&record)? {return Ok(())}
+        if !registration_needs_repair(root,&cfg,&record)? {
+            if root.join("link-repair.json").exists() || !entry_application(root).is_dir() {
+                // A URL-preference failure must not stop a healthy data plane.
+                // An explicit later Open is a bounded opportunity to repair it.
+                if let Some(operation)=launch::try_lock(root,"operation.lock")? {
+                    register_links(root,&cfg).await?;
+                    drop(operation);
+                }
+            }
+            return Ok(())
+        }
     }
     // --open-after runs while its updater still owns operation.lock. Read-only
     // current registration above must remain usable; only repair takes the lock.
@@ -527,7 +699,8 @@ async fn prefer_installed_at(root: &Path, directory: &Path) -> Result<()> {
     let cfg=read_state(root)?;
     if cfg.launch_state!=directory {return Err("The installed companion's launch registration changed. Reopen its verified installer to review setup.".into())}
     checked_release(root,cfg.current,&verifier(&self_executable()?)?)?;
-    repair_registration(root,&cfg)
+    repair_registration(root,&cfg)?;
+    register_links(root,&cfg).await
 }
 async fn restore(
     root: &Path,
@@ -545,8 +718,15 @@ async fn restore(
         stop_agent(root).await?;
     }
     if let Some(before) = &tx.before {
-        checked_release(root, before.current, helper)?;
-        let mut before = before.clone();
+        let mut before = if checked_release(root, before.current, helper).is_ok() {
+            before.clone()
+        } else {
+            // An explicit corrupt-current recovery cannot restore the broken
+            // executable it is replacing. Complete its independently verified
+            // recovery target while retaining the same library and watermark.
+            checked_release(root, tx.after.current, helper)?;
+            tx.after.clone()
+        };
         before.highest = before.highest.max(tx.after.highest);
         let before = &before;
         publish_registration(root, before, guard)?;
@@ -624,6 +804,49 @@ pub async fn recover(root: &Path, restart: bool) -> Result<()> {
     }
     restore(root, &tx, &helper, restart, Some(&_guard)).await
 }
+/// Recovery is permitted to replace corrupt/missing current program bytes with
+/// an independently authenticated retained version. No old executable or library
+/// backup is needed, and the anti-replay watermark never decreases.
+async fn recover_broken_current(root: &Path, before: Installation, reason: &str) -> Result<()> {
+    let helper = verifier(&self_executable()?)?;
+    let previous = before.previous.filter(|build| *build != before.current)
+        .ok_or_else(||format!("The current companion cannot be authenticated: {reason} No earlier signed program is available. Run verified setup again; your library is kept."))?;
+    let prior=checked_release(root,previous,&helper).map_err(|error|format!("The current companion cannot be authenticated: {reason} Retained recovery software also failed verification: {error} Run verified setup again; your library is kept."))?;
+    launch::ensure_available(&before.launch_state)?;
+    if let Some(record)=launch::recovery_registration(&before.launch_state)? {
+        if record.data_dir!=before.data {return Err("Another library owns the launch registration. No recovery program was selected.".into());}
+    }
+    preflight_background_access(root,&before.data,&self_executable()?).await?;
+    let guard=launch::LifecycleGuard::acquire(&before.launch_state)?;
+    // A valid modern broker can still drain its owned runtime even if someone
+    // removed its executable on disk. Do not force-kill a busy host or its model.
+    launch::request_update_stop(&before.launch_state).await?;
+    let deadline=tokio::time::Instant::now()+Duration::from_secs(60);
+    loop {
+        if let Some(broker)=launch::try_lock(&before.launch_state,"broker.lock")? {
+            if super::handover::validate_admission(&before.data).is_ok() {drop(broker);break;}
+        }
+        if tokio::time::Instant::now()>=deadline {return Err("The existing library host is still saving work. Wait before recovery; no program or library was replaced.".into());}
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let mut after=before.clone();after.current=prior.build;after.previous=Some(before.current);after.highest=before.highest.max(prior.build);
+    let mut tx=Transaction{schema:1,before:Some(before.clone()),after:after.clone(),registration:launch::recovery_registration(&before.launch_state)?,committed:false};
+    save(root,JOURNAL,&tx)?;
+    failure(root,"corrupt-current",reason);
+    let result=async {
+        stop_agent(root).await?;
+        publish_registration(root,&after,Some(&guard))?;
+        save(root,STATE,&after)?;
+        note(root,"opening","Opening retained verified software with the current library. Saved work stays in place.");
+        start_agent(root,&after,true).await?;health(root,&after).await?;
+        tx.committed=true;save(root,JOURNAL,&tx)?;clear(root,JOURNAL)?;
+        Ok::<(),String>(())
+    }.await;
+    if let Err(error)=result {failure(root,"corrupt-current-recovery",&error);return Err(format!("The retained verified program could not finish opening: {error} Recovery remains recorded; retry Recover or verified setup. Your library stays in place."));}
+    drop(guard);register_links(root,&after).await?;
+    note(root,"ready","Retained verified companion software is ready. Your current library and saved work were kept.");
+    Ok(())
+}
 async fn switch(
     root: &Path,
     before: Installation,
@@ -646,6 +869,7 @@ async fn switch(
     // old executable has been removed. An active older host is never rebound.
     checked_release(root, before.current, &helper)?;
     repair_registration(root, &before)?;
+    preflight_background_access(root, &before.data, &self_executable()?).await?;
     // Busy transfer/job refusal precedes the durable transition and all launch changes.
     let guard = launch::LifecycleGuard::acquire(&before.launch_state)?;
     note(
@@ -676,6 +900,7 @@ async fn switch(
     }
     .await;
     if let Err(reason) = outcome {
+        failure(root, "update", &reason);
         if let Err(recovery) = restore(root, &tx, &helper, true, Some(&guard)).await {
             return Err(format!("{reason} Recovery is pending: {recovery} Run lifecycle recover; do not restore or delete your library."));
         }
@@ -700,24 +925,125 @@ async fn switch(
     }
     Ok(())
 }
-async fn register_links(root: &Path, cfg: &Installation) -> Result<()> {
-    if root != default_root()? || cfg.launch_state != launch::default_directory()? {
-        return Ok(());
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct EntryIdentity { schema: u32, id: String }
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct EntryState { schema: u32, build: u64, helper_sha256: String }
+fn entry_application(root: &Path) -> PathBuf { root.join("entry/PhotoFindry.app") }
+fn entry_identity(root: &Path) -> Result<String> {
+    if root.join("entry-identity.json").exists() {
+        let raw=release::read(&root.join("entry-identity.json"),4096)?;
+        if let Ok(identity)=serde_json::from_slice::<EntryIdentity>(&raw) {
+            if identity.schema==1 && identity.id.len()==32 && identity.id.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) {return Ok(identity.id);}
+        }
+        // This is disposable program registration metadata. Preserve damaged
+        // bytes before issuing a fresh identity; no library selection changes.
+        launch::private_file(&root.join("entry-identity.json"),false)?;
+        let mut nonce=[0u8;16];getrandom::fill(&mut nonce).map_err(|_|"Cannot preserve damaged Open entry metadata")?;
+        fs::rename(root.join("entry-identity.json"),root.join(format!(".damaged-entry-identity-{}.json",release::digest(&nonce)))).map_err(|_|"Cannot preserve damaged Open entry metadata")?;
     }
-    let mut child = launch::desktop_command(&launch::browser_opener(&executable(root, cfg.current))?)
-        .arg("--register-links")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|_| "The companion is installed, but its Open link could not be repaired. Reopen the verified PhotoFindry installer and choose Try again; saved work is kept.")?;
-    let status=match tokio::time::timeout(Duration::from_secs(105),child.wait()).await {
-        Ok(Ok(status))=>status,
-        _=>{let _=child.kill().await;let _=child.wait().await;return Err("macOS link repair did not finish. Reopen the verified PhotoFindry installer and choose Try again; your library stays in place.".into())}
-    };
-    if !status.success() {
-        return Err("The companion is running but macOS did not select its Open link. Reopen the verified PhotoFindry installer and choose Try again to repair it; saved work is kept.".into());
+    let mut nonce = [0u8; 16]; getrandom::fill(&mut nonce).map_err(|_| "Cannot identify the installed Open entry")?;
+    let id = nonce.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    save(root, "entry-identity.json", &EntryIdentity {schema: 1, id: id.clone()})?;
+    Ok(id)
+}
+fn entry_info(id: &str, build: u64) -> Vec<u8> {
+    format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>com.photofindry.companion.entry.{id}</string><key>CFBundleName</key><string>Open PhotoFindry</string><key>CFBundleDisplayName</key><string>Open PhotoFindry</string><key>CFBundleExecutable</key><string>CompanionLauncher</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>{build}</string><key>LSUIElement</key><true/><key>LSMinimumSystemVersion</key><string>14.0</string><key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>PhotoFindry local launch</string><key>CFBundleURLSchemes</key><array><string>photofindry-companion</string><string>photofindry-local</string></array><key>CFBundleTypeRole</key><string>Viewer</string></dict><dict><key>CFBundleURLName</key><string>PhotoFindry archive navigation</string><key>CFBundleURLSchemes</key><array><string>photofindry</string></array><key>CFBundleTypeRole</key><string>Viewer</string></dict></array></dict></plist>").into_bytes()
+}
+async fn sealed_entry(path: &Path) -> bool {
+    tokio::time::timeout(Duration::from_secs(15), tokio::process::Command::new("/usr/bin/codesign").args(["--verify", "--strict"]).arg(path)
+        .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true).status())
+        .await.is_ok_and(|result| result.is_ok_and(|status| status.success()))
+}
+async fn provision_entry(root: &Path, cfg: &Installation) -> Result<PathBuf> {
+    let id = entry_identity(root)?;
+    let app = entry_application(root);
+    let existing: Option<EntryState> = release::read(&root.join("entry-state.json"), 4096).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    let source_build = existing.as_ref().filter(|state| state.schema == 1 && state.build <= cfg.highest).map(|state| state.build.max(cfg.current)).unwrap_or(cfg.current);
+    if let Some(existing) = &existing {
+        if existing.schema == 1 && existing.build == source_build && app.is_dir()
+            && release::file_hash(&app.join("Contents/MacOS/CompanionLauncher"), 32*1024*1024).ok().as_deref() == Some(existing.helper_sha256.as_str())
+            && release::read(&app.join("Contents/Resources/installed-entry.json"),4096).ok().and_then(|bytes|serde_json::from_slice::<Value>(&bytes).ok()) == Some(json!({"schema":1,"installRoot":root}))
+            && sealed_entry(&app).await { return Ok(app); }
+    }
+    let helper = verifier(&self_executable()?)?;
+    let envelope = release::read(&root.join("versions").join(source_build.to_string()).join("release.json"), 131072)?;
+    let signed = release::verify(&envelope, &helper)?;
+    if signed.build != source_build { return Err("The installed Open entry source version changed".into()); }
+    let source_root = package(root, source_build);
+    let source_name = Path::new("bin/CompanionLauncher.app/Contents/MacOS/CompanionLauncher");
+    let inventory = release::inventory(&source_root, &signed)?;
+    let expected = inventory.get(source_name).ok_or("The signed release has no native Open entry")?;
+    let source = launch::canonical(&source_root.join(source_name), false)?;
+    if release::file_hash(&source, 32*1024*1024)? != *expected { return Err("The native Open entry does not match its publisher-signed inventory".into()); }
+    let entry_root = root.join("entry"); launch::private_directory(&entry_root, true)?;
+    let mut nonce=[0u8;16];getrandom::fill(&mut nonce).map_err(|_|"Cannot stage installed Open entry")?;
+    let stage=Stage::new(entry_root.join(format!(".stage-{}",release::digest(&nonce))));
+    let staged=stage.0.join("PhotoFindry.app");
+    for path in [staged.join("Contents/MacOS"),staged.join("Contents/Resources")] {launch::private_directory(&path,true)?;}
+    let bootstrap=staged.join("Contents/Resources/bootstrap");launch::private_directory(&bootstrap,true)?;
+    for name in ["photofindry","CompanionReleaseVerify","CompanionLauncher"] {
+        let relative=PathBuf::from(format!("bin/{name}"));
+        let expected=inventory.get(&relative).ok_or("The signed release has no complete recovery controller")?;
+        let original=launch::canonical(&source_root.join(&relative),false)?;
+        if release::file_hash(&original,64*1024*1024)?!=*expected {return Err("A recovery controller does not match the publisher-signed inventory".into());}
+        let copied=bootstrap.join(name);fs::copy(&original,&copied).map_err(|_|"Cannot preserve the authenticated recovery controller")?;
+        fs::set_permissions(&copied,fs::Permissions::from_mode(0o700)).map_err(|_|"Cannot protect the recovery controller")?;
+        fs::File::open(&copied).and_then(|file|file.sync_all()).map_err(|_|"Cannot flush the recovery controller")?;
+    }
+    atomic(&staged.join("Contents/Resources"),"bootstrap-release.json",&envelope)?;
+    atomic(&staged.join("Contents/Resources"),"bootstrap-SHA256SUMS.txt",&release::read(&source_root.join("SHA256SUMS.txt"),2*1024*1024)?)?;
+    let binary=staged.join("Contents/MacOS/CompanionLauncher");
+    fs::copy(&source,&binary).map_err(|_|"Cannot copy the authenticated native Open entry")?;
+    fs::set_permissions(&binary,fs::Permissions::from_mode(0o700)).map_err(|_|"Cannot protect the installed Open entry")?;
+    atomic(&staged.join("Contents"),"Info.plist",&entry_info(&id,source_build))?;
+    save(&staged.join("Contents/Resources"),"installed-entry.json",&json!({"schema":1,"installRoot":root}))?;
+    let signed_status=tokio::time::timeout(Duration::from_secs(20),tokio::process::Command::new("/usr/bin/codesign").args(["--force","--sign","-"]).arg(&staged)
+        .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true).status()).await
+        .map_err(|_|"Sealing the installed Open entry timed out")?.map_err(|_|"Cannot seal the installed Open entry")?;
+    if !signed_status.success() || !sealed_entry(&staged).await {return Err("The locally generated Open entry did not pass its code seal. The signed program is kept.".into());}
+    for path in [&binary,&staged.join("Contents/_CodeSignature/CodeResources")] {fs::File::open(path).and_then(|file|file.sync_all()).map_err(|_|"Cannot flush the generated entry seal")?;}
+    let final_hash=release::file_hash(&binary,32*1024*1024)?;
+    if app.exists() {
+        launch::private_directory(&app,false)?;
+        let config=release::read(&app.join("Contents/Resources/installed-entry.json"),4096).ok().and_then(|bytes|serde_json::from_slice::<Value>(&bytes).ok());
+        if config.as_ref().is_some_and(|config|config.get("installRoot").is_some_and(|path|path!=root.to_string_lossy().as_ref())) {return Err("Another installation owns the Open entry. No application was replaced.".into());}
+        swap_paths(&staged,&app)?;
+        // Keep prior program contents without an app bundle layout that
+        // LaunchServices could rediscover under the same URL-handler identity.
+        let quarantine=entry_root.join(format!(".damaged-entry-{}",release::digest(&nonce)));
+        if fs::rename(&staged,&quarantine).is_err() {
+            if swap_paths(&staged,&app).is_err() {stage.preserve();return Err(format!("Open-entry repair could not restore its original directory. Retained program bytes stay at {}. Rerun verified setup; your library was not changed.",stage.0.display()));}
+            return Err("Cannot preserve the prior Open entry for recovery. It was kept in place.".into());
+        }
+        let old_info=quarantine.join("Contents/Info.plist");
+        if old_info.exists() {fs::rename(&old_info,quarantine.join("prior-Info.plist")).map_err(|_|"The prior Open entry is preserved but its old registration metadata could not be retired. Rerun verified setup.")?;}
+    } else {fs::rename(&staged,&app).map_err(|_|"Cannot publish the installed Open entry")?;}
+    launch::private_directory(&entry_root,false)?.sync_all().map_err(|_|"Cannot flush the installed Open entry")?;
+    save(root,"entry-state.json",&EntryState{schema:1,build:source_build,helper_sha256:final_hash})?;
+    Ok(app)
+}
+async fn register_links(root: &Path, cfg: &Installation) -> Result<()> {
+    if root != default_root()? || cfg.launch_state != launch::default_directory()? { return Ok(()); }
+    let Some(_entry)=launch::try_lock(root,"entry.lock")? else {return Ok(());};
+    let outcome=async {
+        let app=provision_entry(root,cfg).await?;
+        let mut child=launch::desktop_command(&app.join("Contents/MacOS/CompanionLauncher")).arg("--register-links")
+            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true).spawn().map_err(|_|"The installed Open entry could not start")?;
+        let status=match tokio::time::timeout(Duration::from_secs(105),child.wait()).await {
+            Ok(Ok(status))=>status,
+            _=>{let _=child.kill().await;let _=child.wait().await;return Err("macOS Open-link repair timed out. The verified companion remains ready.".into())}
+        };
+        if !status.success() {return Err("macOS did not select the installed Open entry. The verified companion remains ready; rerun verified setup to repair its Open link.".into());}
+        clear(root,"link-repair.json")?;
+        Ok::<(),String>(())
+    }.await;
+    if let Err(reason)=outcome {
+        failure(root,"link-registration",&reason);
+        save(root,"link-repair.json",&json!({"message":reason,"updatedAt":now()}))?;
+        note(root,"ready-with-link-repair","The verified companion is ready. Its macOS Open link needs repair; rerun verified setup. Your current library stays open.");
     }
     Ok(())
 }
@@ -862,27 +1188,58 @@ fn stage_version(root: &Path) -> Result<PathBuf> {
         .map_err(|_| "Cannot protect update stage")?;
     Ok(stage)
 }
-struct Stage(PathBuf);
+struct Stage(PathBuf, std::cell::Cell<bool>);
+impl Stage {
+    fn new(path: PathBuf) -> Self {Self(path,std::cell::Cell::new(true))}
+    fn preserve(&self) {self.1.set(false);}
+}
 impl Drop for Stage {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
+        if self.1.get() {let _ = fs::remove_dir_all(&self.0);}
     }
+}
+fn swap_paths(first: &Path, second: &Path) -> Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let first=std::ffi::CString::new(first.as_os_str().as_bytes()).map_err(|_|"Invalid program path")?;
+    let second=std::ffi::CString::new(second.as_os_str().as_bytes()).map_err(|_|"Invalid program path")?;
+    if unsafe{libc::renameatx_np(libc::AT_FDCWD,first.as_ptr(),libc::AT_FDCWD,second.as_ptr(),libc::RENAME_SWAP)}!=0 {
+        return Err("Cannot atomically replace the verified program; the prior program is kept.".into());
+    }
+    Ok(())
 }
 fn commit_version(
     root: &Path,
-    stage: &Path,
+    staged: &Stage,
     release: &release::Release,
     envelope: &[u8],
 ) -> Result<()> {
+    let stage=&staged.0;
     release::verify_package(&stage.join("package"), release)?;
     atomic(stage, "release.json", envelope)?;
     let target = root.join("versions").join(release.build.to_string());
     if target.exists() {
-        let old = release::read(&target.join("release.json"), 131072)?;
-        if old != envelope {
-            return Err("This build already has a different signed identity. Keep the current version and contact support.".into());
+        let old = release::read(&target.join("release.json"), 131072).ok();
+        if let Some(old)=&old {
+            if old!=envelope && release::verify(old,&verifier(&self_executable()?)?).is_ok() {
+                return Err("This build already has a different signed identity. Keep the current version and contact support.".into());
+            }
         }
-        release::verify_package(&target.join("package"), release)?;
+        if old.as_deref()==Some(envelope) && release::verify_package(&target.join("package"), release).is_ok() {return Ok(());}
+        // Same signed program bytes can be repaired without changing the
+        // selected build or interrupting an already-running owned job. Keep all
+        // damaged/unexpected program contents in quarantine; never remove data.
+        launch::private_directory(&target,false)?;
+        swap_paths(stage,&target)?;
+        let quarantine=root.join("versions").join(format!(".damaged-{}-{}",release.build,stage.file_name().ok_or("Invalid repair stage")?.to_string_lossy()));
+        if let Err(_)=fs::rename(stage,&quarantine) {
+            if swap_paths(stage,&target).is_err() {
+                staged.preserve();
+                return Err(format!("Program repair could not restore its original directory. Damaged bytes are retained at {}. Keep that directory and rerun verified setup; your library was not changed.",stage.display()));
+            }
+            return Err("Cannot preserve the damaged program for recovery. The previous version directory is kept.".into());
+        }
+        launch::private_directory(&root.join("versions"),false)?.sync_all().map_err(|_|"Cannot flush repaired program version")?;
+        save(root,"program-repair.json",&json!({"build":release.build,"inventorySHA256":release.inventory_sha256,"updatedAt":now()}))?;
         return Ok(());
     }
     fs::rename(stage, &target)
@@ -910,12 +1267,14 @@ async fn update_verified(root:&Path,cfg:Installation,next:release::Release,bytes
     let retained=root.join("versions").join(next.build.to_string());
     if retained.exists() {
         note(root,"verifying","Verifying retained signed companion software before reopening the library.");
-        let installed=release::read(&retained.join("release.json"),131072)?;
-        existing_release_identity(next.build,next.build,&installed,&bytes)?;
-        checked_release(root,next.build,&verifier(&self_executable()?)?)?;
-        return switch(root,cfg,&next,false,open).await;
+        let helper=verifier(&self_executable()?)?;
+        if let Ok(installed)=release::read(&retained.join("release.json"),131072) {
+            if installed!=bytes && release::verify(&installed,&helper).is_ok() {existing_release_identity(next.build,next.build,&installed,&bytes)?;}
+            if installed==bytes && checked_release(root,next.build,&helper).is_ok() {return switch(root,cfg,&next,false,open).await;}
+        }
+        note(root,"verifying","Retained program bytes need repair. Fetching a fresh authenticated copy; the current library remains available.");
     }
-    let stage = Stage(stage_version(root)?);
+    let stage = Stage::new(stage_version(root)?);
     if let Some(path) = local {
         release::copy_package(&path.join("package"), &stage.0.join("package"), &next)?;
     } else {
@@ -929,7 +1288,7 @@ async fn update_verified(root:&Path,cfg:Installation,next:release::Release,bytes
         release::extract(&zip, &stage.0.join("package"), &next)?;
         fs::remove_file(zip).map_err(|_| "Cannot finish private update download")?;
     }
-    commit_version(root, &stage.0, &next, &bytes)?;
+    commit_version(root, &stage, &next, &bytes)?;
     switch(root, cfg, &next, false, open).await
 }
 /// An explicit Open attempts an authenticated update before choosing the local
@@ -938,8 +1297,93 @@ async fn update_verified(root:&Path,cfg:Installation,next:release::Release,bytes
 pub async fn refresh_on_open(directory:&Path)->Result<()> {
     if directory!=launch::default_directory()? {return Ok(())}
     let root=default_root()?;
-    refresh_on_open_at(&root).await
+    independent_refresh_on_open(&root).await
 }
+
+fn request_id(id: &str) -> bool {
+    id.len() == 64 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+fn read_request(root: &Path, name: &str, expected: &str) -> Result<OpenRequest> {
+    let request: OpenRequest = serde_json::from_slice(&release::read(&root.join(name), 16384)?)
+        .map_err(|_| "The companion update receipt is invalid. Open PhotoFindry again to recover.")?;
+    if request.schema != 1 || !request_id(&request.id) || request.id != expected {
+        return Err("The companion update request changed. Open PhotoFindry again to use its current state.".into());
+    }
+    Ok(request)
+}
+async fn finish_open_request(root: &Path, expected: &str) -> Result<()> {
+    let mut receipt = read_request(root, OPEN_REQUEST, expected)?;
+    if receipt.complete { return Err("This companion update request has already finished.".into()); }
+    receipt.pid = Some(std::process::id());
+    receipt.updated_at = now();
+    save(root, OPEN_REQUEST, &receipt)?;
+    let result = refresh_on_open_at(root).await;
+    if let Err(reason) = &result { failure(root, "open-update", reason); }
+    receipt.complete = true;
+    receipt.updated_at = now();
+    receipt.error = result.as_ref().err().cloned();
+    save(root, OPEN_REQUEST, &receipt)?;
+    result
+}
+async fn independent_refresh_on_open(root: &Path) -> Result<()> {
+    if !root.join(STATE).exists() { return Ok(()); }
+    let _owner = launch::private_directory(root, false)?;
+    let deadline = tokio::time::Instant::now() + OPEN_OPERATION_TIMEOUT;
+    let _schedule = loop {
+        if let Some(lock) = launch::try_lock(root, "schedule.lock")? { break lock; }
+        if tokio::time::Instant::now() >= deadline {
+            return Err("The signed update is still finishing independently. Your library is kept; open PhotoFindry again after it completes.".into());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let operation = launch::try_lock(root, "operation.lock")?
+        .ok_or("Companion maintenance is active. Wait for it to finish, then open PhotoFindry again.")?;
+    let cfg = read_state(root)?;
+    let mut nonce = [0u8; 32];
+    getrandom::fill(&mut nonce).map_err(|_| "Cannot identify the signed update operation")?;
+    let id = release::digest(&nonce);
+    let receipt = OpenRequest { schema: 1, id: id.clone(), complete: false, error: None, pid: None, updated_at: now() };
+    save(root, OPEN_REQUEST, &receipt)?;
+    atomic(root, "maintenance.plist", &plist_with_request(root, &cfg, Some("open-update"), Some(&id))?)?;
+    // launchd owns the maintenance process, independently of the URL helper and
+    // foreground Open process. A closed helper cannot kill an authenticated switch.
+    unload(format!("{}/{}.maintenance", domain(), label(root)?)).await?;
+    drop(operation);
+    if let Err(reason) = launchctl(&["bootstrap".into(), domain(), root.join("maintenance.plist").to_string_lossy().into_owned()], true).await {
+        failure(root, "open-update-start", &reason);
+        open_update_warning(root, "The signed update could not start. The installed verified companion is opening; retry Open PhotoFindry later.");
+        return Ok(());
+    }
+    loop {
+        let receipt = read_request(root, OPEN_REQUEST, &id)?;
+        if receipt.complete { return receipt.error.map_or(Ok(()), Err); }
+        let exited = receipt.pid.is_some_and(|pid| {
+            (unsafe { libc::kill(pid as libc::pid_t, 0) }) != 0 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+        });
+        if exited {
+            // SIGKILL/power interruption cannot write a completion receipt. The
+            // durable transaction remains authoritative; recover software and
+            // continue Open instead of leaving the user waiting for a dead job.
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            if read_request(root, OPEN_REQUEST, &id)?.complete {continue;}
+            failure(root,"open-update","The update process stopped before reporting completion. Recovering verified software; the current library is kept.");
+            recover(root,false).await?;
+            let current=read_state(root)?;
+            checked_release(root,current.current,&verifier(&self_executable()?)?)?;
+            open_update_warning(root,"The update process stopped. Verified software was recovered and your current library is opening; retry Open PhotoFindry later for the update.");
+            return Ok(());
+        }
+        if receipt.pid.is_none() && now().saturating_sub(receipt.updated_at) >= 45 {
+            open_update_warning(root,"macOS has not started the signed update yet. The verified companion is opening while the requested update remains queued.");
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err("The signed update is still finishing independently. Your library is kept; open PhotoFindry again after it completes.".into());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
 pub async fn wait_for_open_maintenance(directory:&Path)->Result<()> {
     if directory!=launch::default_directory()? {return Ok(())}
     let root=default_root()?;
@@ -948,7 +1392,7 @@ pub async fn wait_for_open_maintenance(directory:&Path)->Result<()> {
 }
 async fn wait_for_open_maintenance_at(root:&Path)->Result<()> {
     let _owner=launch::private_directory(root,false)?;
-    let deadline=tokio::time::Instant::now()+Duration::from_secs(420);
+    let deadline=tokio::time::Instant::now()+OPEN_OPERATION_TIMEOUT;
     loop {
         if let Some(lock)=launch::try_lock(root,"operation.lock")? {drop(lock);return Ok(())}
         if tokio::time::Instant::now()>=deadline {return Err("The companion update is still finishing. Your library is kept; open PhotoFindry again after it completes.".into())}
@@ -958,7 +1402,7 @@ async fn wait_for_open_maintenance_at(root:&Path)->Result<()> {
 async fn refresh_on_open_at(root:&Path)->Result<()> {
     if !root.join(STATE).exists() {return Ok(())}
     let _owner=launch::private_directory(root,false)?;
-    let deadline=tokio::time::Instant::now()+Duration::from_secs(420);
+    let deadline=tokio::time::Instant::now()+OPEN_OPERATION_TIMEOUT;
     let _lock=loop {
         if let Some(lock)=launch::try_lock(root,"operation.lock")? {break lock}
         if tokio::time::Instant::now()>=deadline {
@@ -1008,6 +1452,12 @@ async fn recover_locked_before_open(root:&Path)->Result<()> {
     Ok(())
 }
 pub fn status(root: &Path) -> Result<Value> {
+    let _owner = launch::private_directory(root, false)?;
+    let detail = release::read(&root.join("status.json"), 16384).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok());
+    let last_failure = release::read(&root.join(LAST_FAILURE), 16384).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok());
+    if !root.join(STATE).exists() {
+        return Ok(json!({"installed":false,"status":detail,"lastFailure":last_failure,"recoveryPending":root.join(JOURNAL).exists()}));
+    }
     let cfg = read_state(root)?;
     let helper = verifier(&self_executable()?)?;
     let release = release::verify(
@@ -1029,7 +1479,7 @@ pub fn status(root: &Path) -> Result<Value> {
     let open_update=release::read(&root.join("open-update.json"),4096)
         .ok().and_then(|b|serde_json::from_slice::<Value>(&b).ok());
     Ok(
-        json!({"installed":true,"version":release.version,"build":cfg.current,"previousBuild":cfg.previous,"autostart":cfg.autostart,"automaticUpdates":cfg.automatic_updates,"status":detail,"available":available.as_ref().map(|v|&v["release"]),"openUpdate":open_update,"recoveryPending":root.join(JOURNAL).exists(),"appCleanupPending":cfg.retire.is_some()}),
+        json!({"installed":true,"entryRepairPending":root.join("link-repair.json").exists(),"linkRepair":release::read(&root.join("link-repair.json"),4096).ok().and_then(|bytes|serde_json::from_slice::<Value>(&bytes).ok()),"lastFailure":last_failure,"version":release.version,"build":cfg.current,"previousBuild":cfg.previous,"autostart":cfg.autostart,"automaticUpdates":cfg.automatic_updates,"status":detail,"available":available.as_ref().map(|v|&v["release"]),"openUpdate":open_update,"recoveryPending":root.join(JOURNAL).exists(),"appCleanupPending":cfg.retire.is_some()}),
     )
 }
 pub async fn start_registered(root: &Path) -> Result<()> {
@@ -1144,7 +1594,37 @@ async fn retire_migration(root: &Path) -> Result<()> {
     }
     Ok(())
 }
+/// Recover an unexpected runtime exit twice after it has demonstrated readiness.
+/// Never loop on first-start failures, user Quit, or an updater-owned shutdown.
+/// Every reopened worker retains the ordinary durable-queue pause contract.
+#[derive(Default)]
+struct RestartBudget(u8);
+impl RestartBudget {
+    fn next(&mut self, ready: bool, maintenance: bool, uptime: Duration) -> Option<Duration> {
+        if !ready || maintenance { return None; }
+        if uptime >= Duration::from_secs(300) { self.0 = 0; }
+        if self.0 >= 2 { return None; }
+        self.0 += 1;
+        Some(Duration::from_secs(self.0.into()))
+    }
+}
 async fn background(root: &Path) -> Result<()> {
+    let mut restarts = RestartBudget::default();
+    loop {
+        let ready = AtomicBool::new(false);
+        let started = tokio::time::Instant::now();
+        let result = background_once(root, &ready).await;
+        let Err(reason) = result else { return Ok(()); };
+        failure(root, "runtime", &reason);
+        let operation = launch::try_lock(root, "operation.lock")?;
+        let maintenance = operation.is_none() || root.join(JOURNAL).exists();
+        drop(operation);
+        let Some(delay) = restarts.next(ready.load(Ordering::Acquire), maintenance, started.elapsed()) else { return Err(reason); };
+        note(root, "recovering", "The companion stopped unexpectedly. Restarting verified software with your current library; processing stays paused.");
+        tokio::time::sleep(delay).await;
+    }
+}
+async fn background_once(root: &Path, ready: &AtomicBool) -> Result<()> {
     let _owner = launch::private_directory(root, false)?;
     // During a live switch, the updater holds operation.lock and has already
     // published the candidate registration. A later startup recovers an abandoned switch.
@@ -1196,11 +1676,12 @@ async fn background(root: &Path) -> Result<()> {
     let mut check_child: Option<tokio::process::Child> = None;
     loop {
         tokio::select! {
-         status=child.wait()=>{let status=status.map_err(|_|"Cannot inspect companion exit")?;if status.success(){return Ok(())}let detail=if let Some(mut task)=diagnostics.take(){match tokio::time::timeout(Duration::from_secs(2),&mut task).await{Ok(Ok(value))=>value,_=>{task.abort();String::new()}}}else{String::new()};let detail=detail.trim_start_matches("PhotoFindry: ");let reason=if detail.is_empty(){"The companion stopped unexpectedly. Your library and saved work are kept.".to_owned()}else{detail.to_owned()};note(root,"error",&reason);return Err(reason)},
+         status=child.wait()=>{let status=status.map_err(|_|"Cannot inspect companion exit")?;if status.success(){return Ok(())}let detail=if let Some(mut task)=diagnostics.take(){match tokio::time::timeout(Duration::from_secs(2),&mut task).await{Ok(Ok(value))=>value,_=>{task.abort();String::new()}}}else{String::new()};let detail=detail.trim_start_matches("PhotoFindry: ");let reason=if detail.is_empty(){"The companion stopped unexpectedly. Your library and saved work are kept.".to_owned()}else{detail.to_owned()};return Err(reason)},
          _=term.recv()=>{let _=launch::request_stop(&cfg.launch_state).await;if tokio::time::timeout(Duration::from_secs(30),child.wait()).await.is_err(){let _=child.kill().await;let _=child.wait().await;}return Ok(())},
          _=readiness.tick(),if !reported_ready=>{
           if launch::request_health(&cfg.launch_state).await.unwrap_or(false){
            reported_ready=true;
+           ready.store(true, Ordering::Release);
            let phase=release::read(&root.join("status.json"),16384).ok().and_then(|bytes|serde_json::from_slice::<Value>(&bytes).ok());
            if phase.as_ref().is_some_and(|value|value["phase"]=="opening"||value["phase"]=="recovering"){
             note(root,"ready","The local library is open. Saved work is kept; the queue retains its pause.");
@@ -1259,22 +1740,30 @@ async fn install(
     let bytes = release::read(envelope, 131072)?;
     let signed = release::verify(&bytes, &helper)?;
     release::verify_package(source, &signed)?;
+    preflight_background_access(root, data, &self_executable()?).await?;
     if root.join(STATE).exists() {
         let cfg = read_state(root)?;
         if cfg.data != data || cfg.launch_state != state {
             return Err("Another library is registered for this installation. Keep it in place and open its workspace.".into());
         }
         if signed.build > cfg.current && signed.build >= cfg.highest {
-            let stage = Stage(stage_version(root)?);
+            let stage = Stage::new(stage_version(root)?);
             release::copy_package(source, &stage.0.join("package"), &signed)?;
-            commit_version(root, &stage.0, &signed, &bytes)?;
+            commit_version(root, &stage, &signed, &bytes)?;
             switch(root, cfg, &signed, false, false).await?;
         } else {
-            checked_release(root, cfg.current, &helper)?;
             if signed.build==cfg.current {
-                let installed=release::read(&root.join("versions").join(cfg.current.to_string()).join("release.json"),131072)?;
-                existing_release_identity(cfg.current,signed.build,&installed,&bytes)?;
+                let installed=release::read(&root.join("versions").join(cfg.current.to_string()).join("release.json"),131072).ok();
+                if let Some(installed)=&installed {
+                    if installed!=&bytes && release::verify(installed,&helper).is_ok() {existing_release_identity(cfg.current,signed.build,installed,&bytes)?;}
+                }
+                if checked_release(root,cfg.current,&helper).is_err() {
+                    let stage=Stage::new(stage_version(root)?);
+                    release::copy_package(source,&stage.0.join("package"),&signed)?;
+                    commit_version(root,&stage,&signed,&bytes)?;
+                }
             }
+            checked_release(root,cfg.current,&helper)?;
             repair_registration(root, &cfg)?;
             note(root, "opening", "Opening the installed companion with the current library.");
             start_agent(root, &cfg, false).await?;
@@ -1286,9 +1775,9 @@ async fn install(
     if let Some(prior)=launch::recovery_registration(state)? {
         if prior.data_dir!=data {return Err("Another library owns the current launch registration. Open the latest verified installer to keep using that library; no program or library was changed.".into())}
     }
-    let stage = Stage(stage_version(root)?);
+    let stage = Stage::new(stage_version(root)?);
     release::copy_package(source, &stage.0.join("package"), &signed)?;
-    commit_version(root, &stage.0, &signed, &bytes)?;
+    commit_version(root, &stage, &signed, &bytes)?;
     if *cancellation.borrow() {
         return Err("Installation cancelled before opening the library. Retry when ready.".into());
     }
@@ -1454,6 +1943,21 @@ pub async fn disable_for_uninstall(exe: &Path) -> Result<()> {
     cfg.automatic_updates = false;
     save(&root, STATE, &cfg)?;
     stop_agent(&root).await?;
+    let probe=root.join("access-controller");
+    if probe.exists() {launch::private_directory(&probe,false)?;fs::remove_dir_all(&probe).map_err(|_|"Cannot remove the background-access controller; retry uninstall")?;}
+    if root == default_root()? {
+        let app = entry_application(&root);
+        if app.exists() {
+            let config: Value = serde_json::from_slice(&release::read(&app.join("Contents/Resources/installed-entry.json"),4096)?)
+                .map_err(|_| "The generated Open entry changed. Keep it in place and retry verified setup before uninstalling.")?;
+            if config != json!({"schema":1,"installRoot":root}) { return Err("Another installation owns the Open entry. No application was removed.".into()); }
+            let unregistered = tokio::time::timeout(Duration::from_secs(15),tokio::process::Command::new("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
+                .arg("-u").arg(&app).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true).status()).await
+                .map_err(|_|"Removing the installed Open link timed out; retry uninstall")?.map_err(|_|"Cannot remove the installed Open link")?;
+            if !unregistered.success() {return Err("macOS could not remove the installed Open link. Retry uninstall; your library is kept.".into());}
+            fs::remove_dir_all(&app).map_err(|_|"Cannot remove the generated Open entry; retry uninstall")?;
+        }
+    }
     let path = agent_path(&root)?;
     if path.exists() {
         release::read(&path, 16384)?;
@@ -1489,6 +1993,7 @@ pub async fn command(args: &[String]) -> Result<()> {
     let mut autostart = true;
     let mut automatic_updates = true;
     let mut enabled = None;
+    let mut open_request = None;
     let mut it = args.iter().skip(2);
     while let Some(arg) = it.next() {
         match arg.as_str() {
@@ -1496,6 +2001,12 @@ pub async fn command(args: &[String]) -> Result<()> {
             "--current-library" if !use_current_library => use_current_library = true,
             "--no-autostart" => autostart = false,
             "--no-update-checks" => automatic_updates = false,
+            "--open-request" => {
+                let id = it.next().ok_or("Choose the companion Open request identity")?;
+                if !request_id(id) || open_request.replace(id.clone()).is_some() {
+                    return Err("Invalid companion Open request identity".into());
+                }
+            }
             "--enabled" => {
                 enabled = Some(match it.next().map(String::as_str) {
                     Some("true") => true,
@@ -1528,7 +2039,7 @@ pub async fn command(args: &[String]) -> Result<()> {
             }
         }
     }
-    if (operation != "install"
+    if (!matches!(operation, "install" | "access-check")
         && (use_current_library || data.is_some()
             || rollback.is_some()
             || state.is_some()
@@ -1538,6 +2049,8 @@ pub async fn command(args: &[String]) -> Result<()> {
         || (local.is_some() && operation != "update")
         || (open && !matches!(operation, "update" | "rollback"))
         || (enabled.is_some() && !matches!(operation, "autostart" | "automatic-updates"))
+        || (open_request.is_some() && !matches!(operation, "open-update" | "access-check"))
+        || (operation == "access-check" && (use_current_library || rollback.is_some() || state.is_some() || envelope.is_some() || !autostart || !automatic_updates || open_request.is_none()))
     {
         return Err("These options do not belong to this lifecycle action".into());
     }
@@ -1547,6 +2060,9 @@ pub async fn command(args: &[String]) -> Result<()> {
             .map(Ok)
             .unwrap_or_else(default_root)?,
     };
+    if operation == "access-check" {
+        return finish_access_check(&root, &data.ok_or("Choose the library folder for its background access check")?, &open_request.ok_or("Missing background access request identity")?);
+    }
     if operation == "install" && root.join(JOURNAL).exists() {
         recover(&root, true).await?;
     }
@@ -1572,7 +2088,9 @@ pub async fn command(args: &[String]) -> Result<()> {
             autostart,
             automatic_updates,
         )
-        .await?;
+        .await;
+        if let Err(reason) = &result { failure(&root, "install", reason); }
+        let result = result?;
         println!(
             "{}",
             json!({"ok":true,"state":"ready","installation":result})
@@ -1581,7 +2099,7 @@ pub async fn command(args: &[String]) -> Result<()> {
     }
     if operation == "background" {
         let result = background(&root).await;
-        if let Err(error) = &result { note(&root, "error", error); }
+        if let Err(error) = &result { failure(&root, "background", error); }
         return result;
     }
     if operation == "status" {
@@ -1593,7 +2111,9 @@ pub async fn command(args: &[String]) -> Result<()> {
         let _owner = launch::private_directory(&root, false)?;
         let _operation=launch::try_lock(&root,"operation.lock")?.ok_or("Another companion operation is still running. Wait, then choose Recover and open again.")?;
         let cfg = read_state(&root)?;
-        checked_release(&root, cfg.current, &verifier(&self_executable()?)?)?;
+        if let Err(reason)=checked_release(&root,cfg.current,&verifier(&self_executable()?)?) {
+            return recover_broken_current(&root,cfg,&reason).await;
+        }
         repair_registration(&root,&cfg)?;
         note(&root, "opening", "Recovering the background companion with the current library.");
         let current_start = async {
@@ -1621,8 +2141,17 @@ pub async fn command(args: &[String]) -> Result<()> {
         );
         return Ok(());
     }
+    if operation == "repair-entry" {
+        let _owner=launch::private_directory(&root,false)?;
+        let cfg=read_state(&root)?;
+        checked_release(&root,cfg.current,&verifier(&self_executable()?)?)?;
+        register_links(&root,&cfg).await?;
+        println!("Installed Open entry repair checked. Use lifecycle status for any local warning.");
+        return Ok(());
+    }
     if operation == "open-update" {
-        refresh_on_open_at(&root).await?;
+        if let Some(id) = open_request { finish_open_request(&root, &id).await?; }
+        else { refresh_on_open_at(&root).await?; }
         println!("Signed update check finished. Use lifecycle status for local details.");
         return Ok(());
     }
@@ -1694,17 +2223,207 @@ pub async fn command(args: &[String]) -> Result<()> {
         _ => Err("Unsupported lifecycle action".into()),
     };
     if let Err(error) = &result {
-        note(
-            &root,
-            "error",
-            &format!("{error} Your library is kept. Retry, or run lifecycle recover."),
-        );
+        failure(&root, operation, &format!("{error} Your library is kept. Retry, or run lifecycle recover."));
     }
     result
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn private_fixture(name: &str) -> PathBuf {
+        let mut nonce = [0u8; 8]; getrandom::fill(&mut nonce).unwrap();
+        let root = std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-{name}-{}", &release::digest(&nonce)[..12]));
+        launch::private_directory(&root, true).unwrap();
+        root
+    }
+    #[test]
+    fn reinstall_follows_the_completed_uninstall_library_without_restoring_launch_authority() {
+        let root=private_fixture("reinstall-program");let data=private_fixture("kept-library");let state=private_fixture("kept-launch");let fallback=root.join("unused-empty-default");
+        let receipt=json!({"version":1,"status":"complete","registration":{"version":1,"dataDir":data,"runtime":"/removed/program/runtime","executable":"/removed/program/photofindry"},"manifestSha256":"a".repeat(64),"trashedPath":"/removed/Trash/PhotoFindry"});
+        launch::write_uninstall_receipt(&state,&receipt).unwrap();
+        assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),data);
+        assert!(launch::read_registration(&state).is_err());assert!(!state.join("registration.json").exists());assert!(!root.join(STATE).exists());assert!(!fallback.exists());
+        // A later installation/current registration remains authoritative over
+        // an older completed receipt; the retained executable is never run.
+        let other=private_fixture("later-library");let cfg=Installation{schema:1,current:121,previous:None,highest:121,data:other.clone(),launch_state:state.clone(),autostart:false,automatic_updates:false,retire:None};
+        save(&root,STATE,&cfg).unwrap();assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),other);
+        fs::remove_file(root.join(STATE)).unwrap();
+        let record=launch::Registration{version:1,data_dir:other.clone(),runtime:PathBuf::from("/removed/other/runtime"),executable:PathBuf::from("/removed/other/photofindry")};
+        atomic(&state,"registration.json",&serde_json::to_vec(&record).unwrap()).unwrap();assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),other);
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();fs::remove_dir_all(other).unwrap();
+    }
+    #[test]
+    fn unavailable_unsafe_malformed_or_pending_kept_library_never_falls_back_to_empty() {
+        let root=private_fixture("unavailable-program");let data=private_fixture("unavailable-library");let state=private_fixture("unavailable-launch");let fallback=root.join("must-not-create");
+        let receipt=|path:&Path,status:&str|json!({"version":1,"status":status,"registration":{"version":1,"dataDir":path,"runtime":"/removed/runtime","executable":"/removed/photofindry"},"manifestSha256":"a".repeat(64),"trashedPath":"/removed/Trash/PhotoFindry"});
+        launch::write_uninstall_receipt(&state,&receipt(&root.join("missing-custom-library"),"complete")).unwrap();
+        assert!(current_library_at(&root,&state,&fallback).unwrap_err().contains("kept library folder is unavailable"));
+        let linked=root.join("linked-library");std::os::unix::fs::symlink(&data,&linked).unwrap();launch::write_uninstall_receipt(&state,&receipt(&linked,"complete")).unwrap();assert!(current_library_at(&root,&state,&fallback).is_err());
+        launch::write_uninstall_receipt(&state,&json!({"version":1,"status":"complete","registration":{"dataDir":data}})).unwrap();assert!(current_library_at(&root,&state,&fallback).is_err());
+        launch::write_uninstall_receipt(&state,&receipt(&data,"revoked")).unwrap();assert!(current_library_at(&root,&state,&fallback).unwrap_err().contains("uninstall is pending"));
+        assert!(!fallback.exists());assert!(!root.join(STATE).exists());assert!(!state.join("registration.json").exists());
+        fs::remove_file(state.join("uninstall.json")).unwrap();assert_eq!(current_library_at(&root,&state,&fallback).unwrap(),fallback);assert!(!fallback.exists());
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();
+    }
+    #[test]
+    fn authenticated_same_build_repair_quarantines_damaged_program_and_keeps_library_and_state() {
+        let root=private_fixture("program-repair");let data=private_fixture("repair-library");let state=private_fixture("repair-launch");
+        launch::private_directory(&root.join("versions"),true).unwrap();
+        let cfg=Installation{schema:1,current:120,previous:Some(119),highest:122,data:data.clone(),launch_state:state.clone(),autostart:true,automatic_updates:false,retire:None};
+        save(&root,STATE,&cfg).unwrap();fs::write(data.join("original-do-not-change"),b"saved original bytes").unwrap();
+        let make_stage=|name:&str| {
+            let stage=root.join("versions").join(name);let package=stage.join("package");launch::private_directory(&package,true).unwrap();
+            let files=["bin/photofindry","bin/CompanionReleaseVerify","bin/CompanionLauncher","bin/CompanionLauncher.app/Contents/Info.plist","runtime/PhotoWorker","runtime/PhotoEngine","LICENSE","README.txt"];
+            let mut inventory=String::new();
+            for relative in files {let path=package.join(relative);launch::private_directory(path.parent().unwrap(),true).unwrap();fs::write(&path,b"authenticated fixture bytes").unwrap();inventory.push_str(&format!("{}  {relative}\n",release::digest(b"authenticated fixture bytes")));}
+            fs::write(package.join("SHA256SUMS.txt"),&inventory).unwrap();
+            let signed=release::Release{schema:1,kind:"photofindry-cli-release".into(),version:"0.2.0-beta.22".into(),build:120,platform:"macos-arm64".into(),data_contract:"photofindry-library-compatible-v1".into(),inventory_sha256:release::digest(inventory.as_bytes()),archive_sha256:"a".repeat(64),archive_bytes:1,archive_url:"https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.22/PhotoFindry-0.2.0-beta.22-arm64-companion.zip".into()};
+            (Stage::new(stage),signed)
+        };
+        let (first,signed)=make_stage(".stage-original");commit_version(&root,&first,&signed,b"same already-authenticated envelope").unwrap();
+        fs::write(package(&root,120).join("bin/photofindry"),b"corrupted").unwrap();fs::write(package(&root,120).join("unexpected-file-kept"),b"keep damaged contents").unwrap();
+        let (replacement,signed)=make_stage(".stage-replacement");commit_version(&root,&replacement,&signed,b"same already-authenticated envelope").unwrap();
+        release::verify_package(&package(&root,120),&signed).unwrap();
+        let quarantined=fs::read_dir(root.join("versions")).unwrap().map(|item|item.unwrap().path()).find(|path|path.file_name().unwrap().to_string_lossy().starts_with(".damaged-")).unwrap();
+        assert_eq!(fs::read(quarantined.join("package/unexpected-file-kept")).unwrap(),b"keep damaged contents");
+        assert_eq!(read_state(&root).unwrap(),cfg);assert_eq!(fs::read(data.join("original-do-not-change")).unwrap(),b"saved original bytes");
+        fs::remove_file(root.join("versions/120/release.json")).unwrap();
+        let (replacement,signed)=make_stage(".stage-missing-metadata");commit_version(&root,&replacement,&signed,b"same already-authenticated envelope").unwrap();
+        release::verify_package(&package(&root,120),&signed).unwrap();assert_eq!(read_state(&root).unwrap(),cfg);
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();
+    }
+    #[test]
+    fn installation_entry_identity_is_stable_and_differs_between_installations() {
+        let first=private_fixture("entry-a");let second=private_fixture("entry-b");
+        let identity=entry_identity(&first).unwrap();
+        assert_eq!(identity,entry_identity(&first).unwrap());
+        assert_ne!(identity,entry_identity(&second).unwrap());
+        let info=String::from_utf8(entry_info(&identity,120)).unwrap();
+        assert!(info.contains(&format!("com.photofindry.companion.entry.{identity}")));
+        for scheme in ["photofindry-companion","photofindry-local","photofindry"] {assert!(info.contains(&format!("<string>{scheme}</string>")));}
+        assert!(!info.contains(".b120"));
+        save(&first,"entry-identity.json",&json!({"schema":1,"id":"another.application"})).unwrap();
+        let repaired=entry_identity(&first).unwrap();assert_ne!(repaired,identity);assert_eq!(repaired,entry_identity(&first).unwrap());
+        assert!(fs::read_dir(&first).unwrap().any(|item|item.unwrap().file_name().to_string_lossy().starts_with(".damaged-entry-identity-")));
+        fs::remove_dir_all(first).unwrap();fs::remove_dir_all(second).unwrap();
+    }
+    #[test]
+    fn failure_is_readable_after_a_failed_first_install_and_survives_recovery_status() {
+        let root = private_fixture("failure");
+        failure(&root, "install", "Background catalog access was denied.\nSaved work stays in place.");
+        note(&root, "recovered", "Prior software restored.");
+        let value = status(&root).unwrap();
+        assert_eq!(value["installed"], false);
+        assert_eq!(value["status"]["phase"], "recovered");
+        assert_eq!(value["lastFailure"]["operation"], "install");
+        assert!(value["lastFailure"]["message"].as_str().unwrap().contains("access was denied"));
+        assert!(!value["lastFailure"]["message"].as_str().unwrap().contains('\n'));
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn restart_budget_never_restarts_first_start_failure_or_maintenance_and_bounds_crashes() {
+        let mut budget = RestartBudget::default();
+        assert_eq!(budget.next(false, false, Duration::from_secs(4)), None);
+        assert_eq!(budget.next(true, true, Duration::from_secs(4)), None);
+        assert_eq!(budget.next(true, false, Duration::from_secs(4)), Some(Duration::from_secs(1)));
+        assert_eq!(budget.next(true, false, Duration::from_secs(4)), Some(Duration::from_secs(2)));
+        assert_eq!(budget.next(true, false, Duration::from_secs(4)), None);
+        assert_eq!(budget.next(true, false, Duration::from_secs(301)), Some(Duration::from_secs(1)));
+    }
+    #[test]
+    fn only_the_matching_pending_open_receipt_can_be_completed() {
+        let root = private_fixture("receipt"); let id = "a".repeat(64);
+        save(&root, OPEN_REQUEST, &OpenRequest { schema: 1, id: id.clone(), complete: false, error: None, pid: None, updated_at: now() }).unwrap();
+        assert!(!read_request(&root, OPEN_REQUEST, &id).unwrap().complete);
+        assert!(read_request(&root, OPEN_REQUEST, &"b".repeat(64)).is_err());
+        assert!(!request_id("../../other"));
+        let cfg = Installation { schema: 1, current: 120, previous: Some(119), highest: 120, data: root.join("external-library"), launch_state: root.join("external-state"), autostart: true, automatic_updates: true, retire: None };
+        let text = String::from_utf8(plist_with_request(&root, &cfg, Some("open-update"), Some(&id)).unwrap()).unwrap();
+        assert!(text.contains("<string>open-update</string>"));
+        assert!(text.contains("<string>--open-request</string>"));
+        assert!(text.contains(&id));
+        assert!(!text.contains("/bin/sh"));
+        assert!(plist_with_request(&root, &cfg, Some("uninstall"), Some(&id)).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn access_probe_records_startup_before_data_checks_and_names_the_correct_timeout() {
+        let root=private_fixture("probe-startup");let data=private_fixture("probe-startup-data");let id="a".repeat(64);
+        let pending=OpenRequest{schema:1,id:id.clone(),complete:false,error:None,pid:None,updated_at:now()};
+        assert!(access_timeout(&pending).contains("did not report startup"));assert!(!access_timeout(&pending).contains("library folder"));
+        save(&root,ACCESS_RECEIPT,&pending).unwrap();finish_access_check(&root,&data,&id).unwrap();
+        let completed=read_request(&root,ACCESS_RECEIPT,&id).unwrap();assert_eq!(completed.pid,Some(std::process::id()));assert!(completed.complete);
+        assert!(access_timeout(&completed).contains("started but could not finish checking the library folder"));
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();
+    }
+    #[test]
+    fn background_access_is_read_only_and_rejects_missing_and_linked_catalogs() {
+        let root = private_fixture("access");
+        check_library_access(&root).unwrap();
+        check_library_access(&root.join("not-created-yet/new-library")).unwrap();
+        assert!(!root.join("not-created-yet").exists());
+        for name in ["catalog.json", "catalog.sqlite", "jobs.sqlite", "people.sqlite", "source-host.sqlite"] { fs::write(root.join(name), b"readable saved fixture; not opened as a database").unwrap(); }
+        check_library_access(&root).unwrap();
+        let before = fs::read(root.join("catalog.sqlite")).unwrap();
+        let names: Vec<_> = fs::read_dir(&root).unwrap().map(|entry| entry.unwrap().file_name()).collect();
+        check_library_access(&root).unwrap();
+        assert_eq!(fs::read(root.join("catalog.sqlite")).unwrap(), before);
+        assert_eq!(fs::read_dir(&root).unwrap().count(), names.len());
+        fs::remove_file(root.join("jobs.sqlite")).unwrap();
+        std::os::unix::fs::symlink(root.join("catalog.sqlite"), root.join("jobs.sqlite")).unwrap();
+        assert!(check_library_access(&root).unwrap_err().contains("cannot read"));
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[tokio::test]
+    #[ignore = "real launchd access test; set PHOTOFINDRY_ACCESS_CHECK_CLI to an already built candidate"]
+    async fn launchd_access_preflight_reports_readable_and_inaccessible_fixture_before_service_changes() {
+        let exe = PathBuf::from(std::env::var_os("PHOTOFINDRY_ACCESS_CHECK_CLI").expect("built candidate CLI path"));
+        let root = private_fixture("agent-access"); let data = private_fixture("agent-library");
+        for name in ["catalog.json", "catalog.sqlite", "jobs.sqlite", "people.sqlite", "source-host.sqlite"] { fs::write(data.join(name), b"readable saved fixture; not opened as a database").unwrap(); }
+        preflight_background_access(&root, &data, &exe).await.unwrap();
+        let plist=String::from_utf8(release::read(&root.join("access-check.plist"),16384).unwrap()).unwrap();
+        assert!(plist.contains(&xml(&root.join("access-controller/photofindry").to_string_lossy())));
+        assert_eq!(release::file_hash(&root.join("access-controller/photofindry"),64*1024*1024).unwrap(),release::file_hash(&exe,64*1024*1024).unwrap());
+        fs::remove_file(data.join("catalog.sqlite")).unwrap();
+        std::os::unix::fs::symlink(data.join("catalog.json"), data.join("catalog.sqlite")).unwrap();
+        let error = preflight_background_access(&root, &data, &exe).await.unwrap_err();
+        assert!(error.contains("cannot read the library"));
+        assert_eq!(status(&root).unwrap()["lastFailure"]["operation"], "background-access");
+        assert!(!root.join(STATE).exists()); assert!(!root.join(JOURNAL).exists());
+        fs::remove_dir_all(root).unwrap(); fs::remove_dir_all(data).unwrap();
+    }
+    #[tokio::test]
+    #[ignore = "real launchd maintenance-ownership fixture; uses isolated program and no library API"]
+    async fn closing_the_open_requester_does_not_kill_its_maintenance_job() {
+        let root = private_fixture("agent-open"); let data = private_fixture("agent-data"); let state = private_fixture("agent-state");
+        let cfg = Installation { schema: 1, current: 120, previous: Some(119), highest: 120, data: data.clone(), launch_state: state.clone(), autostart: true, automatic_updates: false, retire: None };
+        let exe = executable(&root, cfg.current); fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        let script = r#"#!/usr/bin/python3
+import json,os,pathlib,sys,time
+root=pathlib.Path(sys.argv[sys.argv.index('--install-root')+1])
+ident=sys.argv[sys.argv.index('--open-request')+1]
+request=json.loads((root/'open-update-request.json').read_text())
+assert request['id']==ident
+(root/'maintenance-started').write_text('owned by launchd')
+time.sleep(1.2)
+request.update(complete=True,updatedAt=int(time.time()))
+target=root/'receipt-tmp'
+fd=os.open(target,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+with os.fdopen(fd,'w') as stream:
+ json.dump(request,stream);stream.flush();os.fsync(stream.fileno())
+os.replace(target,root/'open-update-request.json')
+"#;
+        fs::write(&exe, script).unwrap(); fs::set_permissions(&exe, fs::Permissions::from_mode(0o700)).unwrap(); save(&root, STATE, &cfg).unwrap();
+        let opening = tokio::spawn({let root=root.clone();async move {independent_refresh_on_open(&root).await}});
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        while !root.join("maintenance-started").exists() { assert!(tokio::time::Instant::now() < deadline, "maintenance did not start"); tokio::time::sleep(Duration::from_millis(50)).await; }
+        opening.abort(); let _ = opening.await;
+        let id: String = serde_json::from_slice::<Value>(&release::read(&root.join(OPEN_REQUEST), 16384).unwrap()).unwrap()["id"].as_str().unwrap().into();
+        loop { if read_request(&root, OPEN_REQUEST, &id).unwrap().complete {break;} assert!(tokio::time::Instant::now() < deadline,"maintenance died with requester"); tokio::time::sleep(Duration::from_millis(50)).await; }
+        assert_eq!(read_state(&root).unwrap(), cfg); assert!(!root.join(JOURNAL).exists());
+        unload(format!("{}/{}.maintenance",domain(),label(&root).unwrap())).await.unwrap();
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();
+    }
     #[tokio::test]
     async fn a_second_open_waits_for_the_owned_update_instead_of_failing_during_its_switch() {
         let root=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-open-maintenance-{}-{}",std::process::id(),now()));

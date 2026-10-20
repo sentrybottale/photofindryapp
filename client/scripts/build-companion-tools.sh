@@ -80,7 +80,10 @@ info.update(versions)
 if tool=='CompanionLauncher' and versions['CFBundleVersion'].isdigit() and int(versions['CFBundleVersion'])>=119:
  info['CFBundleIdentifier'] += '.b'+versions['CFBundleVersion']
 if tool=='CompanionLabels':info['NSCameraUsageDescription']='Scan a PhotoFindry archive label locally. Camera frames are never saved or sent.'
-if tool=='CompanionLauncher':info['CFBundleURLTypes']=[{'CFBundleURLName':'PhotoFindry local launch','CFBundleURLSchemes':['photofindry-companion','photofindry-local'],'CFBundleTypeRole':'Viewer'},{'CFBundleURLName':'PhotoFindry archive navigation','CFBundleURLSchemes':['photofindry'],'CFBundleTypeRole':'Viewer'}]
+# Packaged copies are also launched for dialogs and uninstall. Merely opening
+# an app with URLTypes makes LaunchServices register it, even in test roots.
+# Only the account-installed entry wrapper may claim product links from b120.
+if tool=='CompanionLauncher' and versions['CFBundleVersion'].isdigit() and int(versions['CFBundleVersion'])<120:info['CFBundleURLTypes']=[{'CFBundleURLName':'PhotoFindry local launch','CFBundleURLSchemes':['photofindry-companion','photofindry-local'],'CFBundleTypeRole':'Viewer'},{'CFBundleURLName':'PhotoFindry archive navigation','CFBundleURLSchemes':['photofindry'],'CFBundleTypeRole':'Viewer'}]
 with (bundle/'Contents/Info.plist').open('wb') as f:plistlib.dump(info,f)
 PY
   codesign --force --sign - "$bundle"

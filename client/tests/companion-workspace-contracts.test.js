@@ -930,6 +930,20 @@ test('background companion settings expose only fixed authenticated lifecycle ac
   } finally { await ui.close(); }
 });
 
+test('healthy companion with failed native link registration exposes persistent repair without stopping saved work', async () => {
+  const ui = harness({ responses: {
+    '/api/lifecycle/status': () => ({ installed: true, version: '0.2.0-beta.22', build: 120, autostart: true, automaticUpdates: true, status: { phase: 'ready', message: 'Companion is running.' }, linkRepair: { message: 'macOS selected another copy of the Open helper.' } }),
+  } });
+  try {
+    await ui.findButton('Settings').click(); await new Promise(resolve => setImmediate(resolve));
+    const repair = ui.all().find(node => node.textContent === 'Repair Open PhotoFindry links');
+    assert(repair); assert.equal(repair.hidden, false);
+    assert.equal(repair.href, 'https://app.photofindry.com/#installation'); assert.equal(repair.rel, 'noopener noreferrer');
+    assert(ui.all().some(node => node.className === 'settings-live' && /Open PhotoFindry links need repair: macOS selected another copy/.test(node.textContent)));
+    assert(!ui.calls.some(call => ['/api/lifecycle/action','enqueueJob','stopModel'].includes(call.name)));
+  } finally { await ui.close(); }
+});
+
 
 test('macOS read consent recovery gives an actionable Files path and explicit retry without starting work automatically', async () => {
   const job = { id: 'consent', kind: 'tagging', state: 'paused', pauseReason: 'source-waiting', sourceLifecycleVersion: 1, sourceNextAction: { kind: 'allowAccess', sourceId: 'source-a' }, total: 2, completed: 0, failed: 0 };

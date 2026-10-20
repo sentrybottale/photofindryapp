@@ -58,6 +58,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .connection-badge { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #52694f; }
 .connection-badge.unavailable { color: #985b43; }
 .connection-badge.unavailable .local-dot { background: #b77853; }
+.connection-recovery { margin: 0 0 18px; padding: 16px; border: 1px solid var(--pf-line, #d5ddd0); border-radius: 10px; background: var(--pf-info-soft, #edf2f4); color: var(--pf-info, #315867); }
+.connection-recovery p { margin: 0 0 12px; font-size: 13px; line-height: 1.6; }
+.connection-recovery .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.connection-recovery a { text-decoration: none; }
 .workspace { display: grid; grid-template-columns: 172px minmax(0, 1fr) 284px; flex: 1; }
 .sidebar { padding: 29px 14px 20px; border-right: 1px solid var(--line); background: #f1f4ed; display: flex; flex-direction: column; }
 .sidebar-label { font-size: 9px; font-weight: 650; letter-spacing: .09em; color: #81907c; padding: 0 10px 13px; }
