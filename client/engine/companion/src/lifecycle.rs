@@ -391,12 +391,52 @@ fn access_check_plist(root: &Path, data: &Path, exe: &Path, id: &str) -> Result<
         .iter().map(|s| format!("<string>{}</string>", xml(s))).collect::<String>();
     Ok(format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>Label</key><string>{}.access-check</string><key>ProgramArguments</key><array>{args}</array><key>RunAtLoad</key><true/><key>ProcessType</key><string>Background</string><key>KeepAlive</key><false/></dict></plist>", xml(&label(root)?)).into_bytes())
 }
+/// launchd cannot inherit a Terminal parent's Documents/Downloads permission.
+/// Copy only the caller-authenticated controller into the private program store
+/// before launching the read-only probe; the library remains untouched.
+fn stage_access_controller(root: &Path, exe: &Path, id: &str) -> Result<PathBuf> {
+    let source=launch::canonical(exe,false)?;
+    let expected=release::file_hash(&source,64*1024*1024)?;
+    let directory=root.join("access-controller");launch::private_directory(&directory,true)?;
+    let stage=Stage::new(directory.join(format!(".stage-{id}")));launch::private_directory(&stage.0,true)?;
+    let copied=stage.0.join("photofindry");
+    // Materialize bytes rather than cloning/copying provenance attributes from
+    // a protected Documents/Downloads build. The embedded code seal is retained.
+    let mut input=OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW|libc::O_CLOEXEC|libc::O_NONBLOCK).open(&source)
+        .map_err(|_|"Cannot read the authenticated background-access controller")?;
+    let mut output=OpenOptions::new().write(true).create_new(true).mode(0o700).custom_flags(libc::O_NOFOLLOW|libc::O_CLOEXEC).open(&copied)
+        .map_err(|_|"Cannot stage the authenticated background-access controller")?;
+    let mut buffer=[0u8;65536];let mut total=0u64;
+    loop {
+        let count=input.read(&mut buffer).map_err(|_|"Cannot read the background-access controller")?;
+        if count==0 {break;}
+        total=total.checked_add(count as u64).ok_or("Background-access controller exceeds its bound")?;
+        if total>64*1024*1024 {return Err("Background-access controller exceeds its bound".into());}
+        output.write_all(&buffer[..count]).map_err(|_|"Cannot stage the background-access controller")?;
+    }
+    output.sync_all().map_err(|_|"Cannot flush the background-access controller")?;
+    drop(output);drop(input);
+    if release::file_hash(&copied,64*1024*1024)?!=expected {return Err("The background-access controller changed while being staged. The current program and library are kept.".into());}
+    let target=directory.join("photofindry");
+    if target.symlink_metadata().is_ok() {launch::private_file(&target,false)?;}
+    fs::rename(&copied,&target).map_err(|_|"Cannot publish the authenticated background-access controller")?;
+    launch::private_directory(&directory,false)?.sync_all().map_err(|_|"Cannot flush the background-access controller directory")?;
+    Ok(target)
+}
+fn access_timeout(receipt: &OpenRequest) -> String {
+    if receipt.pid.is_none() {
+        "The background companion did not report startup from the verified program store within 15 seconds. Rerun verified setup; the current program and library are kept.".into()
+    } else {
+        "The background companion started but could not finish checking the library folder within 15 seconds. Reconnect its disk or check macOS folder access, then retry. The current program and library are kept.".into()
+    }
+}
 async fn preflight_background_access(root: &Path, data: &Path, exe: &Path) -> Result<()> {
     let mut nonce = [0u8; 32];
     getrandom::fill(&mut nonce).map_err(|_| "Cannot identify background library access check")?;
     let id = release::digest(&nonce);
+    let controller=stage_access_controller(root,exe,&id)?;
     save(root, ACCESS_RECEIPT, &OpenRequest { schema: 1, id: id.clone(), complete: false, error: None, pid: None, updated_at: now() })?;
-    atomic(root, "access-check.plist", &access_check_plist(root, data, exe, &id)?)?;
+    atomic(root, "access-check.plist", &access_check_plist(root, data, &controller, &id)?)?;
     let job = format!("{}/{}.access-check", domain(), label(root)?);
     unload(job.clone()).await?;
     launchctl(&["bootstrap".into(), domain(), root.join("access-check.plist").to_string_lossy().into_owned()], true).await?;
@@ -405,7 +445,7 @@ async fn preflight_background_access(root: &Path, data: &Path, exe: &Path) -> Re
         let receipt = match read_request(root, ACCESS_RECEIPT, &id) { Ok(value) => value, Err(reason) => break Err(reason) };
         if receipt.complete { break receipt.error.map_or(Ok(()), Err); }
         if tokio::time::Instant::now() >= deadline {
-            break Err("The background companion could not confirm library-folder access within 15 seconds. Check macOS Privacy & Security, then retry. The current program and library are kept.".into());
+            break Err(access_timeout(&receipt));
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     };
@@ -416,6 +456,8 @@ async fn preflight_background_access(root: &Path, data: &Path, exe: &Path) -> Re
 fn finish_access_check(root: &Path, data: &Path, id: &str) -> Result<()> {
     let mut receipt = read_request(root, ACCESS_RECEIPT, id)?;
     if receipt.complete { return Err("This background access check has already finished.".into()); }
+    receipt.pid=Some(std::process::id());receipt.updated_at=now();
+    save(root, ACCESS_RECEIPT, &receipt)?;
     let result = check_library_access(data);
     receipt.complete = true;
     receipt.error = result.as_ref().err().cloned();
@@ -1901,6 +1943,8 @@ pub async fn disable_for_uninstall(exe: &Path) -> Result<()> {
     cfg.automatic_updates = false;
     save(&root, STATE, &cfg)?;
     stop_agent(&root).await?;
+    let probe=root.join("access-controller");
+    if probe.exists() {launch::private_directory(&probe,false)?;fs::remove_dir_all(&probe).map_err(|_|"Cannot remove the background-access controller; retry uninstall")?;}
     if root == default_root()? {
         let app = entry_application(&root);
         if app.exists() {
@@ -2303,6 +2347,16 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
+    fn access_probe_records_startup_before_data_checks_and_names_the_correct_timeout() {
+        let root=private_fixture("probe-startup");let data=private_fixture("probe-startup-data");let id="a".repeat(64);
+        let pending=OpenRequest{schema:1,id:id.clone(),complete:false,error:None,pid:None,updated_at:now()};
+        assert!(access_timeout(&pending).contains("did not report startup"));assert!(!access_timeout(&pending).contains("library folder"));
+        save(&root,ACCESS_RECEIPT,&pending).unwrap();finish_access_check(&root,&data,&id).unwrap();
+        let completed=read_request(&root,ACCESS_RECEIPT,&id).unwrap();assert_eq!(completed.pid,Some(std::process::id()));assert!(completed.complete);
+        assert!(access_timeout(&completed).contains("started but could not finish checking the library folder"));
+        fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();
+    }
+    #[test]
     fn background_access_is_read_only_and_rejects_missing_and_linked_catalogs() {
         let root = private_fixture("access");
         check_library_access(&root).unwrap();
@@ -2327,6 +2381,9 @@ mod tests {
         let root = private_fixture("agent-access"); let data = private_fixture("agent-library");
         for name in ["catalog.json", "catalog.sqlite", "jobs.sqlite", "people.sqlite", "source-host.sqlite"] { fs::write(data.join(name), b"readable saved fixture; not opened as a database").unwrap(); }
         preflight_background_access(&root, &data, &exe).await.unwrap();
+        let plist=String::from_utf8(release::read(&root.join("access-check.plist"),16384).unwrap()).unwrap();
+        assert!(plist.contains(&xml(&root.join("access-controller/photofindry").to_string_lossy())));
+        assert_eq!(release::file_hash(&root.join("access-controller/photofindry"),64*1024*1024).unwrap(),release::file_hash(&exe,64*1024*1024).unwrap());
         fs::remove_file(data.join("catalog.sqlite")).unwrap();
         std::os::unix::fs::symlink(data.join("catalog.json"), data.join("catalog.sqlite")).unwrap();
         let error = preflight_background_access(&root, &data, &exe).await.unwrap_err();

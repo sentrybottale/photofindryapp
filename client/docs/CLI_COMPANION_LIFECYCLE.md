@@ -196,3 +196,9 @@ switch the public hub. The prepared website branch gates deployment on that
 minimum verified release and a matching download link. The owner authorized the coordinated build 114 hotfix on 19 October.
 Publication still depends on exact-candidate upgrade and delivery qualification;
 this is not an other-Mac acceptance claim.
+
+Background readiness checks execute a byte-verified, freshly materialized controller
+inside the private program installation. They do not execute the setup copy from
+Documents/Downloads or preserve that copy's filesystem provenance. The library
+remains in its selected location. Build 122 qualifies this protected-installer
+origin case alongside actual library access and retained-service failure behavior.
