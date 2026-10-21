@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "be15d2e4fd38308e086ea95405aa7c8587e5cdd72c5c4c263c52057ddf6e6fd5",
+  "exportManifestSHA256": "eafefc2ba4d844dbe0aee0ee2f9f68a73cf9493c06feb6789051a3cdde2ec030",
   "files": [
     {
       "bytes": 1182,
@@ -49,7 +49,7 @@
     {
       "bytes": 1471,
       "path": "Resources/Info.plist",
-      "sha256": "ca88065afc20223b283ded325054d91dc829b664e5d5746e0346ae14d7b30a8c"
+      "sha256": "05b5ba494773452d526904d8a90f96f68685904ebe89fa91437735e26814a7c8"
     },
     {
       "bytes": 2536,
@@ -724,6 +724,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "12858cb7a199a40f02be1fcd89df55ec9eb6cb1e",
+  "privateBuildRevision": "5f6a2a759ac05e541256bb0a5bbe52519b26176d",
   "schema": 1
 }
