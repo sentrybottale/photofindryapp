@@ -1025,6 +1025,19 @@ test('rich photo cards show real source, observation and review facts without tu
   } finally { await ui.close(); }
 });
 
+test('an original being checked shows background status without offering premature preview preparation', async () => {
+  const pending=photo('checking',{hasPreview:false,source:{id:'source',label:'Selected folder',mode:'connected',accessOriginals:true,status:'checking',automaticLifecycleVersion:1}});
+  const ui=harness({initialHandlers:{'/api/photo':()=>({...pending,detailSections:[{title:'Accepted facts',items:['Keep saved facts']}]})}});
+  try {
+    ui.setLibrary(page([pending]));await ui.pair();const tile=ui.ids.get('gallery').children[0];
+    assert.match(tile.textContent,/Checking originals automatically/);assert.doesNotMatch(tile.textContent,/Confirm original location/);
+    await tile.fire('dblclick');await ui.flush();
+    assert.equal(ui.ids.get('preview-dialog').open,true);
+    assert(!ui.ids.get('preview-content').children.flatMap(node=>node.children).some(node=>/Prepare.*preview/.test(node.textContent)));
+    assert(!ui.calls.some(call=>call.route==='/api/action'),'presentation cannot start original reads while verification is pending');
+  } finally {await ui.close();}
+});
+
 test('card components update only on display changes and release when the page or session leaves', async () => {
   const mounted = [], updated = [], destroyed = [];
   const ui = harness({ summaryMount(target, data) {

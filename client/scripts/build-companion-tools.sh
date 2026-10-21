@@ -28,6 +28,9 @@ codesign --force --sign - "$target_dir/CompanionReleaseVerify"
 swiftc "${swift_flags[@]}" -framework AppKit -framework UniformTypeIdentifiers \
   "$project_dir/scripts/companion-picker.swift" -o "$target_dir/CompanionPicker"
 codesign --force --sign - "$target_dir/CompanionPicker"
+swiftc "${swift_flags[@]}" -parse-as-library -framework AppKit -framework CryptoKit -framework Security \
+  "$project_dir/scripts/companion-source-access.swift" -o "$target_dir/CompanionSourceAccess"
+codesign --force --sign - --options runtime,library "$target_dir/CompanionSourceAccess"
 swiftc "${swift_flags[@]}" -framework AppKit -framework CoreText -framework SwiftUI \
   "$project_dir/scripts/companion-glyphs.swift" \
   "$project_dir/Sources/PhotoRecall/EmojiCatalog.swift" \
@@ -62,7 +65,7 @@ swiftc "${swift_flags[@]}" -framework AppKit -framework CoreServices \
 codesign --force --sign - "$target_dir/CompanionLauncher"
 # Give native dialogs a stable application identity and a recognisable owner.
 # These small local UI helpers do not host the browser interface or an updater.
-for tool in CompanionPicker CompanionDownloads CompanionLabels CompanionLauncher; do
+for tool in CompanionPicker CompanionDownloads CompanionLabels CompanionLauncher CompanionSourceAccess; do
   bundle="$target_dir/$tool.app"
   mkdir -p "$bundle/Contents/MacOS"
   cp "$target_dir/$tool" "$bundle/Contents/MacOS/$tool"
@@ -73,10 +76,17 @@ product=plistlib.loads(pathlib.Path(sys.argv[3]).read_bytes())
 versions={key:product.get(key) for key in ('CFBundleShortVersionString','CFBundleVersion')}
 if any(not isinstance(value,str) or not value or len(value)>128 for value in versions.values()):
  raise SystemExit('The product version/build metadata is missing or invalid.')
-names={'CompanionPicker':('picker','PhotoFindry file chooser'),'CompanionDownloads':('downloads','PhotoFindry model downloads'),'CompanionLabels':('labels','PhotoFindry archive scanner'),'CompanionLauncher':('launcher','Open PhotoFindry')}
+names={'CompanionPicker':('picker','PhotoFindry file chooser'),'CompanionDownloads':('downloads','PhotoFindry model downloads'),'CompanionLabels':('labels','PhotoFindry archive scanner'),'CompanionLauncher':('launcher','Open PhotoFindry'),'CompanionSourceAccess':('source-access','PhotoFindry folder access')}
 suffix,name=names[tool]
 info={'CFBundleIdentifier':'com.sentrybottale.photorecall.companion-'+suffix,'CFBundleName':name,'CFBundleDisplayName':name,'CFBundleExecutable':tool,'CFBundlePackageType':'APPL','LSUIElement':True,'LSMinimumSystemVersion':'14.0'}
 info.update(versions)
+if tool=='CompanionSourceAccess':
+ info.update({'CFBundleIdentifier':'com.photofindry.companion.source-access.v1','CFBundleVersion':'1','CFBundleShortVersionString':'1.0'})
+ info['NSDocumentsFolderUsageDescription']='Read original photographs in the folder you choose. Your originals stay on this Mac.'
+ info['NSDesktopFolderUsageDescription']='Read original photographs in the folder you choose. Your originals stay on this Mac.'
+ info['NSDownloadsFolderUsageDescription']='Read original photographs in the folder you choose. Your originals stay on this Mac.'
+ resources=bundle/'Contents/Resources';resources.mkdir(exist_ok=True)
+ (resources/'access-owner-protocol.json').write_text('{"schema":1,"protocol":1,"bundleIdentifier":"com.photofindry.companion.source-access.v1"}\n')
 if tool=='CompanionLauncher' and versions['CFBundleVersion'].isdigit() and int(versions['CFBundleVersion'])>=119:
  info['CFBundleIdentifier'] += '.b'+versions['CFBundleVersion']
 if tool=='CompanionLabels':info['NSCameraUsageDescription']='Scan a PhotoFindry archive label locally. Camera frames are never saved or sent.'
@@ -86,5 +96,9 @@ if tool=='CompanionLabels':info['NSCameraUsageDescription']='Scan a PhotoFindry 
 if tool=='CompanionLauncher' and versions['CFBundleVersion'].isdigit() and int(versions['CFBundleVersion'])<120:info['CFBundleURLTypes']=[{'CFBundleURLName':'PhotoFindry local launch','CFBundleURLSchemes':['photofindry-companion','photofindry-local'],'CFBundleTypeRole':'Viewer'},{'CFBundleURLName':'PhotoFindry archive navigation','CFBundleURLSchemes':['photofindry'],'CFBundleTypeRole':'Viewer'}]
 with (bundle/'Contents/Info.plist').open('wb') as f:plistlib.dump(info,f)
 PY
-  codesign --force --sign - "$bundle"
+  if [[ "$tool" == CompanionSourceAccess ]]; then
+    codesign --force --sign - --options runtime,library "$bundle"
+  else
+    codesign --force --sign - "$bundle"
+  fi
 done

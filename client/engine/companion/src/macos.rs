@@ -3,6 +3,8 @@
 mod cli_release;
 #[path = "lifecycle.rs"]
 mod lifecycle;
+#[path = "retained_access_owner.rs"]
+mod retained_access_owner;
 #[path = "auth.rs"]
 mod auth;
 #[path = "appearance.rs"]
@@ -23,6 +25,8 @@ mod model_files;
 mod review_files;
 #[path = "native_picker.rs"]
 mod native_picker;
+#[path = "native_access.rs"]
+mod native_access;
 #[path = "operations.rs"]
 mod operations;
 #[path = "onboarding.rs"]
@@ -41,6 +45,12 @@ mod preview;
 mod projection;
 #[path = "source_watcher.rs"]
 mod source_watcher;
+#[path = "source_access.rs"]
+mod source_access;
+#[path = "source_access_restore.rs"]
+mod source_access_restore;
+#[path = "source_access_status.rs"]
+mod source_access_status;
 #[path = "support.rs"]
 mod support;
 #[path = "source_preview.rs"]
@@ -95,6 +105,7 @@ struct State {
     previews: preview::Previews,
     scopes: Arc<projection::Scopes>,
     picker: Arc<native_picker::Picker>,
+    source_access_status: source_access_status::Shared,
     power: Mutex<power::Power>,
     glyphs: glyphs::Glyphs,
     labels: labels::Labels,
@@ -626,6 +637,7 @@ async fn api(path: &str, bytes: &[u8], state: &State, library_guard:Option<Libra
                 return json_response(json!({"loading":true,"libraryId":null,"libraryGeneration":state.library_generation.load(Ordering::Acquire),"runtime":{"status":"switching","message":"Opening the restored local library."}}));
             }
             let mut snapshot = state.worker.snapshot();
+            source_access_status::overlay(&mut snapshot,&state.source_access_status,&state.worker,&state.library_generation).await;
             snapshot["libraryGeneration"] = json!(state.library_generation.load(Ordering::Acquire));
             snapshot["powerPreferences"] = state.power.lock().unwrap().state();
             snapshot["download"] = state.downloads.snapshot(&state.picker);
@@ -968,6 +980,7 @@ async fn api(path: &str, bytes: &[u8], state: &State, library_guard:Option<Libra
             };
             match completed {
                 Ok(mut v) => {
+                    if method=="sourceDetails"{source_access_status::overlay(&mut v,&state.source_access_status,&state.worker,&state.library_generation).await;}
                     if method=="exportSourceArchive" {state.transfer_results.lock().unwrap().completed_source(&v,state.library_generation.load(Ordering::Acquire));}
                     if ["jobResults", "aiSearchPage"].contains(&method) {
                         v["limit"] = json!(page_limit);
@@ -1645,6 +1658,15 @@ async fn run(mut config: Config) -> Result<(), String> {
     if config.managed && registration.is_none() {
         return Err("This installed companion and library need explicit local launch registration.".into());
     }
+    if config.managed {
+        let (exe,data,runtime,state)=(executable.clone(),config.data.clone(),config.runtime.clone(),launch_directory.clone());
+        if let Some(warning)=tokio::task::spawn_blocking(move || lifecycle::prepare_source_access_for_startup(&exe,&data,&runtime,&state))
+            .await.map_err(|_|"Original-folder access startup preparation stopped unexpectedly.")?? {
+            // A damaged permission owner must not strand saved library access.
+            // Picker and silent restoration also expose this scoped failure.
+            eprintln!("{warning}");
+        }
+    }
     // Optional support preferences can never prevent opening a library. Invalid
     // or unavailable state suppresses the invitation rather than resetting it.
     let support = support::Usage::open(
@@ -1746,6 +1768,7 @@ async fn run(mut config: Config) -> Result<(), String> {
         previews,
         scopes: Arc::new(projection::Scopes::default()),
         picker: Arc::new(native_picker::Picker::new(&config.runtime)),
+        source_access_status: Default::default(),
         power: Mutex::new(power::Power::new(&config.data)),
         glyphs: glyphs::Glyphs::new(&config.runtime),
         labels: labels::Labels::new(&config.runtime),
@@ -1822,6 +1845,7 @@ async fn run(mut config: Config) -> Result<(), String> {
         .filter(|p| p.is_file())
         .unwrap_or_else(|| config.runtime.join("CompanionSources"));
     let observer = source_watcher::SourceWatcher::spawn(&observer_path, state.worker.clone()).ok();
+    let mut access_restore=source_access_restore::Restorer::with_status(state.source_access_status.clone());
     state
         .observer_available
         .store(observer.is_some(), Ordering::Release);
@@ -1863,7 +1887,7 @@ async fn run(mut config: Config) -> Result<(), String> {
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
     loop {
         tokio::select! {
-            _=maintenance.tick()=>{let raw=state.worker.snapshot();feedback::observe_diagnostics(&raw);if let Some((watcher,task))=&observer{watcher.update(&raw);state.observer_available.store(!task.is_finished(),Ordering::Release);}state.power.lock().unwrap().update(&raw["jobs"]);if !state.authority.lock().unwrap().active(Instant::now()){release_cleanup(&state);}},
+            _=maintenance.tick()=>{let raw=state.worker.snapshot();feedback::observe_diagnostics(&raw);access_restore.tick(&state.worker,&state.library_generation).await;if let Some((watcher,task))=&observer{watcher.update(&raw);state.observer_available.store(!task.is_finished(),Ordering::Release);}state.power.lock().unwrap().update(&raw["jobs"]);if !state.authority.lock().unwrap().active(Instant::now()){release_cleanup(&state);}},
             _ = tokio::signal::ctrl_c() => break,
             _ = terminated.recv() => break,
             _ = hung_up.recv() => break,
@@ -1902,6 +1926,7 @@ async fn run(mut config: Config) -> Result<(), String> {
     if let Some(broker) = broker { broker.stop().await; }
     connections.abort_all();
     while connections.join_next().await.is_some() {}
+    access_restore.stop().await;
     if let Some((watcher, task)) = observer {
         watcher.stop();
         let _ = task.await;

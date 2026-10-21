@@ -496,6 +496,240 @@ function importedSource(roots = [{ id: 'root-a', label: 'Automatic Upload', loca
     photoCount: 32827, available: 0, needsReview: 26959, roots };
 }
 
+function automaticSource(overrides = {}) {
+  return { ...importedSource(), automaticLifecycleVersion: 1, originalsFolderSelected: true,
+    mode: 'connected', accessOriginals: true, status: 'available', available: 32827, needsReview: 0,
+    roots: [{ id: 'root-a', selected: true, locationLabel: '/Volumes/Photo drive/Automatic Upload' }], ...overrides };
+}
+
+test('a new automatic source needs one native folder choice and never a routine second confirmation', async () => {
+  const source=automaticSource({mode:'metadata',accessOriginals:false,originalsFolderSelected:false,available:0,status:'offline',needsReview:26959,
+    roots:[{id:'root-a',selected:false,locationLabel:'/Users/other/Automatic Upload'}]});
+  const check={id:'root-a',sourceId:source.id,rootId:'root-a',kind:'sourceSelection',state:'running',automaticLifecycleVersion:1};
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}}, {locateSource:{submittedJob:check}});
+  ui.window.PhotoFindry.pick=async()=>({grantId:'one-folder-grant',locationLabel:'/Volumes/Photos/Automatic Upload'});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    assert.match(ui.all().find(n=>n.className.includes('pfp-automatic-source')).textContent,/Choose this Mac’s originals folder once/);
+    assert.match(ui.all().find(n=>n.className.includes('pfp-automatic-source')).textContent,/Identity checkAfter folder selection/);
+    assert.doesNotMatch(ui.all().find(n=>n.className.includes('pfp-automatic-source')).textContent,/Identity conflicts26,959/);
+    await ui.findButton('Choose originals folder…').click();
+    assert.match(ui.all().find(n=>n.className.includes('pfp-automatic-source')).textContent,/Checking originals automatically/);
+    source.mode='connected';source.accessOriginals=true;source.originalsFolderSelected=true;
+    source.roots[0].selected=true;source.status='available';source.available=source.photoCount;source.needsReview=0;
+    ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,240));
+    assert.match(ui.all().find(n=>n.className.includes('pfp-automatic-source')).textContent,/Originals folder connected/);
+    assert.equal(ui.calls.filter(call=>call.action==='locateSource').length,1);
+    assert(!ui.calls.some(call=>['prepareSourceConnection','confirmSourceConnection','enqueueJob','startModel','jobAction'].includes(call.action)));
+    assert.deepEqual(ui.state.jobs,{paused:true,jobs:[]},'folder selection is not a processing job or queue resume');
+    assert(!visiblePanelButtons(ui).some(label=>/Confirm|Review checked|Choose originals/.test(label)));
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('automatic multi-root selection uses the exact unselected root and ignores processing Jobs', async () => {
+  const source=automaticSource({originalsFolderSelected:false,roots:[{id:'root-a',selected:true,locationLabel:'/Volumes/A'},
+    {id:'root-b',selected:false,locationLabel:'/Users/other/B'}]});
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}}, {locateSource:{submittedJob:{id:'root-b',rootId:'root-b',sourceId:source.id,kind:'sourceSelection',state:'running'}}});
+  ui.window.PhotoFindry.pick=async()=>({grantId:'root-b-grant',locationLabel:'/Volumes/B'});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    assert.equal(ui.findButton('Choose originals folder…').disabled,true);
+    ui.field('Saved originals folder').value='root-b';await ui.field('Saved originals folder').fire('change');
+    await ui.findButton('Choose originals folder…').click();
+    assert.deepEqual(ui.calls.filter(call=>call.action==='locateSource'),[{action:'locateSource',params:{sourceId:source.id,rootId:'root-b',folderGrant:'root-b-grant'}}]);
+    source.roots[1].selected=true;source.roots[1].selectionPending=true;source.originalsFolderSelected=true;source.status='checking';
+    ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,230));
+    assert.match(ui.all().find(n=>n.className.includes('pfp-automatic-source')).textContent,/Checking originals automatically/);
+    assert(!visiblePanelButtons(ui).some(label=>/Confirm|Review checked|Choose originals/.test(label)));
+    assert(!ui.calls.some(call=>['jobAction','enqueueJob','prepareSourceConnection','confirmSourceConnection'].includes(call.action)));
+    assert.equal(source.roots[0].selected,true);assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('later backend selection failure overrides the provisional selection receipt without retrying work', async () => {
+  const source=automaticSource({mode:'metadata',accessOriginals:false,originalsFolderSelected:false,status:'offline',available:0,
+    roots:[{id:'root-a',selected:false,status:'offline',locationLabel:'/Users/other/A'}]});
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}}, {locateSource:{submittedJob:{id:'root-a',rootId:'root-a',kind:'sourceSelection',state:'running'}}});
+  ui.window.PhotoFindry.pick=async()=>({grantId:'one-folder-grant',locationLabel:'/Volumes/A'});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    await ui.findButton('Choose originals folder…').click();
+    assert.match(ui.all().find(node=>node.className.includes('pfp-automatic-source')).textContent,/Checking originals automatically/);
+    source.folderSelectionPending=true;source.roots[0].selectionPending=true;source.roots[0].status='checking';
+    ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,230));
+    source.folderSelectionPending=false;source.roots[0].selectionPending=false;source.roots[0].status='offline';
+    ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,230));
+    assert.match(ui.all().find(node=>node.className.includes('pfp-automatic-source')).textContent,/Choose this Mac’s originals folder once/);
+    assert(visiblePanelButtons(ui).includes('Choose originals folder…'));
+    assert.equal(ui.calls.filter(call=>call.action==='locateSource').length,1);
+    assert(!ui.calls.some(call=>['prepareSourceConnection','confirmSourceConnection','jobAction','enqueueJob'].includes(call.action)));
+    assert.equal(ui.state.jobs.paused,true);assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('selection already cleared by the post-action snapshot cannot be held by its accepted receipt', async () => {
+  const source=automaticSource({mode:'metadata',accessOriginals:false,originalsFolderSelected:false,status:'offline',available:0,
+    roots:[{id:'root-a',selected:false,status:'offline',locationLabel:'/Users/other/A'}]});
+  const accepted=structuredClone(source);accepted.folderSelectionPending=true;accepted.roots[0].selectionPending=true;
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}}, {locateSource:{sources:[accepted],submittedJob:{id:'root-a',rootId:'root-a',kind:'sourceSelection',state:'running'}}});
+  ui.window.PhotoFindry.pick=async()=>({grantId:'one-folder-grant',locationLabel:'/Volumes/A'});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');await ui.findButton('Choose originals folder…').click();
+    assert.match(ui.all().find(node=>node.className.includes('pfp-automatic-source')).textContent,/Choose this Mac’s originals folder once/);
+    assert(visiblePanelButtons(ui).includes('Choose originals folder…'));
+    assert.equal(ui.calls.filter(call=>call.action==='locateSource').length,1);
+    assert(!ui.calls.some(call=>['prepareSourceConnection','confirmSourceConnection','jobAction','enqueueJob'].includes(call.action)));
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('selected automatic folders update offline and checking state without reconnect prompts or losing drafts', async () => {
+  const source=automaticSource();const ui=harness({sources:[source],jobs:{paused:true,jobs:[{
+    id:'explicit-check-paused',kind:'sourceRecovery',sourceId:source.id,sourceRootId:'root-a',sourceAction:'check',state:'paused',
+  }]}});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    const name=ui.field('Source name');name.value='Keep this draft';await name.fire('input');name.focus();
+    for (const [status,expected] of [['offline',/Waiting for the folder to return/],['unchecked',/Checking originals automatically/],['available',/Originals folder connected/]]) {
+      source.status=status;source.available=status==='available'?source.photoCount:0;
+      ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,230));
+      const connection=ui.all().find(n=>n.className.includes('pfp-automatic-source'));
+      assert.match(connection.textContent,expected);assert.equal(ui.field('Source name'),name);assert.equal(name.value,'Keep this draft');
+      assert.equal(ui.document.activeElement,name);assert(!visiblePanelButtons(ui).some(label=>/Choose originals|Review|Confirm/.test(label)));
+    }
+    assert(!ui.calls.some(call=>['locateSource','prepareSourceConnection','confirmSourceConnection','checkSources','enqueueJob','cleanupPurge'].includes(call.action)));
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('automatic Files uses the selected root status and counts instead of another available root', async () => {
+  const source=automaticSource({photoCount:20,available:10,missing:8,unchecked:2,needsReview:0,
+    roots:[{id:'root-a',selected:true,status:'available',photoCount:10,available:10,missing:0,unchecked:0,needsReview:0,locationLabel:'/Volumes/A'},
+      {id:'root-b',selected:true,status:'permission',photoCount:10,available:0,missing:0,unchecked:10,needsReview:0,locationLabel:'/Volumes/B'}]});
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const choose=ui.field('Folder to change or review');choose.value='root-b';await choose.fire('change');
+    let connection=ui.all().find(node=>node.className.includes('pfp-automatic-source'));
+    assert.match(connection.textContent,/Folder access needed/);
+    assert.match(connection.textContent,/Photographs10Available0Missing at checked locations0/);
+    assert(visiblePanelButtons(ui).includes('Allow folder access…'));
+    ui.field('Folder to change or review').value='root-a';await ui.field('Folder to change or review').fire('change');
+    connection=ui.all().find(node=>node.className.includes('pfp-automatic-source'));
+    assert.match(connection.textContent,/Originals folder connected/);
+    assert.match(connection.textContent,/Photographs10Available10Missing at checked locations0/);
+    assert(!visiblePanelButtons(ui).includes('Allow folder access…'));
+    assert(!ui.calls.some(call=>['locateSource','prepareSourceConnection','confirmSourceConnection','jobAction','enqueueJob'].includes(call.action)),
+      'choosing a presentation root does not change grants or resume work');
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('automatic first connection retains the active source-name control while withdrawing old pixels', async () => {
+  const source=automaticSource({mode:'metadata',accessOriginals:false,status:'checking',originalsFolderSelected:false,folderSelectionPending:true,
+    roots:[{id:'root-a',selected:false,status:'checking',selectionPending:true,locationLabel:'/Volumes/A'}]});
+  const ui=harness({sources:[source]});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    const name=ui.field('Source name');name.value='Still typing';await name.fire('input');name.focus();
+    source.mode='connected';source.accessOriginals=true;source.originalsFolderSelected=true;source.folderSelectionPending=false;source.status='available';
+    source.roots[0].selected=true;source.roots[0].selectionPending=false;source.roots[0].status='available';
+    ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(ui.field('Source name'),name);assert.equal(name.value,'Still typing');assert.equal(ui.document.activeElement,name);
+    assert.match(ui.all().find(node=>node.className.includes('pfp-automatic-source')).textContent,/Originals folder connected/);
+    assert(!ui.calls.some(call=>['confirmSourceConnection','locateSource','jobAction','enqueueJob'].includes(call.action)));
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('automatic initial reconciliation shows bounded progress and only freshly checked identity conflicts', async () => {
+  const source=automaticSource({status:'checking',photoCount:90000,available:32,needsReview:0,unchecked:89968,folderSelectionPending:true,
+    roots:[{id:'root-a',selected:true,status:'checking',selectionPending:true,photoCount:90000,available:32,unchecked:89968,missing:0,needsReview:0,
+      observationChecked:32,observationTotal:90000,locationLabel:'/Volumes/A'}]});
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    let connection=ui.all().find(node=>node.className.includes('pfp-automatic-source'));
+    assert.match(connection.textContent,/Checking originals automatically/);
+    assert.match(connection.textContent,/Locations checked32 of 90,000/);
+    assert.match(connection.textContent,/Identity checkIn progress/);
+    assert(!visiblePanelButtons(ui).includes('Review identity conflicts'));
+    source.needsReview=1;source.roots[0].needsReview=1;source.roots[0].observationChecked=33;
+    ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,230));
+    connection=ui.all().find(node=>node.className.includes('pfp-automatic-source'));
+    assert.match(connection.textContent,/Locations checked33 of 90,000/);
+    assert.match(connection.textContent,/Identity conflicts1/);
+    assert(visiblePanelButtons(ui).includes('Review identity conflicts'),'fresh checked conflicts remain actionable during the remaining system scan');
+    assert(!ui.calls.some(call=>['locateSource','prepareSourceConnection','confirmSourceConnection','jobAction','enqueueJob'].includes(call.action)),
+      'rendering system progress never confirms identities or resumes processing');
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('native access renewal stays automatic and preserves source-name edits', async () => {
+  const source=automaticSource();source.roots[0].nativeAccessStatus='restoring';
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    const name=ui.field('Source name');name.value='Unfinished name';await name.fire('input');name.focus();
+    for(const [status,copy] of [['restoring',/Restoring folder access/],['unavailable',/retry automatically/]]){
+      source.roots[0].nativeAccessStatus=status;ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,230));
+      assert.match(ui.all().find(node=>node.className.includes('pfp-native-access-status')).textContent,copy);
+      assert(!visiblePanelButtons(ui).some(label=>/Allow folder|Choose originals|Review identity/.test(label)));
+      assert.equal(ui.field('Source name'),name);assert.equal(name.value,'Unfinished name');assert.equal(ui.document.activeElement,name);
+    }
+    assert(!ui.calls.some(call=>['locateSource','jobAction','enqueueJob','confirmSourceConnection'].includes(call.action)));
+  } finally {await ui.close();}
+});
+
+test('only typed native permission failures offer the exact root folder chooser', async () => {
+  for(const status of ['permissionDenied','invalidGrant']){
+    const source=automaticSource();source.roots[0].nativeAccessStatus=status;
+    const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}}, {locateSource:{submittedJob:{id:'root-a',rootId:'root-a',kind:'sourceSelection',state:'running'}}});
+    ui.window.PhotoFindry.pick=async()=>({grantId:'native-owner-typed-grant',locationLabel:'/Volumes/Originals'});
+    try {
+      await ui.window.PhotoFindryPanels.show('sources');await ui.findButton('Allow folder access…').click();
+      assert.deepEqual(ui.calls.filter(call=>call.action==='locateSource'),[{action:'locateSource',params:{sourceId:source.id,rootId:'root-a',folderGrant:'native-owner-typed-grant'}}]);
+      assert(!ui.calls.some(call=>['jobAction','enqueueJob','prepareSourceConnection','confirmSourceConnection'].includes(call.action)));
+      assert.equal(ui.state.jobs.paused,true);assert.deepEqual(ui.errors,[]);
+    } finally {await ui.close();}
+  }
+});
+
+test('a missing access owner points to verified recovery separately from original identity conflicts', async () => {
+  const source=automaticSource({status:'needsReview',needsReview:1});source.roots[0].nativeAccessStatus='ownerUnavailable';
+  const ui=harness({sources:[source],jobs:{paused:true,jobs:[]}});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const copy=ui.all().find(node=>node.className.includes('pfp-native-access-status')).textContent;
+    assert.match(copy,/verified companion recovery/);assert.match(copy,/choosing the folder again cannot repair/);
+    const recovery=ui.all().find(node=>node.tagName==='A'&&node.textContent==='Recover companion');assert.equal(recovery.href,'photofindry-companion://open');
+    const setup=ui.all().find(node=>node.tagName==='A'&&node.textContent==='Verified setup help');assert.equal(setup.href,'https://photofindry.com/#install');
+    assert(!visiblePanelButtons(ui).some(label=>/Allow folder|Choose originals/.test(label)));
+    assert(visiblePanelButtons(ui).includes('Review identity conflicts'),'access repair never erases a real identity conflict');
+    assert(!ui.calls.some(call=>['locateSource','jobAction','enqueueJob'].includes(call.action)));
+  } finally {await ui.close();}
+});
+
+test('automatic source exceptions remain explicit and an offline drive is never presented as deleted', async () => {
+  for (const [overrides,label] of [[{status:'needsReview',needsReview:2},'Review identity conflicts'],[{status:'permission',accessOriginals:false},'Allow folder access…']]) {
+    const source=automaticSource(overrides);const ui=harness({sources:[source]});
+    try {
+      await ui.window.PhotoFindryPanels.show('sources');assert(visiblePanelButtons(ui).includes(label));
+      assert(!ui.calls.some(call=>['confirmSourceConnection','confirmSourceMatch','locateSource','enqueueJob'].includes(call.action)));
+    } finally {await ui.close();}
+  }
+  const ui=harness({sources:[automaticSource({status:'offline',available:0,missing:12})]});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');const connection=ui.all().find(n=>n.className.includes('pfp-automatic-source'));
+    assert.match(connection.textContent,/folder is disconnected.*stays selected.*checked automatically/);
+    assert.doesNotMatch(connection.textContent,/permanently removed|deleted originals/);
+    assert(!visiblePanelButtons(ui).some(label=>/Choose originals|Confirm|Remove/.test(label)));
+    assert(!ui.calls.some(call=>/remove|purge|confirm/i.test(call.action)));
+  } finally {await ui.close();}
+});
+
 test('imported Files prioritizes choosing this Mac’s original folder, shows the old path, and collapses secondary work', async () => {
   const ui = harness({ sources: [importedSource()] });
   try {

@@ -486,7 +486,7 @@ test('original identity recovery is visible during processing and after failure,
   ui.window.PhotoFindryPanels.show = (name, context) => opened.push({ name, context });
   try {
     const strip = ui.ids.get('job-strip');
-    assert.match(strip.textContent, /folder confirmation.*remount/i);
+    assert.match(strip.textContent, /conflicting or uncertain identity/i);
     assert.doesNotMatch(strip.textContent, /Reading now|Preparing…/);
     await ui.findButton('Review originals').click();
     assert.deepEqual(structuredClone(opened), [{ name: 'sources', context: { jobId: job.id, sourceId: 'blocked-source', rootId: 'blocked-root' } }]);
@@ -494,7 +494,7 @@ test('original identity recovery is visible during processing and after failure,
     const failed = { ...job, state: 'failed', message: 'Tagging stopped after repeated model failures.' };
     const card = ui.window.PhotoFindryJobs.card(failed);
     assert.match(card.textContent, /repeated model failures/);
-    assert.match(card.textContent, /folder confirmation/);
+    assert.match(card.textContent, /conflicting or uncertain identity/);
     const labels = card.children.at(-1).children.map(node => node.textContent);
     assert(labels.includes('Retry')); assert(labels.includes('Review originals'));
     const paused = ui.window.PhotoFindryJobs.card({ ...job, state: 'paused', pauseReason: 'user' });
@@ -515,6 +515,9 @@ test('automatic source waiting can be paused without retrying, while settled mis
     assert.match(card.textContent, /3 tagged.*5 originals waiting.*1 need attention.*1 removed from library/);
     assert(card.children.at(-1).children.some(node => node.textContent === 'Pause'));
     assert(!card.children.at(-1).children.some(node => node.textContent === 'Resume'));
+    assert.match(card.textContent, /Folder changes are checked automatically/);
+    assert(!card.children.at(-1).children.some(node => /Reconnect|Find originals|Open Files/.test(node.textContent)), 'routine source waiting never requires a manual reconnect');
+    assert(!ui.ids.get('job-strip').children.some(node => /Reconnect|Find originals|Open Files/.test(node.textContent)));
     await card.children.at(-1).children.find(node => node.textContent === 'Pause').click();
     assert.deepEqual(ui.calls.filter(call => call.name === 'jobAction'), [{ name: 'jobAction', params: { action: 'pause', id: 'waiting' } }]);
     const settled = { ...waiting, id: 'missing', pauseReason: 'source-missing', phase: 'available-finished', missingOriginalCount: 5 };
@@ -525,6 +528,41 @@ test('automatic source waiting can be paused without retrying, while settled mis
     await settledCard.children.at(-1).children.find(node => node.textContent === 'Tag recovered photos').click();
     assert.deepEqual(ui.calls.filter(call => call.name === 'jobAction').at(-1), { name: 'jobAction', params: { action: 'retryMissing', id: 'missing' } });
   } finally { await ui.close(); }
+});
+
+test('automatic source recovery keeps identity and permission exceptions actionable without resuming explicit pauses', async () => {
+  const waiting={id:'waiting-exception',kind:'tagging',state:'paused',pauseReason:'source-waiting',sourceLifecycleVersion:1,
+    waitingForAvailability:true,waitingOriginalCount:2,total:2,completed:0};
+  const ui=harness({state:{jobs:{paused:true,jobs:[],notifications:[]}}});
+  try {
+    const conflict=ui.window.PhotoFindryJobs.card({...waiting,sourceNextAction:{kind:'reviewIdentity',sourceId:'source-a'}});
+    assert(conflict.children.at(-1).children.some(node=>node.textContent==='Review originals'));
+    assert.match(conflict.textContent,/conflicting or uncertain identity/);
+    const permission=ui.window.PhotoFindryJobs.card({...waiting,sourceNextAction:{kind:'allowAccess',sourceId:'source-a'}});
+    assert(permission.children.at(-1).children.some(node=>node.textContent==='Open Files'));
+    const user=ui.window.PhotoFindryJobs.card({...waiting,pauseReason:'user',waitingForAvailability:false,sourceNextAction:undefined});
+    assert(user.children.at(-1).children.some(node=>node.textContent==='Resume'));
+    assert(!user.children.at(-1).children.some(node=>node.textContent==='Pause'));
+    assert.equal(ui.calls.length,0,'rendering background state or exceptional recovery never resumes a job');
+  } finally {await ui.close();}
+});
+
+test('pending automatic reconciliation does not turn old identity holds into fresh review prompts', async () => {
+  const job={id:'old-identity',kind:'tagging',state:'paused',pauseReason:'source-waiting',sourceLifecycleVersion:1,
+    waitingForAvailability:true,waitingOriginalCount:90000,total:90000,completed:0,
+    sourceNextAction:{kind:'reviewIdentity',sourceId:'source-a',rootId:'root-a'}};
+  const source={id:'source-a',automaticLifecycleVersion:1,folderSelectionPending:true,needsReview:0,
+    roots:[{id:'root-a',status:'available',selectionPending:true,needsReview:0}]};
+  const ui=harness({state:{sources:[source],jobs:{paused:true,jobs:[job],notifications:[]}}});
+  try {
+    let card=ui.window.PhotoFindryJobs.card(job);
+    assert.match(card.textContent,/Original identities are being checked automatically/);
+    assert(!card.children.at(-1).children.some(node=>node.textContent==='Review originals'));
+    source.needsReview=1;source.roots[0].needsReview=1;
+    card=ui.window.PhotoFindryJobs.card(job);
+    assert(card.children.at(-1).children.some(node=>node.textContent==='Review originals'),'fresh checked conflicts remain actionable');
+    assert.equal(ui.calls.length,0,'checking or publishing a conflict never resumes processing');
+  } finally {await ui.close();}
 });
 
 test('terminal activity summary stays visible until dismissed and never exposes older history when dismissed', async () => {
