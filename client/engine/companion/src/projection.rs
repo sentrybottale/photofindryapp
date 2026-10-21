@@ -103,6 +103,10 @@ impl Scopes {
                         "settingsJSON",
                         "input",
                         "nativeHost",
+                        "sourceAccess",
+                        "readerBookmark",
+                        "ownerBookmark",
+                        "ownerGrantId",
                     ]
                     .contains(&key.as_str())
                     {
@@ -255,6 +259,29 @@ fn source_root_labels(source: &Value, projected: &mut Value) {
 mod tests {
     use super::*;
     #[test]
+    fn source_automatic_lifecycle_and_selection_proofs_survive_authenticated_presentation() {
+        let scopes=Scopes::default();
+        let source=json!({"id":"source","automaticLifecycleVersion":1,"originalsFolderSelected":true,
+            "mode":"connected","status":"needsReview","needsReview":2,"offline":3,
+            "folderSelectionPending":true,"observationChecked":32,"observationTotal":90000,
+            "roots":[{"id":"selected","path":"/Volumes/Photos/Selected","selected":true,"selectionPending":true,
+                "status":"checking","available":30,"needsReview":2,"observationChecked":32,"observationTotal":90000},
+                {"id":"imported","path":"/Users/other/Photos","selected":false}]});
+        let snapshot=scopes.project_source_locations(&json!({"sources":[source.clone()]}));
+        let details=scopes.project_source_locations(&json!({"source":source}));
+        for item in [&snapshot["sources"][0],&details["source"]] {
+            assert_eq!(item["automaticLifecycleVersion"],1);assert_eq!(item["originalsFolderSelected"],true);
+            assert_eq!(item["needsReview"],2);assert_eq!(item["offline"],3);assert_eq!(item["status"],"needsReview");
+            assert_eq!(item["folderSelectionPending"],true);assert_eq!(item["observationChecked"],32);assert_eq!(item["observationTotal"],90000);
+            assert_eq!(item["roots"][0]["selected"],true);assert_eq!(item["roots"][1]["selected"],false);
+            assert_eq!(item["roots"][0]["selectionPending"],true);assert_eq!(item["roots"][0]["status"],"checking");
+            assert_eq!(item["roots"][0]["available"],30);assert_eq!(item["roots"][0]["needsReview"],2);
+            assert_eq!(item["roots"][0]["observationChecked"],32);assert_eq!(item["roots"][0]["observationTotal"],90000);
+            assert_eq!(item["roots"][0]["locationLabel"],"/Volumes/Photos/Selected");
+            assert!(item["roots"][0].get("path").is_none(),"display labels never become filesystem authority");
+        }
+    }
+    #[test]
     fn paths_are_capabilities_not_browser_parameters() {
         let scopes = Scopes::default();
         let value=scopes.project(&json!({"settings":{"modelPath":"/private/models/a.gguf"},"folders":[{"path":"/private/photos","count":2}],"faces":[{"id":"face","cropPath":"/private/crop.jpg","box":[0,0,1,1]}]}));
@@ -345,3 +372,11 @@ mod tests {
         assert!(paths.get("folders").is_none());
         assert_eq!(paths["scopeIds"].as_array().unwrap().len(), 1);
     }
+
+#[cfg(test)]
+#[test]
+fn native_access_carriers_and_owner_references_never_reach_presentation() {
+    let projected=Scopes::default().project(&json!({"sourceAccess":[{"readerBookmark":"reader-secret"}],"readerBookmark":"reader-secret","ownerBookmark":"owner-secret","ownerGrantId":"owner-reference","source":{"id":"source","roots":[{"id":"root","ownerGrantId":"owner-reference","selected":true}]}}));
+    let text=projected.to_string();for private in ["reader-secret","owner-secret","owner-reference","readerBookmark","ownerBookmark","sourceAccess"]{assert!(!text.contains(private));}
+    assert_eq!(projected["source"]["roots"][0]["id"],"root");assert_eq!(projected["source"]["roots"][0]["selected"],true);
+}

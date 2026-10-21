@@ -8,8 +8,8 @@ use std::os::unix::process::ExitStatusExt;
 
 const KINDS: &[&str] = &["folder","sourceFolder","model","projector","reviewModel","reviewProjector","template","reranker","backupOpen","backupSave","archiveOpen","archiveSave","photoExportSave","screenshot"];
 const LIFE: Duration = Duration::from_secs(1800);
-struct Grant { path: PathBuf, kind: String, expires: Instant, identity: Option<(u64,u64,u64,i64,i64)> }
-pub struct Picker { executable: PathBuf, grants: Mutex<HashMap<String,Grant>>, active: tokio::sync::Mutex<()>, generation: AtomicU64 }
+struct Grant { path: PathBuf, kind: String, expires: Instant, identity: Option<(u64,u64,u64,i64,i64)>, access:Option<super::source_access::AccessGrant>, _reader_lease:Option<std::sync::Arc<super::native_access::ReaderLease>> }
+pub struct Picker { executable: PathBuf, grants: Mutex<HashMap<String,Grant>>, active: tokio::sync::Mutex<()>, reader_open:std::sync::Arc<tokio::sync::Semaphore>, generation: AtomicU64 }
 
 fn identity(path: &Path) -> Result<(u64,u64,u64,i64,i64),String> {
     let metadata = std::fs::metadata(path).map_err(|_| "The selected location is no longer available.".to_owned())?;
@@ -39,6 +39,16 @@ fn picker_failure(status:std::process::ExitStatus,diagnostics:&[u8])->String{
     }
     "The installed file chooser could not complete this action. Reopen PhotoFindry from the installed launcher and retry; if it continues, reinstall the companion package.".into()
 }
+async fn bounded_reader<T:Send+'static>(permit:tokio::sync::OwnedSemaphorePermit,open:impl FnOnce()->Result<T,String>+Send+'static,wait:Duration)->Result<T,String>{
+    let(sender,opening)=tokio::sync::oneshot::channel();
+    // A stalled provider must not hold an async executor or Tokio shutdown.
+    // The single permit stays with this read-only thread; late output drops.
+    std::thread::Builder::new().name("photofindry-folder-access".into()).spawn(move||{let _permit=permit;let _=sender.send(open());})
+        .map_err(|_|"The native folder access check could not start.")?;
+    tokio::time::timeout(wait,opening).await
+        .map_err(|_|"Opening native folder access took too long. Saved work is kept; its current check is still finishing.")?
+        .map_err(|_|"The native folder access check stopped unexpectedly.")?
+}
 
 impl Picker {
     pub fn new(runtime: &Path) -> Self {
@@ -46,7 +56,7 @@ impl Picker {
         let executable = sibling.filter(|p|p.is_file()).unwrap_or_else(||runtime.join("CompanionPicker"));
         let bundle=executable.parent().unwrap_or(runtime).join("CompanionPicker.app/Contents/MacOS/CompanionPicker");
         let executable=if bundle.is_file(){bundle}else{executable};
-        Self { executable,grants:Mutex::new(HashMap::new()),active:tokio::sync::Mutex::new(()),generation:AtomicU64::new(0) }
+        Self { executable,grants:Mutex::new(HashMap::new()),active:tokio::sync::Mutex::new(()),reader_open:std::sync::Arc::new(tokio::sync::Semaphore::new(1)),generation:AtomicU64::new(0) }
     }
     pub fn revoke(&self) {
         self.generation.fetch_add(1,Ordering::AcqRel);
@@ -71,6 +81,24 @@ impl Picker {
         if !KINDS.contains(&kind) { return Err("Unknown file selection.".into()); }
         let generation=self.generation.load(Ordering::Acquire);
         let _active=self.active.try_lock().map_err(|_|"Finish the open file chooser first.")?;
+        if ["folder","sourceFolder"].contains(&kind) {
+            let executable=tokio::task::spawn_blocking(super::lifecycle::source_access_helper_for_current_executable).await
+                .map_err(|_|"The installed folder access owner could not be verified.")??;
+            if let Some(executable)=executable {
+                let permit=self.reader_open.clone().try_acquire_owned().map_err(|_|"The previous folder access check is still finishing. Saved work is kept; try again shortly.")?;
+                let selection=super::source_access::Owner::verified(executable).select(kind,generation).await?;
+                if generation!=self.generation.load(Ordering::Acquire){return Err("The local session changed; choose the folder again.".into());}
+                return match selection {
+                    super::source_access::Selection::Cancelled=>Ok(json!({"cancelled":true})),
+                    super::source_access::Selection::Granted(mut access)=>{
+                        let bookmark=access.reader_bookmark().to_owned();let expected=PathBuf::from(&access.path);
+                        let lease=bounded_reader(permit,move||super::native_access::ReaderLease::open(&bookmark,&expected).map(std::sync::Arc::new),Duration::from_secs(30)).await?;
+                        if generation!=self.generation.load(Ordering::Acquire){return Err("The local session changed; choose the folder again.".into());}
+                        let path=lease.path().to_string_lossy().into_owned();access.path=path.clone();self.grant_path_with_access(kind,&path,generation,Some(access),Some(lease))
+                    }
+                };
+            }
+        }
         let mut child=super::launch::desktop_command(&self.executable).arg(kind).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true).spawn().map_err(|_|"The native file chooser is unavailable. Rebuild the companion tools.")?;
         let stdout=child.stdout.take().ok_or("The file chooser could not start.")?;
         let stderr=child.stderr.take().ok_or("The file chooser could not start.")?;
@@ -96,6 +124,9 @@ impl Picker {
         self.grant_path_at(kind,raw,self.generation.load(Ordering::Acquire))
     }
     fn grant_path_at(&self,kind:&str,raw:&str,generation:u64)->Result<Value,String>{
+        self.grant_path_with_access(kind,raw,generation,None,None)
+    }
+    fn grant_path_with_access(&self,kind:&str,raw:&str,generation:u64,access:Option<super::source_access::AccessGrant>,lease:Option<std::sync::Arc<super::native_access::ReaderLease>>)->Result<Value,String>{
         if !KINDS.contains(&kind)||raw.contains('\0')||raw.len()>16384{return Err("Invalid local selection.".into());}
         // Context changes only the native chooser copy. These aliases retain
         // the established typed capabilities and selection validation.
@@ -122,7 +153,7 @@ impl Picker {
         // Folder context is display-only. The selected path remains exclusively
         // inside the typed grant, and no path is accepted back from the browser.
         if kind=="folder" {presentation["locationLabel"]=json!(raw.chars().take(4096).collect::<String>());}
-        grants.insert(grant_id.clone(),Grant{path,kind:kind.into(),expires:Instant::now()+LIFE,identity:recorded});
+        grants.insert(grant_id.clone(),Grant{path,kind:kind.into(),expires:Instant::now()+LIFE,identity:recorded,access,_reader_lease:lease});
         Ok(presentation)
     }
     pub fn resolve(&self,grant:&str,kind:&str)->Result<String,String> {
@@ -134,6 +165,14 @@ impl Picker {
             if current!=expected {return Err("The selected file changed. Choose it again before continuing.".into());}
         }
         Ok(selected.path.to_string_lossy().into_owned())
+    }
+    /// Private action carrier. Browser callers cannot select this field; it is
+    /// attached only after the existing opaque, typed picker ID is validated.
+    pub fn resolve_source_access(&self,grant:&str)->Result<Option<Value>,String>{
+        self.resolve(grant,"folder")?;
+        let grants=self.grants.lock().unwrap();
+        let selected=grants.get(grant).filter(|g|g.kind=="folder"&&g.expires>Instant::now()).ok_or("Choose the originals folder again; its permission expired.")?;
+        Ok(selected.access.as_ref().map(|access|access.internal_value()))
     }
 }
 
@@ -156,7 +195,7 @@ mod tests {
         struct Cleanup(PathBuf);impl Drop for Cleanup{fn drop(&mut self){let _=std::fs::remove_dir_all(&self.0);}}
         let _cleanup=Cleanup(root.clone());
         let executable=root.join("chooser");
-        let picker=Picker{executable:executable.clone(),grants:Mutex::new(HashMap::new()),active:tokio::sync::Mutex::new(()),generation:AtomicU64::new(0)};
+        let picker=Picker{executable:executable.clone(),grants:Mutex::new(HashMap::new()),active:tokio::sync::Mutex::new(()),reader_open:std::sync::Arc::new(tokio::sync::Semaphore::new(1)),generation:AtomicU64::new(0)};
         let script=|body:&str|{
             std::fs::write(&executable,format!("#!/bin/sh\n{body}\n")).unwrap();
             std::fs::set_permissions(&executable,std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -273,4 +312,53 @@ mod tests {
         assert_eq!(picker.resolve(id,"archiveOpen").unwrap(),archive.to_string_lossy());
         assert!(picker.resolve(id,"backupOpen").is_err());
     }
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn bounded_native_reader_timeout_keeps_single_flight_and_drops_late_scope() {
+    use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
+    struct Scope(Arc<AtomicBool>);impl Drop for Scope{fn drop(&mut self){self.0.store(true,Ordering::Release);}}
+    let semaphore=Arc::new(tokio::sync::Semaphore::new(1));let permit=semaphore.clone().try_acquire_owned().unwrap();
+    let(release,blocked)=std::sync::mpsc::channel();let dropped=Arc::new(AtomicBool::new(false));let observed=dropped.clone();
+    let result=bounded_reader(permit,move||{blocked.recv().unwrap();Ok(Scope(observed))},Duration::from_millis(20)).await;
+    assert!(result.is_err());assert_eq!(semaphore.available_permits(),0,"a timed-out provider cannot spawn unbounded reader threads");
+    release.send(()).unwrap();let end=tokio::time::Instant::now()+Duration::from_secs(2);
+    while !dropped.load(Ordering::Acquire)||semaphore.available_permits()!=1{assert!(tokio::time::Instant::now()<end);tokio::time::sleep(Duration::from_millis(5)).await;}
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn cancelled_native_reader_drops_its_late_scope_without_holding_async_shutdown() {
+    use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
+    struct Scope(Arc<AtomicBool>);impl Drop for Scope{fn drop(&mut self){self.0.store(true,Ordering::Release);}}
+    let semaphore=Arc::new(tokio::sync::Semaphore::new(1));let permit=semaphore.clone().try_acquire_owned().unwrap();
+    let(release,blocked)=std::sync::mpsc::channel();let(started,ready)=tokio::sync::oneshot::channel();let dropped=Arc::new(AtomicBool::new(false));let observed=dropped.clone();
+    let task=tokio::spawn(bounded_reader(permit,move||{let _=started.send(());blocked.recv().unwrap();Ok(Scope(observed))},Duration::from_secs(30)));
+    ready.await.unwrap();task.abort();assert!(task.await.is_err());assert_eq!(semaphore.available_permits(),0);
+    release.send(()).unwrap();let end=tokio::time::Instant::now()+Duration::from_secs(2);
+    while !dropped.load(Ordering::Acquire)||semaphore.available_permits()!=1{assert!(tokio::time::Instant::now()<end);tokio::time::sleep(Duration::from_millis(5)).await;}
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn native_folder_access_stays_behind_typed_picker_ids_until_private_action_preparation() {
+    use std::os::unix::fs::PermissionsExt;
+    let mut nonce=[0u8;12];getrandom::fill(&mut nonce).unwrap();let suffix=nonce.iter().map(|v|format!("{v:02x}")).collect::<String>();
+    let root=std::env::temp_dir().join(format!("pf-picker-access-carrier-{suffix}"));std::fs::create_dir(&root).unwrap();
+    struct Cleanup(PathBuf);impl Drop for Cleanup{fn drop(&mut self){let _=std::fs::remove_dir_all(&self.0);}}
+    let _cleanup=Cleanup(root.clone());let folder=root.join("Originals");std::fs::create_dir(&folder).unwrap();
+    let helper=root.join("owner-fixture");let path=serde_json::to_string(folder.to_str().unwrap()).unwrap();
+    std::fs::write(&helper,format!("#!/usr/bin/python3\nimport sys,json,base64\nr=json.load(sys.stdin)\nv={{k:r[k] for k in ['schema','operation','requestNonce','generation']}}\nv['cancelled']=False\nv['selection']={{'ownerGrantId':'a'*64,'path':{path},'selectedPath':{path},'readerBookmark':base64.b64encode(b'fixture-only-implicit-reader').decode()}}\nprint(json.dumps(v))\n")).unwrap();
+    std::fs::set_permissions(&helper,std::fs::Permissions::from_mode(0o700)).unwrap();
+    let super::source_access::Selection::Granted(access)=super::source_access::Owner::verified(helper).select("sourceFolder",0).await.unwrap()else{panic!("missing selection")};
+    let carrier=access.internal_value();let picker=Picker::new(&root);
+    // The fake carrier deliberately has no real ReaderLease. This unit checks
+    // private transport only; it never invokes an AppKit selection/TCC grant.
+    let visible=picker.grant_path_with_access("sourceFolder",folder.to_str().unwrap(),0,Some(access),None).unwrap();
+    let public=visible.to_string();assert!(!public.contains("readerBookmark"));assert!(!public.contains(&"a".repeat(64)));assert!(!public.contains("implicit-reader"));
+    let id=visible["grantId"].as_str().unwrap();let scopes=super::projection::Scopes::default();
+    let(_,add)=super::operations::prepare("addFolders",json!({"folderGrants":[id]}),&scopes,&picker).unwrap();assert_eq!(add["sourceAccess"],json!([carrier.clone()]));
+    let(_,locate)=super::operations::prepare("locateSource",json!({"sourceId":"source","rootId":"root","folderGrant":id}),&scopes,&picker).unwrap();assert_eq!(locate["sourceAccess"],json!([carrier]));
+    picker.revoke();assert!(picker.resolve_source_access(id).is_err());
 }

@@ -1,6 +1,6 @@
 //! Per-user CLI lifecycle. Program versions are separate from the photo library.
 //! No website supplies a path, trust key, executable or installation decision.
-use super::{cli_release as release, launch, uninstall};
+use super::{cli_release as release, launch, uninstall, retained_access_owner};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -98,6 +98,24 @@ fn verifier(exe: &Path) -> Result<PathBuf> {
 fn self_executable() -> Result<PathBuf> {
     fs::canonicalize(std::env::current_exe().map_err(|_| "Cannot locate companion")?)
         .map_err(|_| "Cannot resolve companion executable".into())
+}
+/// Browser transport calls this on a blocking task before each private helper
+/// launch. Managed installations never silently fall back to path-only grants.
+pub fn source_access_helper_for_current_executable() -> Result<Option<PathBuf>> {
+    let exe=self_executable()?;
+    let Some(root)=installed_root(&exe) else{return Ok(None)};
+    let cfg=read_state(&root)?;
+    if executable(&root,cfg.current)!=exe{return Err("Only the active installed CLI may select original-folder access.".into());}
+    Ok(Some(retained_access_owner::verified(&root,&verifier(&exe)?)?))
+}
+fn provision_source_access_owner(root:&Path,cfg:&Installation)->Result<()> {
+    let source=package(root,cfg.current);
+    // Retained older signed packages predate this protocol. They remain valid
+    // migration/rollback software; new packages require this helper in packing.
+    if fs::symlink_metadata(retained_access_owner::directory(root)).is_err()
+        && !source.join("bin/CompanionSourceAccess.app").exists(){return Ok(());}
+    retained_access_owner::provision(root,&source,&release::read(&root.join("versions").join(cfg.current.to_string()).join("release.json"),131072)?,&verifier(&self_executable()?)?)?;
+    Ok(())
 }
 fn read_state(root: &Path) -> Result<Installation> {
     launch::private_directory(root, false)?;
@@ -290,9 +308,11 @@ fn plist_with_request(root: &Path, cfg: &Installation, operation: Option<&str>, 
     // inherit a 30-second delay. KeepAlive is false: failed background jobs
     // are never restarted unattended.
     let throttle = if operation.is_some() { 30 } else { 1 };
-    Ok(format!("<?xml version=\"1.0\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>{}</string><key>ProgramArguments</key><array>{args}</array><key>RunAtLoad</key><{} /><key>ProcessType</key><string>Background</string><key>ThrottleInterval</key><integer>{throttle}</integer><key>KeepAlive</key><{} /></dict></plist>",xml(&label),if operation.is_some()||cfg.autostart{"true"}else{"false"},"false").into_bytes())
+    let attribution=if retained_access_owner::application(root).is_dir(){format!("<key>AssociatedBundleIdentifiers</key><array><string>{}</string></array>",retained_access_owner::IDENTIFIER)}else{String::new()};
+    Ok(format!("<?xml version=\"1.0\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>{}</string><key>ProgramArguments</key><array>{args}</array>{attribution}<key>RunAtLoad</key><{} /><key>ProcessType</key><string>Background</string><key>ThrottleInterval</key><integer>{throttle}</integer><key>KeepAlive</key><{} /></dict></plist>",xml(&label),if operation.is_some()||cfg.autostart{"true"}else{"false"},"false").into_bytes())
 }
 fn write_agent(root: &Path, cfg: &Installation) -> Result<PathBuf> {
+    provision_source_access_owner(root,cfg)?;
     let path = agent_path(root)?;
     let parent = path.parent().ok_or("Missing LaunchAgent directory")?;
     if !parent.exists() {
@@ -389,7 +409,8 @@ fn access_check_plist(root: &Path, data: &Path, exe: &Path, id: &str) -> Result<
     if !request_id(id) { return Err("Invalid background access request identity".into()); }
     let args = [exe.to_string_lossy().into_owned(), "lifecycle".into(), "access-check".into(), "--install-root".into(), root.to_string_lossy().into_owned(), "--data-dir".into(), data.to_string_lossy().into_owned(), "--open-request".into(), id.into()]
         .iter().map(|s| format!("<string>{}</string>", xml(s))).collect::<String>();
-    Ok(format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>Label</key><string>{}.access-check</string><key>ProgramArguments</key><array>{args}</array><key>RunAtLoad</key><true/><key>ProcessType</key><string>Background</string><key>KeepAlive</key><false/></dict></plist>", xml(&label(root)?)).into_bytes())
+    let attribution=if retained_access_owner::application(root).is_dir(){format!("<key>AssociatedBundleIdentifiers</key><array><string>{}</string></array>",retained_access_owner::IDENTIFIER)}else{String::new()};
+    Ok(format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>Label</key><string>{}.access-check</string><key>ProgramArguments</key><array>{args}</array>{attribution}<key>RunAtLoad</key><true/><key>ProcessType</key><string>Background</string><key>KeepAlive</key><false/></dict></plist>", xml(&label(root)?)).into_bytes())
 }
 /// launchd cannot inherit a Terminal parent's Documents/Downloads permission.
 /// Copy only the caller-authenticated controller into the private program store
@@ -1943,6 +1964,7 @@ pub async fn disable_for_uninstall(exe: &Path) -> Result<()> {
     cfg.automatic_updates = false;
     save(&root, STATE, &cfg)?;
     stop_agent(&root).await?;
+    retained_access_owner::uninstall(&root,&verifier(exe)?)?;
     let probe=root.join("access-controller");
     if probe.exists() {launch::private_directory(&probe,false)?;fs::remove_dir_all(&probe).map_err(|_|"Cannot remove the background-access controller; retry uninstall")?;}
     if root == default_root()? {

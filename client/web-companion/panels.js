@@ -257,7 +257,113 @@
     node.append(actions); return node;
   }
 
-  async function renderSources() {
+  const automaticSource = source => source?.automaticLifecycleVersion === 1;
+  const sourceConflict = source => source?.needsReview > 0 || ['needsReview', 'changed'].includes(source?.status);
+  function nativeAccessStatus(parent, source, roots, selectedRoot, existingPermissionAction) {
+    for (const rootInfo of selectedRoot ? [selectedRoot] : roots) {
+      const status = rootInfo.nativeAccessStatus;
+      const copy = {
+        restoring: ['Restoring folder access', 'Saved permission is being restored automatically. Your photographs and saved work are kept.'],
+        unavailable: ['Folder access is temporarily unavailable', 'PhotoFindry will retry automatically. This does not mean your originals were deleted.'],
+        permissionDenied: ['Folder read access needed', 'macOS denied access to this folder. Choose it again to allow reading; saved work is kept.'],
+        invalidGrant: ['Saved folder permission needs renewal', 'This folder’s saved permission is no longer usable. Choose the folder again; saved work is kept.'],
+        ownerUnavailable: ['Companion access recovery needed', 'The installed folder access component is missing or changed. Use verified companion recovery; choosing the folder again cannot repair this component.'],
+      }[status];
+      if (!copy) continue;
+      const note = card(copy[0], copy[1]);note.classList.add('pfp-native-access-status');
+      if (roots.length > 1) appendSummary(note, [['Folder', sourceLocation(rootInfo)]]);
+      if (['permissionDenied', 'invalidGrant'].includes(status) && !(existingPermissionAction && selectedRoot?.id === rootInfo.id)) {
+        note.append(row(button('Allow folder access…', () => locate(source, rootInfo), 'primary')));
+      } else if (status === 'ownerUnavailable') {
+        const recover = el('a', 'pfp-button', 'Recover companion');recover.href = 'photofindry-companion://open';
+        const setup = el('a', 'pfp-button', 'Verified setup help');setup.href = 'https://photofindry.com/#install';setup.target = '_blank';setup.rel = 'noopener noreferrer';
+        note.append(row(recover, setup));
+      }
+      parent.append(note);
+    }
+  }
+  function automaticSourceConnection(source, rootInfo, check) {
+    const roots = list(source.roots);
+    const status = text(rootInfo?.status, source.status);
+    const selected = rootInfo ? rootInfo.selected === true && status !== 'detached' : source.originalsFolderSelected === true && roots.every(root => root.selected === true || root.status === 'detached');
+    const conflicts = Number.isFinite(rootInfo?.needsReview) ? rootInfo.needsReview : source.needsReview;
+    const missing = rootInfo?.missing ?? source.missing;
+    const unchecked = rootInfo?.unchecked ?? source.unchecked;
+    const identityConflict = ['needsReview', 'changed'].includes(status);
+    // The selected-folder receipt is not a processing job. Once its retained
+    // selection reaches the source snapshot, only source availability drives UI.
+    const unavailable = ['offline', 'permission', 'onlineOnly', 'unavailable'].includes(status);
+    const pendingSelection = rootInfo ? rootInfo.selectionPending === true : source.folderSelectionPending === true;
+    if (check?.jobKind === 'sourceSelection' && (selected || pendingSelection)) check.selectionObserved = true;
+    const needsChoice = (!selected || source.mode === 'metadata') && !pendingSelection;
+    const checking = !identityConflict && !['permission', 'unavailable', 'onlineOnly'].includes(status) && Boolean(check?.jobId && check.jobKind === 'sourceSelection' && !check.selectionObserved && !selected && !pendingSelection
+      || !unavailable && (pendingSelection || selected && status === 'checking'));
+    const permission = status === 'permission';
+    const ownerUnavailable = (rootInfo ? [rootInfo] : roots).some(root => root.nativeAccessStatus === 'ownerUnavailable');
+    let heading = 'Originals folder connected';
+    let detail = 'Folder changes are checked in the background. Connected, moved and returning originals are matched automatically; saved photographs and tags stay available.';
+    if (ownerUnavailable && (permission || needsChoice)) {
+      heading = 'Companion access recovery needed';
+      detail = 'Use verified companion recovery to restore the folder access component. Saved photographs and work are kept.';
+    } else if (checking) {
+      heading = 'Checking originals automatically';
+      detail = 'Checking the folder you selected. Matching originals become usable automatically; no second confirmation is needed.';
+    } else if (permission) {
+      heading = 'Folder access needed';
+      detail = 'macOS needs permission to read this folder. Choose it to allow access; saved photographs and completed work are kept.';
+    } else if (needsChoice) {
+      heading = 'Choose this Mac’s originals folder once';
+      detail = 'Select the matching folder on this Mac. PhotoFindry then watches its availability and file changes automatically. Saved tags and search remain available.';
+    } else if (status === 'offline') {
+      heading = 'Waiting for the folder to return';
+      detail = 'This folder is disconnected. It stays selected and is checked automatically when its drive returns. Saved photos, tags and retained previews are kept.';
+    } else if (status === 'onlineOnly') {
+      heading = 'Waiting for cloud originals';
+      detail = 'These originals are stored by your cloud provider. Changes are watched automatically; make originals available in Finder when you want to process them.';
+    } else if (status === 'unavailable') {
+      heading = 'Some originals are temporarily unavailable';
+      detail = 'Saved locations and returning files are checked automatically. Saved photos and tags are kept; temporary absence does not mean permanent deletion.';
+    } else if (identityConflict || conflicts > 0) {
+      heading = 'Some original identities need review';
+      detail = 'Only conflicting or uncertain originals need a decision. Other verified photographs continue automatically; a disconnected drive is never treated as deleted photos.';
+    } else if (status === 'missing' || missing > 0) {
+      heading = 'Some originals are temporarily unavailable';
+      detail = 'Saved locations and returning files are checked automatically. Saved photos and tags are kept; temporary absence does not mean permanent deletion.';
+    } else if (['checking', 'unchecked'].includes(status) || unchecked > 0) {
+      heading = 'Checking originals automatically';
+      detail = 'Folder availability and file changes are checked in the background. No manual folder confirmation is needed for matching originals.';
+    }
+    const connection = card(heading, detail); connection.classList.add('pfp-automatic-source');
+    connection.setAttribute('aria-live', 'polite');
+    for (const root of roots) appendSummary(connection, [[root.selected ? 'Selected folder' : 'Saved folder location', sourceLocation(root)]]);
+    if (check?.chosenLocationLabel && checking) appendSummary(connection, [['Selected on this Mac', check.chosenLocationLabel]]);
+    if ((needsChoice || permission) && !checking && !ownerUnavailable) {
+      if (roots.length > 1) {
+        const rootChoice = select([['', 'Choose a saved originals folder…'], ...roots.map(root => [root.id, sourceLocation(root)])], rootInfo?.id || '');
+        rootChoice.addEventListener('change', () => { view.sourceRoots.set(source.id, rootChoice.value); renderSourcesFresh().catch(error => showProblem(error.message)); });
+        connection.append(field('Saved originals folder', rootChoice));
+      }
+      const chooseFolder = button(permission ? 'Allow folder access…' : 'Choose originals folder…', () => locate(source, rootInfo), 'primary');
+      chooseFolder.classList.add('pfp-choose-originals'); chooseFolder.disabled = roots.length > 1 && !rootInfo;
+      connection.append(row(chooseFolder));
+    } else if ((selected || identityConflict) && (identityConflict || conflicts > 0) && !unavailable) {
+      connection.append(row(button('Review identity conflicts', () => {
+        if (roots.length > 1 && !rootInfo) throw Error('Select the affected saved folder in Source options first.');
+        return connectionPlan(source, rootInfo);
+      })));
+    }
+    const reviewHost = el('div', 'pfp-connection-review'); connection.append(reviewHost);
+    const checked = rootInfo?.observationChecked ?? source.observationChecked;
+    const total = rootInfo?.observationTotal ?? source.observationTotal;
+    if (checking && Number.isFinite(total) && total > 0 && Number.isFinite(checked)) appendSummary(connection, [['Locations checked', `${count(Math.min(total, Math.max(0, checked)))} of ${count(total)}`]]);
+    const available = Number.isFinite(rootInfo?.available) ? rootInfo.available : source.available;
+    appendSummary(connection, [['Photographs', count(rootInfo?.photoCount ?? source.photoCount)], [roots.length > 1 && !Number.isFinite(rootInfo?.available) ? 'Available in source' : 'Available', count(available)],
+      ['Missing at checked locations', count(missing)], needsChoice ? ['Identity check', 'After folder selection'] : checking && !(conflicts > 0) ? ['Identity check', 'In progress'] : ['Identity conflicts', count(conflicts)]]);
+    nativeAccessStatus(connection, source, roots, rootInfo, permission && !checking && !ownerUnavailable);
+    return connection;
+  }
+
+  async function renderSources(preservedName = null) {
     const generation = view.generation;
     const add = button('Add photo folder…', async () => {
       const grant = await choose('folder'); if (!grant || generation !== view.generation) return;
@@ -273,7 +379,7 @@
     body.append(field('Source', chooser));
     const source = sources().find((item) => item.id === view.sourceId);
     const roots = list(source.roots);
-    const summary = card(source.label, text(source.statusLabel, text(source.status)));
+    const summary = card(source.label, automaticSource(source) ? 'Folder availability is managed automatically.' : text(source.statusLabel, text(source.status)));
     if (source.mode === 'archived') {
       summary.append(notice('This source is archived and is not part of the searchable library. Attach its verified archive to bring it back; an originals folder alone does not restore its saved work.'),
         button('Inspect & attach archive…', inspectArchive));
@@ -295,6 +401,8 @@
     const activeRootCheck = [checkJob, latestRootCheck].find(job => job && !terminal(job));
     const checkedFolder = latestRootCheck?.sourceAction === 'locate' && latestRootCheck.state === 'completed' && latestRootCheck.sourceVerifyContents !== true
       && (source.needsReview > 0 || source.mode === 'metadata' || source.accessOriginals === false);
+    if (automaticSource(source)) summary.append(automaticSourceConnection(source, rootInfo, check));
+    else {
     const needsConnection = source.mode === 'metadata' || source.accessOriginals === false || ['offline', 'permission', 'unavailable', 'needsReview', 'changed', 'unchecked', 'missing'].includes(source.status)
       || [source.needsReview, source.offline, source.missing, source.unchecked].some(value => value > 0);
     const confirming = check?.phase === 'confirming' || activeRootCheck?.sourceAction === 'confirmLocations';
@@ -333,22 +441,37 @@
     } else connection.append(row(chooseFolder));
     const reviewHost = el('div', 'pfp-connection-review'); connection.append(reviewHost);
     summary.append(connection);
+    }
     const browsing = row(button('Browse this source', async () => { close(); await bridge().setScope({ sourceId: source.id, scopeId: null }); }));
     summary.append(browsing);
-    appendSummary(summary, [['Photographs', count(source.photoCount)], ['Available', count(source.available)], ['Missing', count(source.missing)], ['Need review', count(source.needsReview)]]);
-    const label = input(view.sourceDrafts.get(source.id) ?? source.label);
-    label.addEventListener('input', () => { if (label.value === source.label) view.sourceDrafts.delete(source.id); else view.sourceDrafts.set(source.id, label.value); });
+    if (!automaticSource(source)) appendSummary(summary, [['Photographs', count(source.photoCount)], ['Available', count(source.available)], ['Missing', count(source.missing)], ['Need review', count(source.needsReview)]]);
+    const label = preservedName?.sourceId === source.id ? preservedName.input : input(view.sourceDrafts.get(source.id) ?? source.label);
+    if (!label.dataset.sourceName) {
+      label.dataset.sourceName = source.id;label.classList.add('pfp-source-name');
+      label.addEventListener('input', () => { if (label.value === sources().find(item => item.id === source.id)?.label) view.sourceDrafts.delete(source.id); else view.sourceDrafts.set(source.id, label.value); });
+    }
     const sourceOptions = disclosure('Source options', field('Source name', label), row(button('Save name', async () => { if (!label.value.trim()) throw Error('Enter a source name.'); await command('renameSource', { sourceId: source.id, label: label.value.trim() }); view.sourceDrafts.delete(source.id); await renderSourcesFresh(); }),
-      button('Check locations', async () => { await command('checkSources', { sourceId: source.id, automatic: false }, 'Checking saved locations.'); await renderSourcesFresh(); }),
-      button('Review originals', () => { if (roots.length > 1 && !rootInfo) throw Error('Select the saved originals folder above first.'); return connectionPlan(source, rootInfo); }), button('Review missing', () => show('cleanup', { sourceId: source.id })),
+      button(automaticSource(source) ? 'Check now' : 'Check locations', async () => { await command('checkSources', { sourceId: source.id, automatic: false }, 'Checking saved locations.'); await renderSourcesFresh(); }),
+      ...(!automaticSource(source) || sourceConflict(source) ? [button('Review originals', () => { if (roots.length > 1 && !rootInfo) throw Error('Select the saved originals folder above first.'); return connectionPlan(source, rootInfo); })] : []), button('Review missing', () => show('cleanup', { sourceId: source.id })),
       button('Find new photographs', async () => { await command('discoverFolders', { recursive: true }, 'Finding new photographs in registered folders. This checks file attributes and adds pending records; it does not start tagging.'); await renderSourcesFresh(); })));
     for (const item of roots) sourceOptions.append(el('p', 'pfp-muted', sourceLocation(item)),
       button('Show folder in Finder', () => command('revealSource', { sourceId: source.id, rootId: item.id })));
+    if (automaticSource(source)) {
+      if (roots.length > 1) {
+        const rootChoice = select([['', 'Choose a saved originals folder…'], ...roots.map(root => [root.id, sourceLocation(root)])], rootInfo?.id || '');
+        rootChoice.addEventListener('change', () => { view.sourceRoots.set(source.id, rootChoice.value); renderSourcesFresh().catch(error => showProblem(error.message)); });
+        sourceOptions.append(field('Folder to change or review', rootChoice));
+      }
+      sourceOptions.append(button('Change originals folder…', () => {
+        if (roots.length > 1 && !rootInfo) throw Error('Select a saved originals folder first.');
+        return locate(source, rootInfo);
+      }));
+    }
     sourceOptions.append(row(button('Export source archive…', () => archivePlan(source, false)), button('Archive & disconnect…', () => archivePlan(source, true)),
       button('Remove source from gallery…', removeSourceFromGallery), button('Archive QR label…', () => showArchiveLabel(source))));
     if (snapshot().sourceTransfer?.phase === 'cleanupPending') sourceOptions.append(button('Retry interrupted transfer', () => command('retrySourceTransfer')));
     if (source.mode !== 'metadata' && source.accessOriginals !== false) sourceOptions.append(button('Read camera & location metadata', () => command('enqueueJob', { kind: 'metadata', params: { sourceId: source.id, force: true } }, 'Metadata read queued for this source. Originals are never changed.')));
-    if (view.recoveryJobId) {
+    if (view.recoveryJobId && (!automaticSource(source) || sourceConflict(source) || source.status === 'permission')) {
       const id = view.recoveryJobId;
       summary.append(button('Recheck originals for the selected job', async () => {
         const result = await command('recoverJobOriginals', { jobId: id }, 'The job’s original-file recovery is being checked. Its completed work is preserved.');
@@ -362,7 +485,8 @@
       const host = el('div', 'pfp-source-job'); host.dataset.jobId = job.id; host.dataset.signature = JSON.stringify(job); host.append(jobCard(job)); body.append(host);
     }
     body.append(sourceOptions, libraryActions, sourceArchiveLabels());
-    if (check && !check.phase && check.rootId === rootInfo?.id && (check.plan || checkJob?.state === 'completed')) await connectionPlan(source, rootInfo, check.plan);
+    if (preservedName?.input === label && preservedName.focused) label.focus({ preventScroll: true });
+    if (!automaticSource(source) && check && !check.phase && check.rootId === rootInfo?.id && (check.plan || checkJob?.state === 'completed')) await connectionPlan(source, rootInfo, check.plan);
     const detail = await read('sourceDetails', { sourceId: source.id, offset: view.sourceOffset, limit: 100 });
     if (generation !== view.generation || view.name !== 'sources' || source.id !== view.sourceId) return;
     if (detail.canUndo) sourceOptions.append(button('Undo last source relocation', async () => {
@@ -393,7 +517,12 @@
     if (sources().every(source => source.mode === 'archived')) labels.append(button('Remove source from gallery…', removeSourceFromGallery));
     return labels;
   }
-  async function renderSourcesFresh() { if (view.name !== 'sources') return; view.generation += 1; clearContent(); await renderSources(); }
+  async function renderSourcesFresh(preserveName = false) {
+    if (view.name !== 'sources') return;
+    const input = preserveName ? body.querySelector('.pfp-source-name') : null;
+    const name = input ? {input, sourceId: input.dataset.sourceName, focused: document.activeElement === input} : null;
+    view.generation += 1; clearContent(); await renderSources(name);
+  }
   async function previewSourceCandidate(sourceId, photoId, candidateId, parent) {
     const generation = view.generation;
     const blob = await bridge().api('/api/source-candidate-preview', { sourceId, photoId, candidateId }, { binary: true, signal: view.controller.signal });
@@ -441,8 +570,16 @@
     const grant = await choose('sourceFolder'); if (!grant || !current()) { await cancelChoice(); return; }
     check.chosenLocationLabel = text(grant.locationLabel, text(grant.label));
     try {
-      const result = await command('locateSource', { sourceId: source.id, ...(rootInfo?.id ? { rootId: rootInfo.id } : {}), folderGrant: grant.grantId, ...(verify ? { verifyContents: true } : {}), ...(recoveryJobId ? { resumeJobId: recoveryJobId } : {}) }, verify ? 'Full-file comparison queued.' : 'Checking the chosen originals folder. Review and confirm its matching locations here when the check finishes.');
+      const result = await command('locateSource', { sourceId: source.id, ...(rootInfo?.id ? { rootId: rootInfo.id } : {}), folderGrant: grant.grantId, ...(verify ? { verifyContents: true } : {}), ...(recoveryJobId ? { resumeJobId: recoveryJobId } : {}) }, verify ? 'Full-file comparison queued.' : automaticSource(source) ? 'Folder selected. Matching originals connect automatically; availability and file changes are checked in the background.' : 'Checking the chosen originals folder. Review and confirm its matching locations here when the check finishes.');
       check.jobId = result?.submittedJob?.id;
+      check.jobKind = result?.submittedJob?.kind;
+      if (check.jobKind === 'sourceSelection') {
+        const responseSource = list(result?.sources).find(item => item.id === source.id);
+        const responseRoot = list(responseSource?.roots).find(item => item.id === check.rootId);
+        check.selectionObserved = responseRoot ? responseRoot.selected === true || responseRoot.selectionPending === true
+          : responseSource?.originalsFolderSelected === true || responseSource?.folderSelectionPending === true;
+      }
+      if (automaticSource(source) && !check.jobId) throw Error('The background folder check was not returned. Saved photographs and tags are kept; choose the folder again to retry.');
       if (!current()) return;
       await renderSourcesFresh();
     } catch (error) {
@@ -1176,7 +1313,7 @@
         for (const check of view.sourceChecks.values()) delete check.plan;
         view.confirmation?.close();
         renderStatus();
-        renderSourcesFresh().catch(error => showProblem(error.message));
+        renderSourcesFresh(true).catch(error => showProblem(error.message));
         return;
       }
       close(); bridge().showNotice('Source image access changed. Reopen the panel to review its current state.'); return;
@@ -1195,7 +1332,20 @@
       }
       const changed = list(value.jobs?.jobs).some(job => job.kind === 'sourceRecovery' && job.sourceId === view.sourceId && oldJobs.get(job.id) !== job.state);
       const sourceSettled = !list(value.jobs?.jobs).some(job => job.kind === 'sourceRecovery' && job.sourceId === view.sourceId && !terminal(job));
-      const sourceChanged = previousSource && JSON.stringify(previousSource) !== JSON.stringify(list(value.sources).find(source => source.id === view.sourceId));
+      const currentSource = list(value.sources).find(source => source.id === view.sourceId);
+      const sourceChanged = previousSource && JSON.stringify(previousSource) !== JSON.stringify(currentSource);
+      if (sourceChanged && automaticSource(currentSource) && !view.pending && !view.confirmation) {
+        // Background observations must stay visible while a source-name draft
+        // is being edited. Replace only the availability card, never the input.
+        const host = body.querySelector('.pfp-automatic-source');
+        if (host) {
+          const roots = list(currentSource.roots);
+          const selectedRoot = roots.find(item => item.id === view.sourceRoots.get(currentSource.id)) || (roots.length === 1 ? roots[0] : null);
+          const saved = view.sourceChecks.get(currentSource.id);
+          const check = saved?.rootId === selectedRoot?.id ? saved : null;
+          host.replaceWith(automaticSourceConnection(currentSource, selectedRoot, check));
+        }
+      }
       if (changed || sourceSettled && sourceChanged) { view.sourceRefreshNeeded = true; scheduleSourceRefresh(); }
     }
     if (!view.name || view.pending || view.confirmation) return;

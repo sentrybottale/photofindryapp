@@ -1233,7 +1233,7 @@
   function photoSourceStatus(photo) {
     const source = photo.source;
     if (!source) return '';
-    const labels = { needsReview: 'Confirm original location', changed: 'Original changed', missing: 'Original missing',
+    const labels = { needsReview: 'Confirm original location', checking: 'Checking originals automatically', changed: 'Original changed', missing: 'Original missing',
       permission: 'Access needed', unavailable: 'Temporarily unavailable', onlineOnly: 'Available from cloud provider' };
     if (Object.hasOwn(labels, source.status)) return labels[source.status];
     if (source.mode === 'archived') return 'Archived';
@@ -1753,7 +1753,7 @@
       const unavailable = element('div', 'preview-error');
       const message = element('p', '', 'No retained preview is available. You can prepare a new copy from an available original without changing that original.');
       unavailable.append(message);
-      if (photo.source?.accessOriginals !== false && !['changed', 'needsReview', 'missing', 'permission', 'offline', 'unavailable'].includes(photo.source?.status)) {
+      if (photo.source?.accessOriginals !== false && !['checking', 'changed', 'needsReview', 'missing', 'permission', 'offline', 'unavailable'].includes(photo.source?.status)) {
         const prepare = element('button', 'secondary-button', 'Prepare this photo’s preview'); prepare.type = 'button';
         prepare.addEventListener('click', async () => {
           prepare.disabled = true; message.textContent = 'Preparing a local preview…';
@@ -1801,7 +1801,7 @@
       retry.addEventListener('click', () => openPreview(photo));
       message.className = 'preview-error';
       message.append(retry);
-      if (photo.source?.accessOriginals !== false && !['changed', 'needsReview', 'missing', 'permission', 'offline', 'unavailable'].includes(photo.source?.status)) {
+      if (photo.source?.accessOriginals !== false && !['checking', 'changed', 'needsReview', 'missing', 'permission', 'offline', 'unavailable'].includes(photo.source?.status)) {
         const rebuild = element('button', 'secondary-button', 'Prepare a new preview'); rebuild.type = 'button';
         rebuild.addEventListener('click', async () => {
           rebuild.disabled = true;

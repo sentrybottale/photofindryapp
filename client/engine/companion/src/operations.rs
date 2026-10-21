@@ -149,13 +149,11 @@ fn scope(params: &mut Value, scopes: &Scopes) -> Result<()> {
 }
 fn grant(params: &mut Value, key: &str, dest: &str, kind: &str, picker: &Picker) -> Result<()> {
     if let Some(id) = params.as_object_mut().unwrap().remove(key) {
+        let id=id.as_str().ok_or("Choose a file using the native picker.")?;
         params[dest] = json!(
-            picker.resolve(
-                id.as_str()
-                    .ok_or("Choose a file using the native picker.")?,
-                kind
-            )?
+            picker.resolve(id,kind)?
         );
+        if kind=="folder" {if let Some(access)=picker.resolve_source_access(id)?{params["sourceAccess"]=json!([access]);}}
     }
     Ok(())
 }
@@ -440,7 +438,9 @@ pub fn prepare(
                 .iter()
                 .map(|v| picker.resolve(v.as_str().unwrap(), "folder"))
                 .collect::<Result<Vec<_>>>()?;
+            let access=params["folderGrants"].as_array().unwrap().iter().map(|id|picker.resolve_source_access(id.as_str().unwrap())).collect::<Result<Vec<_>>>()?.into_iter().flatten().collect::<Vec<_>>();
             params = json!({"paths":paths});
+            if !access.is_empty(){params["sourceAccess"]=json!(access);}
             "addFolders"
         }
         "discoverFolders" => {
@@ -844,4 +844,17 @@ mod tests {
             .is_ok()
         );
     }
+}
+
+#[cfg(test)]
+#[test]
+fn native_access_rpc_and_carriers_are_never_browser_authority() {
+    let scopes=Scopes::default();let folder=std::env::temp_dir();let picker=Picker::new(&folder);
+    for action in ["sourceAccessRefs","installSourceAccess"] {assert!(prepare(action,json!({}),&scopes,&picker).is_err());}
+    let grant=picker.grant_path("folder",folder.to_str().unwrap()).unwrap();
+    let id=grant["grantId"].as_str().unwrap();
+    assert!(prepare("addFolders",json!({"folderGrants":[id],"sourceAccess":[{"readerBookmark":"untrusted-browser-token"}]}),&scopes,&picker).is_err());
+    assert!(prepare("locateSource",json!({"sourceId":"source","folderGrant":id,"sourceAccess":[]}),&scopes,&picker).is_err());
+    let(_,params)=prepare("addFolders",json!({"folderGrants":[id]}),&scopes,&picker).unwrap();
+    assert!(params.get("sourceAccess").is_none(),"explicit stdin/local path grants do not invent OS access");
 }
