@@ -1658,6 +1658,15 @@ async fn run(mut config: Config) -> Result<(), String> {
     if config.managed && registration.is_none() {
         return Err("This installed companion and library need explicit local launch registration.".into());
     }
+    if config.managed {
+        let (exe,data,runtime,state)=(executable.clone(),config.data.clone(),config.runtime.clone(),launch_directory.clone());
+        if let Some(warning)=tokio::task::spawn_blocking(move || lifecycle::prepare_source_access_for_startup(&exe,&data,&runtime,&state))
+            .await.map_err(|_|"Original-folder access startup preparation stopped unexpectedly.")?? {
+            // A damaged permission owner must not strand saved library access.
+            // Picker and silent restoration also expose this scoped failure.
+            eprintln!("{warning}");
+        }
+    }
     // Optional support preferences can never prevent opening a library. Invalid
     // or unavailable state suppresses the invitation rather than resetting it.
     let support = support::Usage::open(

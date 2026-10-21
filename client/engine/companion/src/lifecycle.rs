@@ -106,7 +106,46 @@ pub fn source_access_helper_for_current_executable() -> Result<Option<PathBuf>> 
     let Some(root)=installed_root(&exe) else{return Ok(None)};
     let cfg=read_state(&root)?;
     if executable(&root,cfg.current)!=exe{return Err("Only the active installed CLI may select original-folder access.".into());}
-    Ok(Some(retained_access_owner::verified(&root,&verifier(&exe)?)?))
+    Ok(Some(retained_access_owner::verified(&root,&verifier(&exe)?).map_err(source_access_warning)?))
+}
+fn source_access_warning(error: String) -> String {
+    format!("PhotoFindry could not verify its retained original-folder access owner. Saved library browsing remains available. Run verified setup to review original-folder access; no new permission identity was generated. {error}")
+}
+/// Older updater binaries cannot provision capabilities introduced by their
+/// successor. The authenticated active service completes that first provision
+/// before exposing its picker. It never takes operation.lock: the old updater
+/// legitimately retains that lock while waiting for this service's readiness.
+pub fn prepare_source_access_for_startup(exe:&Path,data:&Path,runtime:&Path,state:&Path)->Result<Option<String>> {
+    let Some(root)=installed_root(exe) else{return Ok(None)};
+    prepare_source_access_at(&root,exe,data,runtime,state,&verifier(exe)?)
+}
+fn prepare_source_access_at(root:&Path,exe:&Path,data:&Path,runtime:&Path,state:&Path,helper:&Path)->Result<Option<String>> {
+    let cfg=read_state(root)?;
+    let registered=launch::read_registration(state)?;
+    if exe!=executable(root,cfg.current) || data!=cfg.data || state!=cfg.launch_state
+        || runtime!=package(root,cfg.current).join("runtime") || !registered.matches(data,runtime,exe) {
+        return Err("The installed companion changed before preparing original-folder access. Open the current verified installation; your library is kept.".into());
+    }
+    checked_release(root,cfg.current,helper)?;
+    let warning=(|| -> Result<()> {
+        let _provision=launch::try_lock(root,"source-access-provision.lock")?.ok_or("Original-folder access preparation is already finishing. Retry its picker shortly.")?;
+        let at=retained_access_owner::directory(root);
+        match fs::symlink_metadata(&at) {
+            Ok(_) => {retained_access_owner::verified(root,helper)?;},
+            Err(error) if error.kind()==std::io::ErrorKind::NotFound => {
+                // provision rejects retained grant state without its receipt.
+                // Existing removed/corrupt owners above never enter repair.
+                let envelope=release::read(&root.join("versions").join(cfg.current.to_string()).join("release.json"),131072)?;
+                retained_access_owner::provision(root,&package(root,cfg.current),&envelope,helper)?;
+            },
+            Err(_) => return Err("Cannot inspect retained original-folder access state.".into()),
+        }
+        Ok(())
+    })().err().map(source_access_warning);
+    if read_state(root)?!=cfg || launch::read_registration(state)?!=registered {
+        return Err("The installed companion changed while preparing original-folder access. Reopen the current verified installation; your library is kept.".into());
+    }
+    Ok(warning)
 }
 fn provision_source_access_owner(root:&Path,cfg:&Installation)->Result<()> {
     let source=package(root,cfg.current);
@@ -2252,6 +2291,63 @@ pub async fn command(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn source_startup_fixture()->(PathBuf,PathBuf,PathBuf,PathBuf,Installation) {
+        use base64::{Engine as _,engine::general_purpose::STANDARD};
+        let root=private_fixture("successor-startup");let data=private_fixture("successor-library");let state=private_fixture("successor-launch");
+        let cfg=Installation{schema:1,current:124,previous:Some(123),highest:124,data:data.clone(),launch_state:state.clone(),autostart:true,automatic_updates:true,retire:None};
+        let source=package(&root,124);let mut inventory=String::new();
+        for relative in ["bin/photofindry","bin/CompanionReleaseVerify","bin/CompanionLauncher","bin/CompanionLauncher.app/Contents/Info.plist","runtime/PhotoWorker","runtime/PhotoEngine","LICENSE","README.txt",
+            "bin/CompanionSourceAccess.app/Contents/Info.plist","bin/CompanionSourceAccess.app/Contents/MacOS/CompanionSourceAccess","bin/CompanionSourceAccess.app/Contents/_CodeSignature/CodeResources","bin/CompanionSourceAccess.app/Contents/Resources/access-owner-protocol.json"] {
+            let file=source.join(relative);launch::private_directory(file.parent().unwrap(),true).unwrap();
+            let bytes=if relative.ends_with("access-owner-protocol.json"){serde_json::to_vec(&json!({"schema":1,"protocol":1,"bundleIdentifier":retained_access_owner::IDENTIFIER})).unwrap()}else{b"authenticated fixture bytes".to_vec()};
+            fs::write(&file,&bytes).unwrap();inventory.push_str(&format!("{}  {relative}\n",release::digest(&bytes)));
+        }
+        for relative in ["bin/photofindry","runtime/PhotoWorker","runtime/PhotoEngine"] {fs::set_permissions(source.join(relative),fs::Permissions::from_mode(0o700)).unwrap();}
+        fs::write(source.join("SHA256SUMS.txt"),&inventory).unwrap();
+        let signed=release::Release{schema:1,kind:"photofindry-cli-release".into(),version:"0.2.0-beta.23".into(),build:124,platform:"macos-arm64".into(),data_contract:"photofindry-library-compatible-v1".into(),inventory_sha256:release::digest(inventory.as_bytes()),archive_sha256:"a".repeat(64),archive_bytes:1,archive_url:"https://github.com/sentrybottale/photofindryapp/releases/download/v0.2.0-beta.23/PhotoFindry-0.2.0-beta.23-arm64-companion.zip".into()};
+        let envelope=json!({"payload":STANDARD.encode(serde_json::to_vec(&signed).unwrap()),"signature":STANDARD.encode([0u8;64])});
+        fs::write(root.join("versions/124/release.json"),serde_json::to_vec(&envelope).unwrap()).unwrap();save(&root,STATE,&cfg).unwrap();
+        let record=launch::Registration{version:1,data_dir:data.clone(),runtime:source.join("runtime"),executable:executable(&root,124)};
+        atomic(&state,"registration.json",&serde_json::to_vec(&record).unwrap()).unwrap();
+        let helper=root.join("fixture-verifier");fs::write(&helper,b"#!/bin/sh\n/bin/cat >/dev/null\nprintf '%s' '{\"valid\":true}'\n").unwrap();fs::set_permissions(&helper,fs::Permissions::from_mode(0o700)).unwrap();
+        (root,data,state,helper,cfg)
+    }
+    #[test]
+    fn successor_startup_provisions_once_while_its_older_updater_holds_maintenance() {
+        use std::os::unix::fs::MetadataExt;
+        let (root,data,state,helper,cfg)=source_startup_fixture();let exe=executable(&root,cfg.current);let runtime=package(&root,cfg.current).join("runtime");
+        let operation=launch::try_lock(&root,"operation.lock").unwrap().unwrap();
+        assert!(!retained_access_owner::directory(&root).exists());
+        assert!(prepare_source_access_at(&root,&exe,&data,&runtime,&state,&helper).unwrap().is_none());
+        let owner=retained_access_owner::verified(&root,&helper).unwrap();let identity=fs::metadata(&owner).unwrap().ino();let before=fs::read(&owner).unwrap();
+        assert!(launch::try_lock(&root,"operation.lock").unwrap().is_none());
+        assert!(prepare_source_access_at(&root,&exe,&data,&runtime,&state,&helper).unwrap().is_none());
+        assert_eq!(fs::metadata(&owner).unwrap().ino(),identity);assert_eq!(fs::read(&owner).unwrap(),before);assert_eq!(read_state(&root).unwrap(),cfg);
+        // Existing permission-owner damage stays scoped and cannot prevent
+        // saved-library startup or silently acquire a replacement identity.
+        fs::remove_file(&owner).unwrap();
+        let warning=prepare_source_access_at(&root,&exe,&data,&runtime,&state,&helper).unwrap().unwrap();
+        assert!(warning.contains("original-folder access owner"));assert!(warning.contains("Saved library browsing remains available"));assert!(!owner.exists());
+        // Active package authentication still precedes that nonfatal outcome.
+        fs::write(&exe,b"changed current program").unwrap();
+        assert!(prepare_source_access_at(&root,&exe,&data,&runtime,&state,&helper).is_err());assert!(!owner.exists());
+        drop(operation);fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();
+    }
+    #[test]
+    fn successor_startup_keeps_lost_or_uninstalled_permission_identity_inert() {
+        for removed in [false,true] {
+            let (root,data,state,helper,cfg)=source_startup_fixture();let exe=executable(&root,cfg.current);let runtime=package(&root,cfg.current).join("runtime");
+            if removed {
+                prepare_source_access_at(&root,&exe,&data,&runtime,&state,&helper).unwrap();
+                retained_access_owner::uninstall(&root,&helper).unwrap();
+            } else {
+                launch::private_directory(&root.join("source-access-state"),true).unwrap();fs::write(root.join("source-access-state/kept-grant"),b"retained authority").unwrap();
+            }
+            assert!(prepare_source_access_at(&root,&exe,&data,&runtime,&state,&helper).unwrap().is_some());
+            assert!(!retained_access_owner::application(&root).exists());assert_eq!(read_state(&root).unwrap(),cfg);
+            fs::remove_dir_all(root).unwrap();fs::remove_dir_all(data).unwrap();fs::remove_dir_all(state).unwrap();
+        }
+    }
     fn private_fixture(name: &str) -> PathBuf {
         let mut nonce = [0u8; 8]; getrandom::fill(&mut nonce).unwrap();
         let root = std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-{name}-{}", &release::digest(&nonce)[..12]));
