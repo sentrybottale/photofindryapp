@@ -299,7 +299,7 @@ impl Owner {
             return Err(INVALID.into());
         }
         let nonce = nonce()?;
-        let value=self.call(json!({"schema":1,"operation":"restore","kind":"folder","requestNonce":nonce,"generation":generation,"grants":ids.iter().map(|id|json!({"ownerGrantId":id})).collect::<Vec<_>>()}),Duration::from_secs(30)).await?;
+        let value=self.call(json!({"schema":1,"operation":"restore","requestNonce":nonce,"generation":generation,"grants":ids.iter().map(|id|json!({"ownerGrantId":id})).collect::<Vec<_>>()}),Duration::from_secs(30)).await?;
         response(&value, "restore", &nonce, generation)?;
         let entries = value["entries"]
             .as_array()
