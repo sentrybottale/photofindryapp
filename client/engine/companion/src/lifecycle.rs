@@ -347,8 +347,13 @@ fn plist_with_request(root: &Path, cfg: &Installation, operation: Option<&str>, 
     // inherit a 30-second delay. KeepAlive is false: failed background jobs
     // are never restarted unattended.
     let throttle = if operation.is_some() { 30 } else { 1 };
+    // Browser requests use HTTP, so XPC-driven Adaptive promotion cannot apply.
+    // The serving supervisor and its inference children are the application's
+    // interactive execution path; Background throttles their CPU and disk I/O.
+    // Keep bounded updater/rollback maintenance in the background class.
+    let process_type = if operation.is_some() { "Background" } else { "Interactive" };
     let attribution=if retained_access_owner::application(root).is_dir(){format!("<key>AssociatedBundleIdentifiers</key><array><string>{}</string></array>",retained_access_owner::IDENTIFIER)}else{String::new()};
-    Ok(format!("<?xml version=\"1.0\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>{}</string><key>ProgramArguments</key><array>{args}</array>{attribution}<key>RunAtLoad</key><{} /><key>ProcessType</key><string>Background</string><key>ThrottleInterval</key><integer>{throttle}</integer><key>KeepAlive</key><{} /></dict></plist>",xml(&label),if operation.is_some()||cfg.autostart{"true"}else{"false"},"false").into_bytes())
+    Ok(format!("<?xml version=\"1.0\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>{}</string><key>ProgramArguments</key><array>{args}</array>{attribution}<key>RunAtLoad</key><{} /><key>ProcessType</key><string>{process_type}</string><key>ThrottleInterval</key><integer>{throttle}</integer><key>KeepAlive</key><{} /></dict></plist>",xml(&label),if operation.is_some()||cfg.autostart{"true"}else{"false"},"false").into_bytes())
 }
 fn write_agent(root: &Path, cfg: &Installation) -> Result<PathBuf> {
     provision_source_access_owner(root,cfg)?;
@@ -1701,7 +1706,13 @@ async fn background_once(root: &Path, ready: &AtomicBool) -> Result<()> {
             "Companion registration changed. Run lifecycle recover; your library is kept.".into(),
         );
     }
-    let mut child = tokio::process::Command::new(&registered.executable)
+    // An older updater may have loaded its Background plist for this successor.
+    // Repair future starts, and apply app scheduling to this serving child now.
+    // taskpolicy execs the signed CLI in place, preserving child supervision.
+    write_agent(root, &cfg)?;
+    let mut child = tokio::process::Command::new("/usr/sbin/taskpolicy")
+        .arg("-a")
+        .arg(&registered.executable)
         .args(["serve", "--managed", "--data-dir"])
         .arg(&cfg.data)
         .arg("--runtime")
@@ -2668,5 +2679,10 @@ os.replace(target,root/'open-update-request.json')
         assert!(!text.contains("/bin/sh"));
         assert!(!text.contains("StandardOutPath"));
         assert!(text.contains("<key>RunAtLoad</key><true />"));
+        assert!(text.contains("<key>ProcessType</key><string>Interactive</string>"));
+        for operation in ["update", "rollback", "open-update"] {
+            let maintenance = String::from_utf8(plist(root, &cfg, Some(operation)).unwrap()).unwrap();
+            assert!(maintenance.contains("<key>ProcessType</key><string>Background</string>"));
+        }
     }
 }
