@@ -102,8 +102,14 @@
     const old = root.querySelector('.pfp-problem'); old?.remove();
     const error = el('p', 'pfp-problem', message); error.setAttribute('role', 'alert'); body.prepend(error);
   }
-  async function command(name, params = {}, message) {
+  // An explicit face scan may join the unfinished job that already owns
+  // those photographs; say where the work is instead of claiming a new queue.
+  const faceScanNotice = (fallback) => (value) => !value?.reusedExisting ? fallback
+    : value.state === 'paused' ? 'These photographs are already in a paused face scan. Resume it in Jobs when ready; saved faces are kept.'
+      : 'Face discovery for these photographs is already queued or running. Its progress is in Jobs.';
+  async function command(name, params = {}, success) {
     const value = await bridge().action(name, params);
+    const message = typeof success === 'function' ? success(value) : success;
     if (message) {
       bridge().showNotice(message);
       if (root && !root.hidden) { root.querySelector('.pfp-local-notice')?.remove(); const banner = notice(message); banner.classList.add('pfp-local-notice'); body.prepend(banner); }
@@ -693,7 +699,7 @@
     if (snapshot().faceCoverage) appendSummary(discovery, [['Scanned', count(snapshot().faceCoverage.scanned)], ['Pending', count(snapshot().faceCoverage.pending)], ['Need attention', count(snapshot().faceCoverage.failed)]]);
     discovery.append(row(button(snapshot().facePreferences?.enabled === false ? 'Resume automatic discovery' : 'Pause automatic discovery', async () => {
       if (snapshot().facePreferences?.enabled === false) await command('configureFaceScan', { enabled: true }); else await command('cancelFaces'); await renderPeopleFresh();
-    }), button('Scan selected photos', async () => { const ids = selected(); if (!ids.length) throw Error('Select photographs in the gallery first.'); await command('enqueueJob', { kind: 'faces', params: { photoIds: ids } }, 'Face scan queued for the selected photographs.'); }),
+    }), button('Scan selected photos', async () => { const ids = selected(); if (!ids.length) throw Error('Select photographs in the gallery first.'); await command('enqueueJob', { kind: 'faces', params: { photoIds: ids } }, faceScanNotice('Face scan queued for the selected photographs.')); }),
     button('Scan whole library…', async () => { if (await confirmation('Scan faces in the whole library?', ['This explicitly reads available originals throughout the library, including imported archives. Unavailable originals stay deferred.'], 'Start face scan')) await command('configureFaceScan', { enabled: true, scope: 'library' }, 'Library face discovery enabled.'); })));
     const preferences = snapshot().facePreferences || {};
     const folderChoices = list(snapshot().folders).filter((folder) => folder.scopeId)
@@ -769,7 +775,7 @@
     const undo = button('Undo last people edit', async () => { await command('editPerson', { undo: true }); await renderPeopleFresh(); }); undo.disabled = snapshot().people?.canUndo !== true;
     const controls = row(button('All people', () => show('people')), button('Open photograph', () => bridge().showPhoto(photoId)), undo,
       button('Add person label to this photograph…', () => nameSelectedPhoto(photoId)));
-    if (photo.source?.accessOriginals !== false) controls.append(button('Scan faces in this photograph', () => command('enqueueJob', { kind: 'faces', params: { photoIds: [photoId] } }, 'Face scan queued for this photograph.')));
+    if (photo.source?.accessOriginals !== false) controls.append(button('Scan faces in this photograph', () => command('enqueueJob', { kind: 'faces', params: { photoIds: [photoId] } }, faceScanNotice('Face scan queued for this photograph.'))));
     body.append(controls);
     if (list(photo.personNames).length) body.append(notice(`Saved names: ${photo.personNames.join(', ')}`));
     const grid = el('div', 'pfp-photo-grid');

@@ -508,10 +508,10 @@
   }
 
   // One queue covers gallery and full-preview requests, including overlapping page changes.
-  function fetchPreview(photoId, signal, { path = '/api/preview', params = { photoId } } = {}) {
+  function fetchPreview(photoId, signal, { path = '/api/preview', params = { photoId }, prepare = false } = {}) {
     return new Promise((resolve, reject) => {
       if (signal.aborted) { reject(abortError()); return; }
-      const task = { photoId, path, params, signal, resolve, reject, cancel: null };
+      const task = { photoId, path, params, prepare, signal, resolve, reject, cancel: null };
       task.cancel = () => {
         const index = state.previewQueue.indexOf(task);
         if (index !== -1) state.previewQueue.splice(index, 1);
@@ -529,8 +529,15 @@
       task.signal.removeEventListener('abort', task.cancel);
       if (task.signal.aborted) { task.reject(abortError()); continue; }
       state.activePreviews += 1;
-      api(task.path, task.params, { signal: task.signal, binary: true })
-        .then(task.resolve, task.reject)
+      const request = async () => {
+        if (task.prepare) {
+          const result = await api('/api/action', { action: 'ensurePreview', params: { photoId: task.photoId } }, { signal: task.signal });
+          const photo = await api('/api/photo', { photoId: task.photoId }, { signal: task.signal });
+          if (photo.id !== task.photoId || !photo.hasPreview) throw Error(text(result?.reason) || 'Preview preparation is waiting for the original.');
+        }
+        return api(task.path, task.params, { signal: task.signal, binary: true });
+      };
+      request().then(task.resolve, task.reject)
         .finally(() => { state.activePreviews -= 1; pumpPreviews(); });
     }
   }
@@ -1141,7 +1148,8 @@
     people.append(element('p', 'inspector-context', faces.length ? `${number.format(faces.length)} detected faces. Confirmed names are separate from factual model descriptions.` : 'No detected faces in this photograph yet.'));
     if (photo.faceScanLimited) people.append(element('p', 'inspector-context', 'Some faces may be missing: this photograph exceeds the current scan limit.'));
     people.append(photoWorkflowAction(photo, 'people-photo', 'Name or correct people in this photo…', () => { closePreview(); window.PhotoFindryPanels?.show('people', { photoId: photo.id }); }));
-    if (!faces.length) people.append(photoWorkflowAction(photo, 'scan-faces', 'Find faces in this photo', async () => { await action('enqueueJob', { kind: 'faces', params: { photoIds: [photo.id] } }); showMessage('global-notice', 'Face discovery queued for this photograph.'); }));
+    if (!faces.length) people.append(photoWorkflowAction(photo, 'scan-faces', 'Find faces in this photo', async () => { const job = await action('enqueueJob', { kind: 'faces', params: { photoIds: [photo.id] } });
+      showMessage('global-notice', !job?.reusedExisting ? 'Face discovery queued for this photograph.' : job.state === 'paused' ? 'This photograph is already in a paused face scan. Resume it in Jobs when ready; saved faces are kept.' : 'Face discovery for this photograph is already queued or running. Its progress is in Jobs.'); }));
     fragment.append(detailSection('People in this photograph', people));
   }
 
@@ -1157,8 +1165,9 @@
   }
 
   function previewKey(photo) {
-    return JSON.stringify([photo.id, photo.status, photo.hasPreview, photo.previewRevision ?? state.galleryRevision,
-      photo.source?.id, photo.source?.mode, photo.source?.status]);
+    return JSON.stringify([photo.id, photo.status, photo.hasPreview, photo.previewRevision ?? (photo.hasPreview ? state.galleryRevision : null),
+      photo.source?.id, photo.source?.rootId, photo.source?.mode, photo.source?.status, photo.source?.accessOriginals,
+      state.nativeState.storagePreferences?.keepOnBrowse]);
   }
 
   // Image availability may lag a newly prepared preview in a page response.
@@ -1181,11 +1190,14 @@
     record.controller = controller;
     record.failed = false;
     const photo = record.photo;
-    const allowed = photo.hasPreview;
+    const prepare = !photo.hasPreview && photo.source?.accessOriginals === true
+      && photo.source?.status === 'available' && !['metadata', 'archived'].includes(photo.source?.mode)
+      && state.nativeState.storagePreferences?.keepOnBrowse !== false;
+    const allowed = photo.hasPreview || prepare;
     const metadataOnly = ['metadata', 'archived'].includes(photo.source?.mode);
     const untagged = !allowed && !metadataOnly && photo.status === 'pending';
     const missingLabel = metadataOnly ? 'Metadata-only photo' : untagged ? 'Photo not tagged yet' : ['error', 'failed', 'needsAttention'].includes(photo.status) ? 'Tagging needs attention' : 'Preview unavailable';
-    const placeholder = element('span', 'preview-placeholder', allowed ? 'Loading preview…' : missingLabel);
+    const placeholder = element('span', 'preview-placeholder', prepare ? 'Preparing preview…' : allowed ? 'Loading preview…' : missingLabel);
     record.preview.replaceChildren(placeholder);
     if (untagged) {
       const scenes = ['landscape', 'spaces', 'shapes'];
@@ -1201,7 +1213,7 @@
     }
     if (!allowed) return;
     const current = () => !controller.signal.aborted && state.tiles.get(photo.id) === record && record.controller === controller && state.token;
-    fetchPreview(photo.id, controller.signal).then((blob) => {
+    fetchPreview(photo.id, controller.signal, { prepare }).then((blob) => {
       if (!current()) return;
       const url = URL.createObjectURL(blob);
       record.url = url;
