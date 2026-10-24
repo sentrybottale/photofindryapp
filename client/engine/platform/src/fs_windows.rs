@@ -963,8 +963,12 @@ fn verify_private(file: &stdfs::File, user: &UserSid, directory: bool) -> io::Re
         ));
     }
     for index in 0..sizes.AceCount {
-        let mut ace = null_mut();
-        bool_result(unsafe { GetAce(acl, index, &mut ace) })?;
+        // GetAce initializes its output only on success. Keep that native
+        // contract explicit rather than seeding the output with a null pointer.
+        // https://learn.microsoft.com/windows/win32/api/securitybaseapi/nf-securitybaseapi-getace
+        let mut output = std::mem::MaybeUninit::<*mut c_void>::uninit();
+        bool_result(unsafe { GetAce(acl, index, output.as_mut_ptr()) })?;
+        let ace = unsafe { output.assume_init() };
         if ace.is_null() {
             return Err(denied("Private state returned a missing access-control entry."));
         }

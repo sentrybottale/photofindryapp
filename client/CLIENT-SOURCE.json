@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "665ff3fbd58785513e05c38e85881be948b341c2be59c1a952c1aaa965860864",
+  "exportManifestSHA256": "1e86e3888741274870c35264ee87969b2cf8df9c2aeaa141d6042e3e3613a61c",
   "files": [
     {
       "bytes": 1182,
@@ -412,9 +412,9 @@
       "sha256": "97dd4ab0f39070692699b520af3de0ba38e877740c44b21def210aef4b42de9d"
     },
     {
-      "bytes": 56950,
+      "bytes": 57306,
       "path": "engine/platform/src/fs_windows.rs",
-      "sha256": "5463d4daa55a5769a56900749df0bc459bc102de165add2edba120b5fb9c7473"
+      "sha256": "1cf3816a3a4e9c9fd4b4f7ca853a17b1fa70b26a4d4daf601432eb9da6990a79"
     },
     {
       "bytes": 1776,
@@ -834,6 +834,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "c6f52c98a34251887e49b41a46c9da2e12cd9496",
+  "privateBuildRevision": "d0287bca584d70717004f39deb3202649eb56812",
   "schema": 1
 }
