@@ -4,7 +4,7 @@ PhotoFindry’s client is MIT open source; its Rust engine cores remain propriet
 
 ## Local photo work
 
-Photo tagging, face processing and search inference run locally on your Mac. Original photographs stay in their folders. Local saved work remains readable and exportable. Backups and source archives exclude original photographs and model weights; keep your own backups of those files.
+Photo tagging, face processing and search inference run locally on your computer. People is available on Mac and Linux. Original photographs stay in their folders. Local saved work remains readable and exportable. Mac backups and source archives exclude original photographs and model weights; keep your own backups of those files.
 
 The current app is not an OS-enforced network sandbox, and local processing is not a guarantee that software has no security defects. Downloads, update checks, browser links and voluntary feedback require network connections. After migration, background CLI update checks are on by default and can be turned off under Settings → Background companion; they contact the fixed host after startup and about every six hours while the companion runs, but do not install by themselves. Every explicit Open checks that fixed publisher-authenticated feed and installs a newer signed build before opening when saved work can safely drain. Offline checks and active foreground work keep the verified current version open with a local explanation. Older app versions retain their signed app feed for the one-time transition. Checks do not send photos, search queries or library records; hosts receive ordinary connection information. First installation remains your choice.
 
