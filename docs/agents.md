@@ -7,17 +7,17 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 - PhotoFindry uses a background CLI companion and local browser workspace for photo tagging, people and search. app.photofindry.com opens the installed workspace without receiving library authority.
 - Its client is MIT open source; its Rust engine cores remain proprietary. Official builds are free to use. No mandatory app account or subscription. Third-party components keep their own licences.
 - The public repository holds the reviewed client snapshot and distribution files. The engine implementation and private development history remain private.
-- Latest documented CLI release: 0.2.0-beta.21, build 119. Check the official release page before recommending a version; do not assume an unreleased branch is published.
-- Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Do not invent Intel/Windows/Linux support.
+- Latest documented CLI release: 0.3.0-beta.1, build 131. The retained native-app migration bridge is beta 16 / build 114. Check the release page before recommending a version; do not assume an unreleased branch is published.
+- Declared minimum macOS 14; Core ML semantic ranking requires macOS 15. Qualification used macOS 27.0. Linux x86_64 with systemd user services and Windows10/11 x64 are supported in0.3.0. People is available on Mac/Linux; Windows has no face provider. Backups/source transfer remain Mac-only. ARM Linux/Windows and Intel Macs are unsupported.
 - Vision model GGUF and matching projector are selected separately from any user folder. No hardcoded Models folder. Search/face models are bundled.
 - No app telemetry; downloads, update checks, browser links and feedback use internet. Background checks have a Settings opt-out and do not install by themselves. Every explicit Open checks the authenticated CLI feed and installs a newer signed build when active work can safely drain; offline or busy work keeps the verified current build open with a local explanation. The marketing website has separate analytics. There is no absolute network-isolation guarantee.
 
 ## Install safely
 
 1. Check the user's architecture, macOS version and available storage. Explain beta and non-notarized status.
-2. Link the official standalone CLI release, verified setup instructions and signature guide. A DMG is retained only for the older Mac app's one-time migration. GitHub Source code archives are not installers.
+2. Link the direct CLI setup and verification guide. The DMG and app-update ZIP are only for existing native users migrating to the CLI. GitHub Source code archives are not installers.
 3. Keep trust decisions and macOS authorization with the user. Never disable Gatekeeper globally, strip quarantine recursively, request private signing keys or execute downloaded scripts blindly.
-4. Run the one-time installer after verification. It installs the independent CLI with login startup and signed updates, then exits. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
+4. Use the verified direct CLI setup for new users. It installs the independent CLI with login startup and signed updates, then exits. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
 5. Keep backups. Do not delete Application Support, rebuild the library by erasing it, remove source folders or purge previews as an automatic troubleshooting step.
 
 ## Explain the app accurately
@@ -42,9 +42,9 @@ The local workspace’s feedback form and the website both support direct privat
 - [Privacy and distribution](https://photofindry.com/docs/privacy.html)
 - [Release verification](https://github.com/sentrybottale/photofindryapp/blob/main/VERIFY.md)
 
-## Beta 15 source and location troubleshooting
+## Beta 1 source and location troubleshooting
 
-Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, first guide the user to make the files available and choose Resume. Reconnect originals is for moved or explicitly disconnected folders and unresolved identity confirmation; never confirm unknown folders for them. Pause alone does not require reconnection. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Ask before including optional diagnostic logs in a feedback report.
+Treat original-file readiness and EXIF readiness separately. For a job waiting for originals, first guide the user to make the files available and choose Resume. Reconnect originals is for moved or explicitly disconnected folders and unresolved identity confirmation; never confirm unknown folders for them. Pause alone does not require reconnection. If Jobs explicitly requests macOS folder access after CLI migration, guide the user through Open Files → Choose originals folder, selecting that source’s existing folder, then Retry access. A readable saved location does not by itself establish the new companion’s macOS permission. Connected originals can open while EXIF enrichment is paused. GPS searches require saved coordinate evidence; approximate city labels are not addresses. Ask before including optional diagnostic logs in a feedback report.
 
 Checksum-verification recovery retains the selected tagging continuation through a paused check or source outage. Reconnect the source and resume the check explicitly; do not automatically resume unrelated held jobs or override a later Pause/Stop of tagging. Reopened queues remain paused.
 

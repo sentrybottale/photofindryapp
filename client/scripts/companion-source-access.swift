@@ -282,7 +282,17 @@ func accessRequest(_ value: [String: Any], root: URL, select: () throws -> URL?)
                 }
                 var stale = false
                 let url = try URL(resolvingBookmarkData: data, options: [.withSecurityScope, .withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale)
-                try accessRequire(url.isFileURL && url.startAccessingSecurityScopedResource(), "macOS did not restore the selected source access.")
+                // A present folder on a different volume than the one chosen, or one
+                // macOS will not reactivate, needs one new folder choice rather than
+                // silent retries (for example after a network drive remounts).
+                let present = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                if present, let saved = record["volumeUUID"] as? String, !saved.isEmpty,
+                   let current = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, current != saved {
+                    throw AccessFailure(message: "The selected folder is now on a different volume.", status: "invalid")
+                }
+                guard url.isFileURL && url.startAccessingSecurityScopedResource() else {
+                    throw AccessFailure(message: "macOS did not restore the selected source access.", status: present ? "invalid" : "unavailable")
+                }
                 defer { url.stopAccessingSecurityScopedResource() }
                 let transfer = try accessTransfer(url, id: id, selectedPath: selected)
                 if stale { let refreshed = try url.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil); try accessRequire(refreshed.count <= 65_536, "The refreshed source access exceeds its bound."); var next = record; next["bookmark"] = refreshed.base64EncodedString(); try accessSave(next, root: root, id: id) }

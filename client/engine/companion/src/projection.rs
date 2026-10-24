@@ -152,7 +152,7 @@ impl Scopes {
                         );
                         continue;
                     }
-                    if value.as_str().is_some_and(|s| s.starts_with('/'))
+                    if value.as_str().is_some_and(|s| Path::new(s).is_absolute())
                         && (key == "path"
                             || key == "folder"
                             || key == "aiFolder"
@@ -255,7 +255,7 @@ fn source_root_labels(source: &Value, projected: &mut Value) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     #[test]
@@ -368,7 +368,7 @@ mod tests {
         let scopes = Scopes::default();
         let value = scopes.project(&json!({"folders":[],"facePreferences":{"folders":[]}}));
         assert_eq!(value["folders"], json!([]));
-        let paths = scopes.project(&json!({"folders":["/private/photos"]}));
+        let paths = scopes.project(&json!({"folders":[std::env::temp_dir().join("photos")]}));
         assert!(paths.get("folders").is_none());
         assert_eq!(paths["scopeIds"].as_array().unwrap().len(), 1);
     }
@@ -379,4 +379,13 @@ fn native_access_carriers_and_owner_references_never_reach_presentation() {
     let projected=Scopes::default().project(&json!({"sourceAccess":[{"readerBookmark":"reader-secret"}],"readerBookmark":"reader-secret","ownerBookmark":"owner-secret","ownerGrantId":"owner-reference","source":{"id":"source","roots":[{"id":"root","ownerGrantId":"owner-reference","selected":true}]}}));
     let text=projected.to_string();for private in ["reader-secret","owner-secret","owner-reference","readerBookmark","ownerBookmark","sourceAccess"]{assert!(!text.contains(private));}
     assert_eq!(projected["source"]["roots"][0]["id"],"root");assert_eq!(projected["source"]["roots"][0]["selected"],true);
+}
+
+#[cfg(all(test,windows))]
+mod windows_tests{
+ use super::*;
+ #[test]fn windows_paths_are_labels_and_opaque_scopes_not_browser_authority(){
+  let scopes=Scopes::default();let projected=scopes.project(&json!({"settings":{"modelPath":r"C:\private\models\vision.gguf"},"folders":[{"path":r"C:\private\photos","count":2}],"thumbnailPath":r"C:\private\Library\previews\one.jpg"}));
+  assert!(!projected.to_string().contains("private"));assert_eq!(projected["settings"]["modelLabel"],"vision.gguf");let id=projected["folders"][0]["scopeId"].as_str().unwrap();assert_eq!(scopes.resolve(id).unwrap(),r"C:\private\photos");assert!(scopes.resolve(r"C:\private\photos").is_err());assert_eq!(projected["hasPreview"],true);
+ }
 }

@@ -62,6 +62,10 @@ function harness(overrides = {}) {
     return {};
   };
   const bridge = {
+    isLinux: () => state.platformCapabilities?.platform === 'linux',
+    isPreview: () => ['linux', 'windows'].includes(state.platformCapabilities?.platform),
+    // Mirrors app.js: previews require an explicit true, the Mac only rejects false.
+    supports: feature => ['linux', 'windows'].includes(state.platformCapabilities?.platform) ? state.platformCapabilities?.[feature] === true : state.platformCapabilities?.[feature] !== false,
     action: invoke, api: async (_path, body) => _path === '/api/action' ? invoke(body.action, body.params || {}) : invoke(_path, body),
     pick: overrides.pick || (async (kind) => ({ kind, grantId: `grant-${kind}`, label: `chosen-${kind}.gguf` })),
     refreshState: async () => state, refreshLibrary: async () => {}, refreshCurrentPage: async () => { calls.push({ name: 'refreshCurrentPage', params: structuredClone(scope) }); },
@@ -994,5 +998,40 @@ test('macOS read consent recovery gives an actionable Files path and explicit re
     assert.equal(ui.calls.length, 0);
     await buttons.find(node => node.textContent === 'Retry access').click();
     assert.deepEqual(ui.calls.filter(call => call.name === 'jobAction'), [{ name: 'jobAction', params: { action: 'resume', id: 'consent' } }]);
+  } finally { await ui.close(); }
+});
+
+
+for (const platform of ['linux', 'windows']) test(`${platform} preview shows reported providers and hides unreported features`, async () => {
+  const ui = harness({ withPanels: true, state: { platformCapabilities: { platform, photoReview: true, photoReviewProviders: ['tagging-model'], metadata: true, faceDetection: true }, photoReviewSettings: { provider: 'clef-flash' }, monitor: { resources: { physicalMemoryBytes: 32 * 1024 ** 3 } } } });
+  try {
+    const navigation = ui.ids.get('workspace-navigation').children.map(node => node.textContent);
+    assert(navigation.includes('Photo improvement'));
+    assert(!navigation.includes('Backups & archives'), 'An unreported capability stays hidden on a preview platform.');
+    await ui.findButton('Settings').click(); await new Promise(resolve => setImmediate(resolve));
+    const provider = ui.findField('Reviewer');
+    assert.deepEqual(provider.children.map(node => node.value), ['tagging-model'], 'Only reviewers the companion can run are offered.');
+    assert.equal(provider.value, 'tagging-model', 'An unsupported saved reviewer falls back to the tagging model.');
+    await ui.findButton('Save reviewer settings').click();
+    assert.deepEqual(ui.calls.filter(call => call.name === 'configurePhotoReview').map(call => call.params.provider), ['tagging-model']);
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
+
+for (const platform of ['linux', 'windows']) test(`${platform} Settings and About preserve core model choices without claiming unavailable Mac integrations`, async () => {
+  const ui = harness({ state: { platformCapabilities: { platform,photoReview:false,modelDownloads:false,powerInhibition:false,nativeUninstall:false,metadata:false,fontStories:false,modelOptimization:false,backupTransfer:false } } });
+  try {
+    await ui.findButton('About').click();
+    const about=ui.all().find(node=>node.tagName==='DIALOG' && node.textContent.includes('About PhotoFindry'));
+    assert(about.textContent.includes(platform === 'linux' ? 'Linux preview' : 'Windows preview')); assert(!about.textContent.includes('starts at login')); assert(!about.textContent.includes('Apple-notarized'));
+    assert.equal(ui.calls.some(call=>call.name==='/api/lifecycle/status'), false);
+    await ui.findButton('Settings').click(); await new Promise(resolve=>setImmediate(resolve));
+    const settings=ui.all().find(node=>node.tagName==='DIALOG'&&node.textContent.includes('Vision model'));
+    assert(settings); assert(!settings.textContent.includes('Verified model downloads')); assert(!settings.textContent.includes('Automatic performance')); assert(!settings.textContent.includes('macOS confirmation'));
+    assert(ui.findButton('Start model')); assert(ui.findButton('Check files'));
+    await ui.findButton('Save settings').click();
+    assert.equal(ui.calls.some(call=>call.name==='configurePower'), false);
+    assert.equal(ui.calls.some(call=>call.name==='configurePhotoReview'), false);
+    assert.equal(ui.errors.length, 0);
   } finally { await ui.close(); }
 });

@@ -1,12 +1,14 @@
 # Files, offline previews and backups
 
+People is supported on Mac and Linux. Library backup and source transfer in this guide are Mac features; Linux/Windows do not currently offer them. Keep independent backups of your library and originals.
+
 Original photographs belong in the folders and drives you choose. PhotoFindry's library stores saved details, people corrections and prepared image copies separately.
 
 ## When a drive is disconnected
 
 Saved details remain available for search. Prepared offline previews can remain viewable while originals are offline. A preview is a reduced-size cached copy, not an original-photo backup. Reconnect the original source to open full-resolution files or do work requiring those pixels.
 
-Use Files to inspect availability and reconnect a moved folder. An unavailable drive is not proof that photographs were deleted. Do not create a new source or purge old records just to resolve a mount or permission problem.
+PhotoFindry checks registered sources in the background while the companion is running. Returning drives and verified moves can reconnect automatically. Files shows when checks are still in progress, an original has changed, or macOS denied access. An unavailable drive is not proof that photographs were deleted. Do not create a new source or purge old records just to resolve a mount or permission problem.
 
 ## Library backup
 
@@ -22,18 +24,34 @@ Files offers scoped source snapshots and additive attachment. Archives can carry
 
 Library cleanup is separate from original-file deletion. Review scope and warnings before removing records, clearing previews or permanently deleting Removed entries. A preview might be the only remaining image copy. Assistants should never perform cleanup, restore or deletion as an automatic repair.
 
-Routine app updates replace the app bundle. They do not target customer libraries, originals or model paths. [Installation and updates](https://photofindry.com/docs/install.html) explains the signed beta channel.
+Routine CLI updates replace versioned program files. Your retained folder-access helper and its local folder choices stay separate from those replacements. Updates do not target customer libraries, originals or model paths. [Installation and updates](https://photofindry.com/docs/install.html) explains the signed beta channel.
 
-## Reconnect first, enrich afterward
+## Choose originals once, then follow their status
 
-After attaching a source from another Mac, open Files, select it and choose the originals folder on this Mac. PhotoFindry checks locations first. If matching files need your confirmation, choose **Review checked folder…**, verify that it is the same originals folder, then confirm. Matching names, sizes and dates alone are not proof of identical pixels. Uncertain files remain for review.
+For a source added or attached from another Mac, open Files and choose its originals folder on this computer. The native chooser records that local folder choice; PhotoFindry checks its originals in the background. A matching source does not require a second routine confirmation. Verified later folder and file moves keep the same saved photographs and details. Changed or ambiguous originals still need review; matching names and sizes alone do not confirm identical pixels.
 
-Confirmed local originals become openable without waiting for the camera and location scan. Files shows connection progress and readiness separately from **Camera & location · background enrichment**. Pause or resume that scan independently. Tagging also collects camera metadata from the original it reads. Saved archive metadata remains available without rereading the whole drive.
+The internal access helper is retained across ordinary CLI updates. It opens only for a native folder choice or access restoration; there is no permanent Mac application to keep open. macOS can still revoke access or require consent. If Files reports that specific denial, choose **Allow folder access…** for the affected folder. A disconnected drive, a missing original and an unavailable helper have different recovery actions.
 
-Cloud-only, missing and permission-blocked originals still require their respective resolution. Checking a source does not deliberately download known cloud placeholders. Previously unconfirmed photos are not silently approved by an app update.
+Originals become usable as their checks finish, independently of the camera and location scan. Pause or resume that enrichment separately. Checking a source does not deliberately download known cloud placeholders, erase missing originals, or change accepted tags.
 
 ## Recover a job waiting for originals
 
-Make the original drive or files available, then choose **Resume** on the affected job. Resume retries saved locations and can verify returning files against saved checksums. Choose **Choose this Mac’s originals folder…** for a moved folder, an explicit source disconnect, or identity confirmation. Only confirm a folder you recognize as the same originals collection. Successful verification continues the linked job; unrelated held jobs remain paused. **Continue with available photos** retains unavailable targets and survives ordinary Pause/Resume and app restart.
+Jobs keep unavailable targets while other usable photographs continue. Once an original returns at a verified location, eligible source-waiting work continues automatically. A queue or job you explicitly paused stays paused, including after a later source check. Older saved jobs may still need **Resume**.
+
+If a moved folder cannot be verified automatically, choose its originals folder in Files. Check the reason shown before acting: an actual identity conflict needs review, a known absent drive needs reconnecting, and a macOS access denial needs a native folder choice. **Continue with available photos** keeps unavailable targets and survives ordinary Pause/Resume and companion restart.
 
 Large source exports preserve complete People edit and undo history. If an earlier beta failed because an archive piece was too large, retry the export in beta 11. The archive format and saved observations are unchanged; exports still omit original photographs and model weights.
+
+## Jobs when originals move or return
+
+New tagging, metadata, preview, face and improvement jobs keep their requested
+photos while originals are unavailable. Other usable photos can continue. A
+verified returning original continues its existing job automatically; an unchanged
+missing file is not repeatedly processed. Verified moves reconnect in the background; use Files when a genuine identity
+conflict or macOS access denial needs your action. Opening recovery does not confirm file identity. Paused jobs
+and queues stay paused. Existing older saved jobs may still need their explicit
+Resume or recovery action.
+
+Moving entries to Removed skips only those pending processing targets and keeps
+their saved data available for Undo. Permanent deletion remains a separate explicit
+action. PhotoFindry never deletes original photographs as a recovery measure.

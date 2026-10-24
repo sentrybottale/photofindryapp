@@ -94,6 +94,23 @@
     requests: new Set(),
     pageSuspended: false,
   };
+  const hostPlatform = () => document.documentElement?.dataset?.platform || state.nativeState?.platformCapabilities?.platform;
+  const isLinux = () => hostPlatform() === 'linux';
+  const isPreview = () => ['linux', 'windows'].includes(hostPlatform());
+  // Mac keeps its default-on behaviour for capabilities older companions never
+  // report. Linux/Windows previews enable a feature only when their companion
+  // explicitly reports a packaged provider for it.
+  const supports = feature => {
+    const value = state.nativeState?.platformCapabilities?.[feature];
+    return isPreview() ? value === true : value !== false;
+  };
+  // Apply only to fixed interface copy. Accepted photo/model/user strings never
+  // pass through this helper and retain their original wording.
+  const localText = value => !isPreview() || typeof value !== 'string' ? value : value
+    .replaceAll('this Mac', 'this computer').replaceAll('This Mac', 'This computer')
+    .replaceAll('your Mac', 'your computer').replaceAll('Mac memory', 'system memory')
+    .replaceAll('Mac awake', 'computer awake').replaceAll('Mac RAM', 'system RAM')
+    .replaceAll('Mac swap', 'System swap').replaceAll('Macs', 'computers');
   const number = new Intl.NumberFormat();
   const text = (value) => typeof value === 'string' ? value : '';
   const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
@@ -105,6 +122,7 @@
     if (value !== undefined) node.textContent = value;
     return node;
   };
+  if (isPreview()) { const improve=document.getElementById('improve-library'); if (improve) improve.hidden=true; }
   const searchRecoveryJobs = element('button', 'secondary-button', 'Open Jobs');
   searchRecoveryJobs.type = 'button'; searchRecoveryJobs.hidden = true;
   searchRecoveryJobs.addEventListener('click', () => notifyEvent('guide-destination', { panel: 'jobs' }));
@@ -140,7 +158,8 @@
   const pairRepairCompanion = element('a', 'secondary-button', 'Repair installation');
   pairRepairCompanion.href = repairCompanion.href; pairRepairCompanion.target = '_blank';
   pairRepairCompanion.rel = 'noopener noreferrer'; pairRepairCompanion.referrerPolicy = 'no-referrer';
-  $('pair-form').append(pairRepairCompanion);
+  if (!isPreview()) $('pair-form').append(pairRepairCompanion);
+  if (isPreview()) { reopenCompanion.hidden = repairCompanion.hidden = true; }
   connectionActions.append(retryConnection, reopenCompanion, repairCompanion);
   connectionPanel.append(connectionMessage, connectionActions);
   $('library-error').parentNode.insertBefore(connectionPanel, $('library-error'));
@@ -279,7 +298,7 @@
       $('result-count').textContent = ''; $('page-label').textContent = '';
       $('global-error').textContent = ''; $('global-error').hidden = true;
       $('library-error-text').textContent = ''; $('library-error').hidden = true;
-      showMessage('global-notice', 'Backup imported. Open Files to choose and confirm the originals folders on this Mac. Saved tags remain available.');
+      showMessage('global-notice', localText('Backup imported. Open Files to choose and confirm the originals folders on this Mac. Saved tags remain available.'));
       notifyEvent('library-restored', {});
     }
     notifyEvent('page', null); notifyEvent('scope', getScope());
@@ -329,7 +348,7 @@
     return openPreview(photo, { ids: [photoId], fromPage: false, loaded: true });
   }
   window.PhotoFindry = Object.freeze({
-    api, action, pick: (kind) => api('/api/pick', { kind }, { timeoutMs: 310000 }), refreshState,
+    api, action, isLinux, isPreview, supports, localText, pick: (kind) => api('/api/pick', { kind }, { timeoutMs: 310000 }), refreshState,
     refreshLibrary: (offset = 0) => loadLibrary(offset),
     refreshCurrentPage: () => loadLibrary(state.offset, true),
     showError: (message) => showMessage('global-error', message),
@@ -366,13 +385,13 @@
       }
     }
     const badge = $('connection-status');
-    badge.replaceChildren(element('span', 'local-dot'), document.createTextNode(available ? 'Connected to this Mac' : 'Companion unavailable'));
+    badge.replaceChildren(element('span', 'local-dot'), document.createTextNode(available ? localText('Connected to this Mac') : 'Companion unavailable'));
     badge.firstChild.setAttribute('aria-hidden', 'true');
     badge.classList.toggle('unavailable', !available);
   }
 
   function connectionHelp(exhausted = false) {
-    connectionMessage.textContent = connection.expected
+    connectionMessage.textContent = isPreview() ? 'The companion connection was interrupted. Reconnecting automatically; reopen PhotoFindry using its installed launcher if needed. Your saved work is kept.' : connection.expected
       ? 'PhotoFindry is restarting for the requested change. Saved work is kept. The updated workspace opens when it is ready. Use Open PhotoFindry to follow its progress or recover.'
       : exhausted
         ? 'This browser could not reconnect. Open PhotoFindry to start or recover the verified companion. If it cannot open, use Repair installation. Your saved library stays in place.'
@@ -739,7 +758,7 @@
   });
 
   $('quit-companion').addEventListener('click', async () => {
-    if (!state.token || !window.confirm('Quit PhotoFindry on this Mac? Current processing will stop; saved work is kept. You can reopen it from Open PhotoFindry.')) return;
+    if (!state.token || !window.confirm(localText('Quit PhotoFindry on this Mac? Current processing will stop; saved work is kept. You can reopen it from Open PhotoFindry.'))) return;
     const token = state.token;
     resetSession('PhotoFindry is stopping. Open PhotoFindry to return to this library.');
     try { await api('/api/quit', {}, { token }); }
@@ -1094,9 +1113,9 @@
           content.append(detailSection('Review suggestions', notes));
         }
         if (strings(review.notes).length) { const notes = element('ul'); for (const note of strings(review.notes)) notes.append(element('li', '', note)); content.append(detailSection('Review notes', notes)); }
-      } else content.append(element('p', 'inspector-context', 'Check saved observations locally. Reviews and corrections are saved on this Mac.'));
+      } else content.append(element('p', 'inspector-context', localText('Check saved observations locally. Reviews and corrections are saved on this Mac.')));
       if (photo.improvementIssue) content.append(element('p', 'inspector-error', text(photo.improvementIssue)));
-      content.append(photoWorkflowAction(photo, 'improve', photo.improvementIssue ? 'Retry improvement' : review ? 'Review again' : 'Improve photograph', async () => {
+      if (supports('photoReview')) content.append(photoWorkflowAction(photo, 'improve', photo.improvementIssue ? 'Retry improvement' : review ? 'Review again' : 'Improve photograph', async () => {
         await action('enqueueJob', { kind: 'improve', params: { photoIds: [photo.id], force: Boolean(review || photo.improvementIssue) } });
         showMessage('global-notice', 'Photo improvement queued. Saved observations and human names are preserved.');
       }));
@@ -1137,7 +1156,7 @@
         ? 'Read complete. This original has no enabled camera or location fields.'
         : !canRead ? 'Connect or confirm the original in Files to read camera and location data.'
         : ['unavailable', 'changed'].includes(photo.metadataStatus) ? 'The last metadata read could not complete. Check the original, then try again.' : 'Camera & location has not been read yet.'));
-      metadata.append(canRead ? photoWorkflowAction(photo, 'read-metadata', fields.length ? 'Read camera & location again' : 'Read camera & location', async () => {
+      if (supports('metadata')) metadata.append(canRead ? photoWorkflowAction(photo, 'read-metadata', fields.length ? 'Read camera & location again' : 'Read camera & location', async () => {
         await action('enqueueJob', { kind: 'metadata', params: { photoIds: [photo.id], force: true } });
         await refreshPhotoPresentations(photo);
       }) : photoWorkflowAction(photo, 'metadata-source', 'Connect originals in Files…', openSource));
@@ -1148,7 +1167,7 @@
     people.append(element('p', 'inspector-context', faces.length ? `${number.format(faces.length)} detected faces. Confirmed names are separate from factual model descriptions.` : 'No detected faces in this photograph yet.'));
     if (photo.faceScanLimited) people.append(element('p', 'inspector-context', 'Some faces may be missing: this photograph exceeds the current scan limit.'));
     people.append(photoWorkflowAction(photo, 'people-photo', 'Name or correct people in this photo…', () => { closePreview(); window.PhotoFindryPanels?.show('people', { photoId: photo.id }); }));
-    if (!faces.length) people.append(photoWorkflowAction(photo, 'scan-faces', 'Find faces in this photo', async () => { const job = await action('enqueueJob', { kind: 'faces', params: { photoIds: [photo.id] } });
+    if (!faces.length && supports('faceDetection')) people.append(photoWorkflowAction(photo, 'scan-faces', 'Find faces in this photo', async () => { const job = await action('enqueueJob', { kind: 'faces', params: { photoIds: [photo.id] } });
       showMessage('global-notice', !job?.reusedExisting ? 'Face discovery queued for this photograph.' : job.state === 'paused' ? 'This photograph is already in a paused face scan. Resume it in Jobs when ready; saved faces are kept.' : 'Face discovery for this photograph is already queued or running. Its progress is in Jobs.'); }));
     fragment.append(detailSection('People in this photograph', people));
   }
@@ -1557,7 +1576,7 @@
       manage.addEventListener('click', () => window.PhotoFindryPanels?.show('sources', { sourceId: photo.source.id })); source.append(manage);
     }
     if (photo.source?.accessOriginals !== false && ['available', 'onlineOnly', 'unchecked'].includes(photo.source?.status)) {
-      for (const [label, method] of [['Show in Finder', 'revealPhoto'], ['Open original', 'openOriginal']]) {
+      for (const [label, method] of supports('openOriginal') ? [['Show in Finder', 'revealPhoto'], ['Open original', 'openOriginal']] : []) {
         const control = element('button', 'secondary-button', label); control.type = 'button';
         control.dataset.detailAction = method;
         control.addEventListener('click', async () => {
@@ -1717,7 +1736,7 @@
     }));
     if (photo.source?.id) actions.append(previewAction('View source', () => { closePreview(); window.PhotoFindryPanels?.show('sources', { sourceId: photo.source.id }); }));
     if (photo.source?.accessOriginals !== false && ['available', 'onlineOnly', 'unchecked'].includes(photo.source?.status)) {
-      actions.append(previewAction('Show in Finder', () => action('revealPhoto', { photoId: photo.id })),
+      if (supports('openOriginal')) actions.append(previewAction('Show in Finder', () => action('revealPhoto', { photoId: photo.id })),
         previewAction('Open original', () => action('openOriginal', { photoId: photo.id })));
     }
     fragment.append(actions);

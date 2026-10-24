@@ -4,6 +4,9 @@
 // library snapshot or reads a photograph, prompt, or model response.
 (() => {
   const P = window.PhotoFindry;
+  const localText = value => window.PhotoFindry?.localText?.(value) ?? value;
+  const supports = feature => window.PhotoFindry?.supports?.(feature) !== false;
+  const isPreview = () => (window.PhotoFindry?.isPreview?.() ?? window.PhotoFindry?.isLinux?.()) === true;
   const button = document.getElementById('open-model-monitor');
   const sidebarStatus = document.getElementById('sidebar-model-status');
   if (!P || !button || !sidebarStatus) return;
@@ -139,11 +142,11 @@
   };
   const measurementNotice = el('p', 'pfm-warning'); session.append(measurementNotice);
 
-  const memory = section('Memory', 'Physical footprint includes compressed memory. RSS includes mapped files; neither is GPU allocation or total Mac RAM. These readings cover owned local processes; browser memory is separate. Critical pressure pauses processing and keeps saved progress.');
+  const memory = section('Memory', isPreview() ? 'RSS covers owned local processes; browser and GPU memory are separate. Unavailable measurements are shown explicitly. Memory protection keeps saved progress.' : localText('Physical footprint includes compressed memory. RSS includes mapped files; neither is GPU allocation or total Mac RAM. These readings cover owned local processes; browser memory is separate. Critical pressure pauses processing and keeps saved progress.'));
   const memoryRows = {
     pressure: row(memory, 'Memory pressure'), current: row(memory, 'PhotoFindry footprint'),
     peak: row(memory, 'Peak footprint'), budget: row(memory, 'Safety budget'),
-    swap: row(memory, 'Mac swap · all apps'), appRSS: row(memory, 'Companion + worker RAM · RSS'),
+    swap: row(memory, localText('Mac swap · all apps')), appRSS: row(memory, 'Companion + worker RAM · RSS'),
   };
   const memoryNotice = el('p', 'pfm-warning'); memory.append(memoryNotice);
   const revealMemory = el('button', 'pfm-memory-logs', 'Show memory logs'); revealMemory.type = 'button';
@@ -153,7 +156,8 @@
     catch (error) { P.showError?.(error.message || 'Memory logs could not be opened.'); }
     finally { revealMemory.disabled = false; }
   });
-  memory.append(el('p', 'pfm-help', 'Diagnostic logs stay on this Mac and contain memory metrics only. History is limited to 2 MiB.'), revealMemory);
+  revealMemory.hidden = !supports('openOriginal');
+  memory.append(el('p', 'pfm-help', localText('Diagnostic logs stay on this Mac and contain memory metrics only. History is limited to 2 MiB.')), revealMemory);
   const memoryTrend = el('p', 'pfm-trend', 'Not enough samples yet');
   memoryTrend.setAttribute('aria-label', 'Recent PhotoFindry memory usage'); memory.append(memoryTrend);
   const processList = el('div', 'pfm-process-list'); memory.append(processList);

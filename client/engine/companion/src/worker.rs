@@ -1,6 +1,11 @@
 //! Bounded multiplexed transport for the one owned native worker. No generic HTTP RPC.
 use serde_json::{Value, json};
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
+#[cfg(windows)]
+type OwnedProcessGroup = photofindry_platform::process::OwnedJob;
+#[cfg(unix)]
+type OwnedProcessGroup = i32;
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
     hash::Hasher,
@@ -194,7 +199,11 @@ async fn frame<R: AsyncRead + Unpin>(reader: &mut BufReader<R>) -> Result<Option
         }
     }
 }
-async fn terminate(child: &mut Child, input: &mut tokio::process::ChildStdin, group: i32) {
+async fn terminate(
+    child: &mut Child,
+    input: &mut tokio::process::ChildStdin,
+    group: &OwnedProcessGroup,
+) {
     let _ = tokio::time::timeout(
         Duration::from_millis(200),
         input.write_all(b"{\"id\":\"companion-shutdown\",\"method\":\"shutdown\",\"params\":{}}\n"),
@@ -205,17 +214,23 @@ async fn terminate(child: &mut Child, input: &mut tokio::process::ChildStdin, gr
         .await
         .is_err()
     {
+        #[cfg(unix)]
         unsafe {
-            libc::kill(-group, libc::SIGKILL);
+            libc::kill(-*group, libc::SIGKILL);
         }
+        #[cfg(windows)]
+        let _ = group.terminate_and_wait(Duration::from_secs(5));
         let _ = child.kill().await;
         let _ = child.wait().await;
     }
     // Every descendant inherits this freshly owned process group. A crashed worker
     // must not strand its local model server or helpers.
+    #[cfg(unix)]
     unsafe {
-        libc::kill(-group, libc::SIGKILL);
+        libc::kill(-*group, libc::SIGKILL);
     }
+    #[cfg(windows)]
+    let _ = group.terminate_and_wait(Duration::from_secs(5));
 }
 impl NativeWorker {
     pub fn spawn(
@@ -242,11 +257,40 @@ impl NativeWorker {
                 command.env_remove(key);
             }
         }
+        #[cfg(unix)]
         command.as_std_mut().process_group(0);
+        #[cfg(windows)]
+        photofindry_platform::process::configure_suspended(command.as_std_mut());
         let mut child = command
             .spawn()
             .map_err(|_| "Cannot start the specified PhotoWorker.")?;
+        #[cfg(unix)]
         let owned_group = child.id().ok_or("Worker process identity unavailable.")? as i32;
+        #[cfg(windows)]
+        let owned_group = match photofindry_platform::process::OwnedJob::attach_and_resume(
+            child
+                .raw_handle()
+                .ok_or("The Windows worker handle is unavailable.")?,
+            child
+                .id()
+                .ok_or("The Windows worker identity is unavailable.")?,
+        ) {
+            Ok(job) => job,
+            Err(error) => {
+                let _ = child.start_kill();
+                if let Some(handle) = child.raw_handle() {
+                    unsafe {
+                        windows_api::Win32::System::Threading::WaitForSingleObject(
+                            windows_api::Win32::Foundation::HANDLE(handle),
+                            5000,
+                        );
+                    }
+                }
+                return Err(format!(
+                    "The Windows worker could not enter its owned Job: {error}"
+                ));
+            }
+        };
         let mut input = child.stdin.take().ok_or("Worker input is unavailable.")?;
         let stdout = child.stdout.take().ok_or("Worker output is unavailable.")?;
         let mut stderr = child
@@ -360,7 +404,7 @@ impl NativeWorker {
                     break;
                 }
             }
-            terminate(&mut child, &mut input, owned_group).await;
+            terminate(&mut child, &mut input, &owned_group).await;
             reader.abort();
             diagnostics.abort();
             for (_, request) in driver_pending.lock().unwrap().drain() {
@@ -503,10 +547,19 @@ mod tests {
     use super::*;
     #[test]
     fn startup_stage_diagnostics_are_fixed_and_never_accept_worker_text() {
-        assert_eq!(startup_stage_message(b"PF_STARTUP:catalog"),Some("checking the photo catalog"));
-        assert_eq!(startup_stage_message(b"PF_STARTUP:snapshot"),Some("preparing the first library view"));
-        assert_eq!(startup_stage_message(b"PF_STARTUP:catalog /Users/private/photo.jpg"),None);
-        assert_eq!(startup_stage_message(b"PhotoWorker: generated text"),None);
+        assert_eq!(
+            startup_stage_message(b"PF_STARTUP:catalog"),
+            Some("checking the photo catalog")
+        );
+        assert_eq!(
+            startup_stage_message(b"PF_STARTUP:snapshot"),
+            Some("preparing the first library view")
+        );
+        assert_eq!(
+            startup_stage_message(b"PF_STARTUP:catalog /Users/private/photo.jpg"),
+            None
+        );
+        assert_eq!(startup_stage_message(b"PhotoWorker: generated text"), None);
     }
     #[tokio::test]
     async fn framing_is_bounded_and_rejects_unterminated_frames() {

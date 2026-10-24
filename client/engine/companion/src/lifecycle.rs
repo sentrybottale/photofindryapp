@@ -733,11 +733,6 @@ fn require_current_registration_at(root: &Path, directory: &Path, record: &launc
     if registration_needs_repair(root,&cfg,record)? {return Err("The launch registration changed while opening. Open PhotoFindry again to repair it, or run the latest verified installer. Your library is kept.".into())}
     Ok(())
 }
-pub async fn prefer_installed(directory: &Path) -> Result<()> {
-    if directory != launch::default_directory()? {return Ok(())}
-    let root = default_root()?;
-    prefer_installed_at(&root,directory).await
-}
 async fn prefer_installed_at(root: &Path, directory: &Path) -> Result<()> {
     if !root.join(STATE).exists() {return Ok(())}
     recover(root,false).await?;
@@ -978,17 +973,19 @@ async fn switch(
         "ready",
         "Companion updated. Your library, original photographs and selected models are kept.",
     );
-    if open {
-        let _ = tokio::process::Command::new(executable(root, after.current))
-            .args(["open", "--launch-state"])
-            .arg(&after.launch_state)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .await;
-    }
+    if open {open_switched_workspace(root,&after).await?;}
     Ok(())
+}
+async fn open_switched_workspace(root:&Path,cfg:&Installation)->Result<()> {
+    // The switch already authenticated the package and proved broker readiness.
+    // Open through that broker directly: recursively invoking `photofindry open`
+    // would wait on our locks, including when rolling back to an older CLI.
+    let opening=async {
+        let target=launch::request_open(&cfg.launch_state).await?
+            .ok_or("The verified companion stopped before its browser could open.")?;
+        super::open_local_browser(&executable(root,cfg.current),&target).await
+    }.await;
+    opening.map_err(|error|format!("Verified companion software is ready, but its browser did not open: {error} Your library is kept. Choose Open PhotoFindry again."))
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -1356,13 +1353,22 @@ async fn update_verified(root:&Path,cfg:Installation,next:release::Release,bytes
     commit_version(root, &stage, &next, &bytes)?;
     switch(root, cfg, &next, false, open).await
 }
-/// An explicit Open attempts an authenticated update before choosing the local
-/// UI. Offline or busy work must never strand a usable verified installation.
-/// Background-check preferences affect only the six-hour unattended check.
-pub async fn refresh_on_open(directory:&Path)->Result<()> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum OpenProfile { Default, ExplicitState }
+
+/// Default Open checks the authenticated feed. An explicitly selected launch
+/// state is also used by older updaters' --open-after continuation: it must not
+/// wait on its parent's maintenance lock or schedule another maintenance job.
+/// Both paths still validate the installed registration and pending recovery.
+pub async fn prepare_open(directory:&Path,profile:OpenProfile)->Result<()> {
     if directory!=launch::default_directory()? {return Ok(())}
-    let root=default_root()?;
-    independent_refresh_on_open(&root).await
+    prepare_open_at(&default_root()?,directory,profile).await
+}
+async fn prepare_open_at(root:&Path,directory:&Path,profile:OpenProfile)->Result<()> {
+    if root.exists() && profile==OpenProfile::Default {wait_for_open_maintenance_at(root).await?;}
+    prefer_installed_at(root,directory).await?;
+    if profile==OpenProfile::Default {independent_refresh_on_open(root).await?;}
+    Ok(())
 }
 
 fn request_id(id: &str) -> bool {
@@ -1449,12 +1455,6 @@ async fn independent_refresh_on_open(root: &Path) -> Result<()> {
     }
 }
 
-pub async fn wait_for_open_maintenance(directory:&Path)->Result<()> {
-    if directory!=launch::default_directory()? {return Ok(())}
-    let root=default_root()?;
-    if !root.exists() {return Ok(())}
-    wait_for_open_maintenance_at(&root).await
-}
 async fn wait_for_open_maintenance_at(root:&Path)->Result<()> {
     let _owner=launch::private_directory(root,false)?;
     let deadline=tokio::time::Instant::now()+OPEN_OPERATION_TIMEOUT;
@@ -2580,17 +2580,48 @@ os.replace(target,root/'open-update-request.json')
     }
     #[tokio::test]
     async fn current_open_remains_read_only_while_updater_finishes() {
-        let base=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-current-open-{}-{}",std::process::id(),now()));
+        let base=PathBuf::from("/private/tmp").join(format!("pf-current-open-{}-{}",std::process::id(),now()));
         std::fs::create_dir(&base).unwrap();std::fs::set_permissions(&base,std::fs::Permissions::from_mode(0o700)).unwrap();
         let root=base.join("Program");let data=base.join("Library");let state=base.join("Launch");
         for p in [&root,&data,&state] {std::fs::create_dir(p).unwrap();std::fs::set_permissions(p,std::fs::Permissions::from_mode(0o700)).unwrap();}
         let cfg=Installation{schema:1,current:114,previous:Some(113),highest:114,data:data.clone(),launch_state:state.clone(),autostart:true,automatic_updates:true,retire:None};
         let runtime=package(&root,114).join("runtime");std::fs::create_dir_all(&runtime).unwrap();let exe=executable(&root,114);std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
         for p in [&exe,&runtime.join("PhotoWorker"),&runtime.join("PhotoEngine")] {std::fs::write(p,b"not executed").unwrap();std::fs::set_permissions(p,std::fs::Permissions::from_mode(0o700)).unwrap();}
-        save(&root,STATE,&cfg).unwrap();let record=launch::Registration{version:1,data_dir:data,runtime,executable:exe};
+        save(&root,STATE,&cfg).unwrap();let record=launch::Registration{version:1,data_dir:data,runtime,executable:exe.clone()};
         atomic(&state,"registration.json",&serde_json::to_vec(&record).unwrap()).unwrap();
         let before=std::fs::read(state.join("registration.json")).unwrap();
         let held=launch::try_lock(&root,"operation.lock").unwrap().unwrap();
+        let scheduled=launch::try_lock(&root,"schedule.lock").unwrap().unwrap();
+        // This is the default-account preparation path with fixture roots.
+        // A second public Open waits; an older updater's explicit-state child
+        // must finish while its parent still owns BOTH maintenance locks.
+        assert!(tokio::time::timeout(Duration::from_millis(220),prepare_open_at(&root,&state,OpenProfile::Default)).await.is_err());
+        tokio::time::timeout(Duration::from_secs(3),prepare_open_at(&root,&state,OpenProfile::ExplicitState)).await.unwrap().unwrap();
+        assert!(!root.join(OPEN_REQUEST).exists(),"The continuation must not recursively schedule or unload its parent maintenance job");
+        assert!(launch::try_lock(&root,"operation.lock").unwrap().is_none());
+        assert!(launch::try_lock(&root,"schedule.lock").unwrap().is_none());
+        let opened=base.join("browser-target.json");
+        let opener=exe.parent().unwrap().join("CompanionLauncher");
+        std::fs::write(&opener,format!("#!/bin/sh\n[ \"$1\" = --open-local ] || exit 3\nexec /bin/cat > '{}'\n",opened.display())).unwrap();
+        std::fs::set_permissions(&opener,std::fs::Permissions::from_mode(0o700)).unwrap();
+        let broker=launch::Broker::start(&state,&record,4321,||Ok("a".repeat(64))).unwrap();
+        tokio::time::timeout(Duration::from_secs(3),open_switched_workspace(&root,&cfg)).await.unwrap().unwrap();
+        let target:Value=serde_json::from_slice(&std::fs::read(&opened).unwrap()).unwrap();
+        assert_eq!(target,json!({"port":4321,"ticket":"a".repeat(64)}));
+        // Even an older, non-runnable CLI is never recursively executed.
+        assert_eq!(std::fs::read(&exe).unwrap(),b"not executed");
+        assert!(launch::try_lock(&root,"operation.lock").unwrap().is_none());
+        assert!(launch::try_lock(&root,"schedule.lock").unwrap().is_none());
+        std::fs::write(&opener,b"#!/bin/sh\nexit 4\n").unwrap();
+        assert!(open_switched_workspace(&root,&cfg).await.unwrap_err().contains("software is ready, but its browser did not open"));
+        assert_eq!(read_state(&root).unwrap(),cfg);
+        assert!(!root.join(JOURNAL).exists());
+        broker.stop().await;
+        let pending=Transaction{schema:1,before:Some(cfg.clone()),after:cfg.clone(),registration:Some(record.clone()),committed:false};
+        save(&root,JOURNAL,&pending).unwrap();
+        assert!(prepare_open_at(&root,&state,OpenProfile::ExplicitState).await.is_err(),"Explicit launch state must not bypass an unfinished software transaction");
+        assert!(root.join(JOURNAL).exists());
+        clear(&root,JOURNAL).unwrap();
         assert_eq!(current_library_at(&root,&state,&base.join("UnusedDefault")).unwrap(),cfg.data);
         prefer_installed_at(&root,&state).await.unwrap();
         require_current_registration_at(&root,&state,&record).unwrap();
@@ -2601,6 +2632,7 @@ os.replace(target,root/'open-update-request.json')
         assert!(require_installed_at(&root,&state).unwrap_err().contains("installer"));
         assert!(require_current_registration_at(&root,&state,&record).unwrap_err().contains("installer"));
         assert_eq!(std::fs::read(state.join("registration.json")).unwrap(),before);
+        drop(scheduled);
         drop(held);
         // A removed native/browser package must not hide a still-present custom library.
         std::fs::remove_file(&record.executable).unwrap();

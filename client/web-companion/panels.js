@@ -4,6 +4,9 @@
 // or source scopes minted by the installed companion, never browser-supplied paths.
 (() => {
   const bridge = () => window.PhotoFindry;
+  const localText = value => window.PhotoFindry?.localText?.(value) ?? value;
+  const supports = feature => window.PhotoFindry?.supports?.(feature) !== false;
+  const isPreview = () => (window.PhotoFindry?.isPreview?.() ?? window.PhotoFindry?.isLinux?.()) === true;
   const el = (tag, className = '', value) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -50,6 +53,8 @@
 
   function button(label, handler, tone = '') {
     const node = el('button', `pfp-button ${tone}`, label); node.type = 'button';
+    const capability = { 'Archive QR label…':'sourceLabels', 'Print label…':'sourceLabels', 'Read QR image…':'sourceLabels', 'Scan with camera…':'sourceLabels', 'Save label as PDF…':'sourceLabels', 'Export source archive…':'backupTransfer', 'Archive & disconnect…':'backupTransfer', 'Read camera & location metadata':'metadata', 'Scan faces in this photograph':'faceDetection' }[label];
+    if (capability && !supports(capability)) node.hidden = true;
     if (handler) node.addEventListener('click', async () => {
       if (node.disabled) return;
       const generation = view.generation;
@@ -318,8 +323,8 @@
       heading = 'Folder access needed';
       detail = 'macOS needs permission to read this folder. Choose it to allow access; saved photographs and completed work are kept.';
     } else if (needsChoice) {
-      heading = 'Choose this Mac’s originals folder once';
-      detail = 'Select the matching folder on this Mac. PhotoFindry then watches its availability and file changes automatically. Saved tags and search remain available.';
+      heading = localText('Choose this Mac’s originals folder once');
+      detail = localText('Select the matching folder on this Mac. PhotoFindry then watches its availability and file changes automatically. Saved tags and search remain available.');
     } else if (status === 'offline') {
       heading = 'Waiting for the folder to return';
       detail = 'This folder is disconnected. It stays selected and is checked automatically when its drive returns. Saved photos, tags and retained previews are kept.';
@@ -342,7 +347,7 @@
     const connection = card(heading, detail); connection.classList.add('pfp-automatic-source');
     connection.setAttribute('aria-live', 'polite');
     for (const root of roots) appendSummary(connection, [[root.selected ? 'Selected folder' : 'Saved folder location', sourceLocation(root)]]);
-    if (check?.chosenLocationLabel && checking) appendSummary(connection, [['Selected on this Mac', check.chosenLocationLabel]]);
+    if (check?.chosenLocationLabel && checking) appendSummary(connection, [[localText('Selected on this Mac'), check.chosenLocationLabel]]);
     if ((needsChoice || permission) && !checking && !ownerUnavailable) {
       if (roots.length > 1) {
         const rootChoice = select([['', 'Choose a saved originals folder…'], ...roots.map(root => [root.id, sourceLocation(root)])], rootInfo?.id || '');
@@ -412,7 +417,7 @@
     const needsConnection = source.mode === 'metadata' || source.accessOriginals === false || ['offline', 'permission', 'unavailable', 'needsReview', 'changed', 'unchecked', 'missing'].includes(source.status)
       || [source.needsReview, source.offline, source.missing, source.unchecked].some(value => value > 0);
     const confirming = check?.phase === 'confirming' || activeRootCheck?.sourceAction === 'confirmLocations';
-    const connection = card(confirming ? 'Connecting originals folder' : (needsConnection && check?.phase !== 'confirmed' || check?.plan) ? 'Confirm this Mac’s originals folder' : 'Originals folder',
+    const connection = card(confirming ? 'Connecting originals folder' : (needsConnection && check?.phase !== 'confirmed' || check?.plan) ? localText('Confirm this Mac’s originals folder') : 'Originals folder',
       confirming ? 'Publishing the locations you confirmed. This finishes automatically; saved photographs and tags stay available.' : needsConnection && check?.phase !== 'confirmed' ? 'Choose the originals folder, then confirm the matching files.' : 'Your saved photographs and their original folder stay linked.');
     if (roots.length > 1) {
       const rootChoice = select([['', 'Choose a saved originals folder…'], ...roots.map(item => [item.id, sourceLocation(item)])], rootInfo?.id || '');
@@ -420,10 +425,10 @@
       connection.append(field('Saved originals folder', rootChoice));
     }
     if (rootInfo) appendSummary(connection, [['Saved folder location', sourceLocation(rootInfo)]]);
-    else if (roots.length > 1) connection.append(notice('Select which saved folder you are reconnecting, then choose its matching location on this Mac.'));
+    else if (roots.length > 1) connection.append(notice(localText('Select which saved folder you are reconnecting, then choose its matching location on this Mac.')));
     else appendSummary(connection, [['Saved folder location', 'Not selected']]);
     if (check && (!rootInfo || check.rootId === rootInfo.id)) {
-      if (check.chosenLocationLabel) appendSummary(connection, [['Chosen on this Mac', check.chosenLocationLabel]]);
+      if (check.chosenLocationLabel) appendSummary(connection, [[localText('Chosen on this Mac'), check.chosenLocationLabel]]);
       if (check.phase === 'confirmed') connection.append(notice('Folder confirmation finished. Browse this source to see your photographs. Any remaining unavailable locations are shown below.'));
       else if (check.phase === 'confirmationFailed') connection.append(notice(checkJob?.state === 'cancelled'
         ? 'Connection stopped. Saved photographs and tags are kept. Choose the originals folder again when you are ready to reconnect it.'
@@ -473,10 +478,10 @@
         return locate(source, rootInfo);
       }));
     }
-    sourceOptions.append(row(button('Export source archive…', () => archivePlan(source, false)), button('Archive & disconnect…', () => archivePlan(source, true)),
+    if (supports('backupTransfer')) sourceOptions.append(row(button('Export source archive…', () => archivePlan(source, false)), button('Archive & disconnect…', () => archivePlan(source, true)),
       button('Remove source from gallery…', removeSourceFromGallery), button('Archive QR label…', () => showArchiveLabel(source))));
     if (snapshot().sourceTransfer?.phase === 'cleanupPending') sourceOptions.append(button('Retry interrupted transfer', () => command('retrySourceTransfer')));
-    if (source.mode !== 'metadata' && source.accessOriginals !== false) sourceOptions.append(button('Read camera & location metadata', () => command('enqueueJob', { kind: 'metadata', params: { sourceId: source.id, force: true } }, 'Metadata read queued for this source. Originals are never changed.')));
+    if (supports('metadata') && source.mode !== 'metadata' && source.accessOriginals !== false) sourceOptions.append(button('Read camera & location metadata', () => command('enqueueJob', { kind: 'metadata', params: { sourceId: source.id, force: true } }, 'Metadata read queued for this source. Originals are never changed.')));
     if (view.recoveryJobId && (!automaticSource(source) || sourceConflict(source) || source.status === 'permission')) {
       const id = view.recoveryJobId;
       summary.append(button('Recheck originals for the selected job', async () => {
@@ -645,13 +650,13 @@
     const matches = Number.isFinite(plan.count) && plan.count > 0;
     const content = [
       `Saved folder: ${previous}`,
-      `On this Mac: ${current}`,
+      `${localText('On this Mac')}: ${current}`,
       `${count(plan.count)} matching locations · ${count(plan.unresolved)} unresolved.`,
       'The quick check compares relative paths, file sizes and saved modification dates without reading photo contents. Confirm only if this is the same originals folder. This is not a checksum verification.',
     ];
     const node = card(matches ? 'Confirm the matching originals' : 'No matching originals in this folder');
     node.classList.add('pfp-originals-review');
-    appendSummary(node, [['Saved folder', previous], ['On this Mac', current], ['Matching photographs', count(plan.count)], ['Other locations in this source still unresolved', count(plan.unresolved)]]);
+    appendSummary(node, [['Saved folder', previous], [localText('On this Mac'), current], ['Matching photographs', count(plan.count)], ['Other locations in this source still unresolved', count(plan.unresolved)]]);
     if (matches) node.append(el('p', 'pfp-muted', content[3]));
     else node.append(notice('No matching files. Choose the correct originals folder.', true));
     if (list(plan.examples).length) node.append(disclosure('Example matching locations', ...list(plan.examples).slice(0, 8).map(example => el('p', 'pfp-muted', text(example.relativePath, text(example.name, 'Saved photograph'))))));
@@ -729,7 +734,7 @@
     discoveryScope.addEventListener('change', () => { applyScope.disabled = discoveryScope.value === currentScope || discoveryScope.value === 'saved-folders'; });
     discovery.append(row(field('Automatic discovery scope', discoveryScope), applyScope));
     if (selected().length === 1) discovery.append(button('Add a person label to the selected photograph…', nameSelectedPhoto));
-    body.append(discovery);
+    if (supports('faceDetection')) body.append(discovery); else body.append(notice('Face discovery is not available in this preview. Saved names and photograph labels are kept.'));
     const person = people.find((item) => item.id === view.personId);
     if (person) body.append(row(button('Show in library', async () => { close(); await bridge().searchLibrary(person.name); }), button('Edit name & aliases…', () => editPerson(person)), button('Review possible matches', () => showSuggestions(person, false)), button('Review broader matches', () => showSuggestions(person, true))));
     const pageState = await read('browsePeople', { personId: view.personId || null, offset: view.peopleOffset });
@@ -775,7 +780,7 @@
     const undo = button('Undo last people edit', async () => { await command('editPerson', { undo: true }); await renderPeopleFresh(); }); undo.disabled = snapshot().people?.canUndo !== true;
     const controls = row(button('All people', () => show('people')), button('Open photograph', () => bridge().showPhoto(photoId)), undo,
       button('Add person label to this photograph…', () => nameSelectedPhoto(photoId)));
-    if (photo.source?.accessOriginals !== false) controls.append(button('Scan faces in this photograph', () => command('enqueueJob', { kind: 'faces', params: { photoIds: [photoId] } }, faceScanNotice('Face scan queued for this photograph.'))));
+    if (supports('faceDetection') && photo.source?.accessOriginals !== false) controls.append(button('Scan faces in this photograph', () => command('enqueueJob', { kind: 'faces', params: { photoIds: [photoId] } }, faceScanNotice('Face scan queued for this photograph.'))));
     body.append(controls);
     if (list(photo.personNames).length) body.append(notice(`Saved names: ${photo.personNames.join(', ')}`));
     const grid = el('div', 'pfp-photo-grid');
@@ -895,7 +900,7 @@
     if (list(snapshot().jobs?.purgeRecovery).length) {
       body.append(notice('Permanent deletion has interrupted work to finish. The saved deletion plan remains authoritative; open Jobs to finish its recovery before starting new cleanup.', true), button('Open cleanup recovery in Jobs', () => { close(); window.PhotoFindryWorkspace?.openJobs?.(); }));
     }
-    body.append(notice('Cleanup changes library records, never original files. A saved preview may be your only remaining image; save it before permanent deletion.', true));
+    body.append(notice(supports('managedDeletion') ? 'Cleanup changes library records, never original files. A saved preview may be your only remaining image; save it before permanent deletion.' : 'Cleanup changes library records, never original files. Permanent deletion is unavailable in this preview; saved Removed entries stay recoverable.', true));
     const chooser = sourceSelect(view.cleanupSource); chooser.addEventListener('change', () => { view.cleanupSource = chooser.value; view.cleanupPlan = null; view.cleanupSelected.clear(); renderCleanupFresh().catch((error) => showProblem(error.message)); });
     body.append(row(field('Scope', chooser), button('Review missing', async () => { view.cleanupTab = 'review'; view.cleanupSelected.clear(); await renderCleanupFresh(); }, view.cleanupTab === 'review' ? 'primary' : ''), button('Removed from library', async () => { view.cleanupTab = 'removed'; view.cleanupSelected.clear(); await renderCleanupFresh(); }, view.cleanupTab === 'removed' ? 'primary' : '')));
     const waiting = notice('Pausing processing safely before opening the cleanup review…'); body.append(waiting);
@@ -919,7 +924,7 @@
     }
     const related = jobs().filter((job) => job.kind === 'libraryCleanup' && (!view.cleanupSource || job.sourceId === view.cleanupSource) && !['completed', 'cancelled'].includes(job.state));
     for (const job of related.slice(0, 6)) body.append(jobCard(job));
-    if (!list(page.items).length) body.append(card(isRemoved ? 'No removed entries' : 'No confirmed missing originals to display', isRemoved ? 'Removed entries can be restored here until you explicitly delete them permanently.' : 'Only missing originals from a complete, available source check qualify. Offline, cloud-only, unverified and permission-blocked originals stay in the library. Prepare or refresh a review when its source is available.'));
+    if (!list(page.items).length) body.append(card(isRemoved ? 'No removed entries' : 'No confirmed missing originals to display', isRemoved ? (supports('managedDeletion') ? 'Removed entries can be restored here until you explicitly delete them permanently.' : 'Removed entries stay saved and can be restored here.') : 'Only missing originals from a complete, available source check qualify. Offline, cloud-only, unverified and permission-blocked originals stay in the library. Prepare or refresh a review when its source is available.'));
     const selectionLabel = el('span', 'pfp-muted'); const updateSelection = () => { selectionLabel.textContent = `${count(view.cleanupSelected.size)} selected`; };
     updateSelection(); const controls = row(selectionLabel, button('Select eligible page', () => { for (const item of list(page.items)) if (item.eligible !== false && view.cleanupSelected.size < 1000) view.cleanupSelected.add(item.photo.id); updateBoxes(); }), button('Clear selection', () => { view.cleanupSelected.clear(); updateBoxes(); }));
     const grid = el('div', 'pfp-photo-grid'); const boxes = [];
@@ -944,8 +949,8 @@
     }
     const explicitIDs = () => { const ids = [...view.cleanupSelected]; if (!ids.length) throw Error('Choose the entries first.'); if (ids.length > 1000) throw Error('Choose at most 1,000 entries per operation.'); return ids; };
     if (isRemoved) {
-      controls.append(button('Restore selected', async () => { const ids = explicitIDs(); await command('restoreLibraryEntries', { photoIds: ids, confirmed: true }, 'Restoration queued.'); view.cleanupSelected.clear(); await renderCleanupFresh(offset); await bridge().refreshLibrary(); }, 'primary'),
-        button('Delete selected permanently…', () => deleteRemoved(explicitIDs()), 'danger'), button('Empty Removed…', () => deleteRemoved(null), 'danger'));
+      controls.append(button('Restore selected', async () => { const ids = explicitIDs(); await command('restoreLibraryEntries', { photoIds: ids, confirmed: true }, 'Restoration queued.'); view.cleanupSelected.clear(); await renderCleanupFresh(offset); await bridge().refreshLibrary(); }, 'primary'));
+      if (supports('managedDeletion')) controls.append(button('Delete selected permanently…', () => deleteRemoved(explicitIDs()), 'danger'), button('Empty Removed…', () => deleteRemoved(null), 'danger'));
     } else {
       const remove = button('Move selected to Removed…', async () => { const ids = explicitIDs(); await removeEntries({ planId: plan.id, photoIds: ids, confirmed: true }, ids.length); }, 'danger'); remove.disabled = !canApply;
       const removeAll = button('Move all reviewed missing entries…', () => removeEntries({ planId: plan.id, all: true, expectedCount: page.eligibleCount, confirmed: true }, page.eligibleCount), 'danger'); removeAll.disabled = !canApply || !page.eligibleCount;
@@ -969,6 +974,7 @@
     view.cleanupLastJob = result.id || result.jobId || result.submittedJob?.id || null; view.cleanupSelected.clear(); await renderCleanupFresh(); await bridge().refreshLibrary();
   }
   async function deleteRemoved(ids) {
+    if (!supports('managedDeletion')) throw Error('Permanent deletion is unavailable in this preview. Saved entries are kept.');
     const source = view.cleanupSource, generation = view.generation;
     const preparation = await read('prepareRemovedDeletion', { ...(source ? { sourceId: source } : {}), ...(ids ? { photoIds: ids } : {}) });
     if (generation !== view.generation || view.cleanupTab !== 'removed') return;
@@ -989,8 +995,9 @@
   }
 
   function renderPortability() {
+    if (!supports('backupTransfer')) { body.append(notice('Backups and archives are not available in this preview. Your saved library and original photographs are kept.')); return; }
     const backup = card('Portable library backup', 'Import the whole .photofindrybackup folder exported by PhotoFindry, not a file inside it. Legacy .photorecallbackup folders are accepted too. Import replaces this library after verification and keeps a recovery backup of the current library first.');
-    backup.append(el('p', 'pfp-muted', 'Backups include saved evidence, people, corrections and review history. Original photographs and model weights are excluded. Host model settings stay on this Mac.'));
+    backup.append(el('p', 'pfp-muted', localText('Backups include saved evidence, people, corrections and review history. Original photographs and model weights are excluded. Host model settings stay on this Mac.')));
     const images = checkbox('Include available cached previews', true); backup.append(images.node, row(button('Export library backup…', async () => {
       const destination = await choose('backupSave'); if (!destination) return;
       await command('exportLibrary', { destinationGrant: destination.grantId, includePreviews: images.control.checked }, 'Library export started. The verified package is published atomically.');
@@ -1090,6 +1097,7 @@
   // One reviewer editor is shared by Settings and Improvement. Its picker grants
   // and pending checks belong to the mounted view, never to a later library/view.
   function mountReviewSettings(parent, { signal, isCurrent = () => parent.isConnected } = {}) {
+    if (!supports('photoReview')) return null;
     const current = () => !signal?.aborted && isCurrent();
     const button = (label, operation, tone = '') => {
       const node = el('button', `pfp-button ${tone}`, label); node.type = 'button';
@@ -1104,7 +1112,10 @@
     };
     const settings = snapshot().photoReviewSettings || {};
     const reviewer = card('Photo detail reviewer (decision model)', 'Choose how Improvement checks saved photo details. It asks up to two bounded batches per photo, follows up uncertain counts and relationships, and checks missing object colours. Checked questions are saved; Review again can explore more. Tagging and Local AI Search keep their own models.');
-    const provider = select([['tagging-model', 'Current tagging model'], ['clef-flash', 'CLEF Flash'], ['intern-decision-4b', 'Intern-Decision 4B']], settings.provider || 'tagging-model');
+    // Preview companions list the reviewers they can run; the Mac omits the list.
+    const offered = snapshot().platformCapabilities?.photoReviewProviders;
+    const providers = [['tagging-model', 'Current tagging model'], ['clef-flash', 'CLEF Flash'], ['intern-decision-4b', 'Intern-Decision 4B']].filter(([id]) => !Array.isArray(offered) || offered.includes(id));
+    const provider = select(providers, providers.some(([id]) => id === settings.provider) ? settings.provider : 'tagging-model');
     const lowMemory = checkbox('Reduced-memory mode', settings.lowMemoryTrial === true);
     const modelLabel = el('span', 'pfp-muted', text(settings.modelLabel, settings.modelConfigured ? 'Saved model selected' : 'No review model selected'));
     const projectorLabel = el('span', 'pfp-muted', text(settings.projectorLabel, settings.projectorConfigured ? 'Saved adapter selected' : 'No adapter selected'));
@@ -1121,8 +1132,8 @@
         ? 'Choose Intern-Decision-4B-Q4_K_M.gguf and its matching mmproj-Intern-Decision-4B-F16.gguf. These are separate from your tagging model. Files remain in your chosen folder.'
         : 'Choose the CLEF Flash 9B Q8 model and its matching vision adapter, or use the verified CLEF Flash pair from Settings → Verified model downloads. No Ollama service is needed.';
       memoryGuidance.textContent = intern
-        ? lowMemory.control.checked ? 'Reduced memory: 512-pixel previews and four questions per batch; at least 8 GiB Mac memory. Small details may be harder to judge. The 8 GiB hardware profile still needs qualification; memory protection remains active.' : 'Normal profile: 1024-pixel previews and eight questions per batch; at least 16 GiB Mac memory. Reduced-memory mode is available for 8 GiB Macs.'
-        : 'CLEF Flash requires at least 24 GiB Mac memory. Memory protection can defer a review while other work uses too much memory.';
+        ? lowMemory.control.checked ? 'Reduced memory: 512-pixel previews and four questions per batch; at least 8 GiB Mac memory. Small details may be harder to judge. The 8 GiB hardware profile still needs qualification; memory protection remains active.' : localText('Normal profile: 1024-pixel previews and eight questions per batch; at least 16 GiB Mac memory. Reduced-memory mode is available for 8 GiB Macs.')
+        : localText('CLEF Flash requires at least 24 GiB Mac memory. Memory protection can defer a review while other work uses too much memory.');
       for (const option of provider.children) option.disabled = Number.isFinite(physicalMemory) && (option.value === 'clef-flash' && physicalMemory < 24 * 1024 ** 3 || option.value === 'intern-decision-4b' && physicalMemory < 8 * 1024 ** 3);
     };
     async function checkReviewer() {
@@ -1167,6 +1178,7 @@
   }
 
   async function renderImprovement() {
+    if (!supports('photoReview')) { body.append(notice('Photo improvement is not available in this preview. Existing observations and human labels are kept.')); return; }
     const generation = view.generation;
     body.append(notice('Improvement reviews saved observations locally. Uncertain or conflicting findings are not new proof. Accepted runs and human names remain preserved; the latest eligible review can be undone.'));
     const preferences = snapshot().improvementPreferences || {};
@@ -1178,7 +1190,7 @@
     const end = input(preferences.end || '07:00'); end.type = 'time';
     const updateTiming = () => { start.disabled = end.disabled = mode.value !== 'overnight'; }; mode.addEventListener('change', updateTiming); updateTiming();
     automatic.append(enabled.node, interleave.node, row(field('Run automatically', mode), field('From', start), field('Until', end)),
-      el('p', 'pfp-muted', 'Uses this Mac’s local clock. The companion must remain running and the Mac awake. Paused queues and individually held work stay paused; Run now in Jobs is the explicit schedule override.'),
+      el('p', 'pfp-muted', localText('Uses this Mac’s local clock. The companion must remain running and the Mac awake. Paused queues and individually held work stay paused; Run now in Jobs is the explicit schedule override.')),
       button('Save automatic improvement', async () => {
         if (mode.value === 'overnight' && (!/^\d{2}:\d{2}$/.test(start.value) || !/^\d{2}:\d{2}$/.test(end.value) || start.value === end.value)) throw Error('Choose different valid start and end times.');
         await command('configureImprovement', { enabled: enabled.control.checked, interleave: interleave.control.checked, mode: mode.value, start: start.value, end: end.value }, 'Automatic improvement preferences saved.');

@@ -4,6 +4,8 @@
 // current view, a reviewed sample, and short-lived request identities in memory.
 (() => {
   const P = window.PhotoFindry;
+  const preview = (P?.isPreview?.() ?? P?.isLinux?.()) === true;
+  const localText = value => P?.localText?.(value) ?? value;
   const banner = document.getElementById('onboarding');
   const navigation = document.getElementById('workspace-navigation');
   if (!P || !banner || !navigation) return;
@@ -11,13 +13,13 @@
   const chapters = [
     ['Welcome', 'Find the photograph you remember.', 'Choose local models, add a small photo folder, then start a few selected tags when you are ready. Continuing this guide never starts a job.'],
     ['Local models', 'Give your library local eyes.', 'Choose the main vision-model .gguf and its matching mmproj vision-adapter file in Settings. A separate chat-template file is normally unnecessary. A configured model may be unloaded; it restarts when explicit tagging needs it. A search reranker is optional for your first tags.'],
-    ['Photo folders', 'Bring a few photographs.', 'Choose a folder through the native Mac dialog. Discovery adds pending records; it never changes your originals or starts tagging the whole archive.'],
+    ['Photo folders', 'Bring a few photographs.', preview ? 'Choose an originals folder once. PhotoFindry checks its availability in the background. Discovery adds pending records and keeps your originals unchanged.' : 'Choose a folder through the native Mac dialog. Discovery adds pending records; it never changes your originals or starts tagging the whole archive.'],
     ['Your first tags', 'Start with a reviewed sample.', 'Choose one registered folder, review up to eight pending photographs and select the few you want to tag. Use the tagging button when your sample is ready.'],
     ['Browse & inspect', 'Look closer at saved details.', 'Select a tile to see complete accepted observations. Double-click or press Space for a preview; the short gallery caption is only a summary.'],
     ['Find a photograph', 'Search what has been saved.', 'Ordinary search reads saved evidence and filenames without starting a language model. Local AI Search is a separate action; its candidates are ranked suggestions, not confirmed matches.'],
-    ['People', 'Name a face you recognise.', 'Your confirmed name can seed quality-qualified matches. Suggestions remain reviewable, and automatically matched faces never become reference seeds.'],
+    ['People', 'Name a face you recognise.', preview ? 'Saved names and photograph labels are kept. Face discovery is not available in this preview.' : 'Your confirmed name can seed quality-qualified matches. Suggestions remain reviewable, and automatically matched faces never become reference seeds.'],
     ['Jobs & Activity', 'Work at your pace.', 'Pause keeps eligible work to resume. Stop cancels remaining targets and keeps saved tags or reviewed AI results. Reopening a queue leaves it paused until you resume or start work.'],
-    ['Files & backups', 'Keep your work portable.', 'Use Files to reconnect originals or remove a source after saving its restorable archive. Backups export saved evidence and selected managed assets; they omit original photographs, model weights and this Mac’s private job history.'],
+    ['Files & backups', 'Keep your work portable.', preview ? 'Use Files to check your originals folders. Backups and archives are not available in this preview; your existing library and original photographs are kept.' : 'Use Files to reconnect originals or remove a source after saving its restorable archive. Backups export saved evidence and selected managed assets; they omit original photographs, model weights and this Mac’s private job history.'],
     ['Your checklist', 'Your library, at your pace.', 'Finishing this guide does not download files, start jobs or mark unfinished setup as complete. You can reopen it from the sidebar at any time.'],
   ];
   const terminal = (job) => ['completed', 'failed', 'cancelled'].includes(job?.state);
@@ -559,7 +561,7 @@
     if (infoDialog?.open) { infoDialog.focus?.(); return; }
     const dialog = el('dialog', 'pf-library-dialog');
     const head = el('div', 'pf-library-head');
-    head.append(el('h2', '', 'This library on this Mac'), button('Close', closeInfo, 'text-button'));
+    head.append(el('h2', '', localText('This library on this Mac')), button('Close', closeInfo, 'text-button'));
     const body = el('div', 'pf-library-body');
     const sourceLabels = Array.isArray(state.sources) ? state.sources.slice(0, 5).map((source) => text(source.label || source.id, 100)).filter(Boolean) : [];
     const modelLabels = [text(state.settings?.modelLabel, 100), text(state.settings?.projectorLabel, 100)].filter(Boolean);
@@ -571,8 +573,8 @@
       el('p', '', `Original photographs remain in your selected source folders (${count(state.sources?.length)} registered). PhotoFindry never moves or rewrites them.`),
       sourceLabels.length ? el('p', '', `Registered sources: ${sourceLabels.join(', ')}${state.sources.length > sourceLabels.length ? ', and more' : ''}.`) : note('No source folder is registered yet.'),
       el('p', '', 'Retained previews are reduced-size cached copies, not original-photo backups. Model files stay in the folders you chose and their saved settings are independent of whether the model is loaded.'),
-      el('p', '', modelLabels.length ? `Selected model files: ${modelLabels.join(' · ')}.` : 'No model files have been selected on this Mac.'),
-      el('p', '', 'Portable backups carry saved evidence and selected managed assets. They omit original photographs, model weights and this Mac’s private jobs and guide preferences.'),
+      el('p', '', modelLabels.length ? `Selected model files: ${modelLabels.join(' · ')}.` : localText('No model files have been selected on this Mac.')),
+      el('p', '', preview ? 'Your saved library, model settings and original photographs are kept. Backup export is not available in this preview.' : 'Portable backups carry saved evidence and selected managed assets. They omit original photographs, model weights and this Mac’s private jobs and guide preferences.'),
       actionRow(guideAction('Open Files', 'sources'), guideAction('Backups & archives', 'portability')));
     const remove = button('Remove source from gallery…', async () => {
       if (!connected(id, ticket)) return;

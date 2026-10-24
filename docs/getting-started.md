@@ -4,7 +4,7 @@ Start with a small folder of photographs you can safely test. Your originals rem
 
 ## Open your workspace
 
-Run the verified installer once, then open [app.photofindry.com](https://app.photofindry.com). The background companion starts at login and opens the trusted local workspace in your browser. The one-time installer closes after handoff; no permanent Mac app needs to stay open. No cloud account is required. Photos, models and inference remain on this Mac.
+Run the [CLI setup](https://photofindry.com/docs/install.html) once, then open [app.photofindry.com](https://app.photofindry.com) on Mac, the applications menu or `photofindry open` on Linux, or the Start menu on Windows. The background companion starts at login and opens the trusted local workspace in your browser. No Mac app is installed for new users. The old app is used only for existing-user migration. No cloud account is required. Photos, models and inference remain on this computer.
 
 ## Set up a model
 
@@ -22,7 +22,7 @@ The app includes its local runtime, search models and face models. You do not ne
 4. Watch Jobs for progress. Pause retains the job and its saved progress. Resume continues it without requiring source reconnection merely because it was paused. Stop cancels remaining work and keeps accepted saved results. **Cancel all** stops unfinished work across the complete queue, including jobs outside the visible page. Its confirmation explains that saved tags and reviewed AI matches are kept; failed jobs move to Activity. The queue stays paused until you resume it or start new work.
 5. Review an individual photograph's details and correct names when needed. AI observations and uncertain matches can be wrong.
 
-Finding new files adds records; it does not rewrite or delete the original photographs. Large archives take time. Keep the app open and Mac awake for scheduled processing; schedules do not wake a sleeping Mac.
+Finding new files adds records; it does not rewrite or delete the original photographs. Large archives take time. Keep the app open and computer awake for scheduled processing; schedules do not wake a sleeping computer.
 
 ## Browse naturally
 

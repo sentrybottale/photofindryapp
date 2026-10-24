@@ -71,7 +71,7 @@
           if (ownEpoch !== epoch) continue;
           if (result?.mode !== chosen) throw new Error('The selected appearance was not saved.');
           if (ownRevision === revision) {
-            pending = null; status = 'Saved on this Mac.';
+            pending = null; status = /^(linux|windows)$/.test(document.documentElement.dataset.platform) ? 'Saved on this computer.' : 'Saved on this Mac.';
           }
         } catch (failure) {
           if (disposed) return;

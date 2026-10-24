@@ -768,7 +768,7 @@ pub fn library(mut value: Value, scopes: &Scopes) -> Result<Value> {
     Ok(value)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     #[test]
@@ -857,4 +857,15 @@ fn native_access_rpc_and_carriers_are_never_browser_authority() {
     assert!(prepare("locateSource",json!({"sourceId":"source","folderGrant":id,"sourceAccess":[]}),&scopes,&picker).is_err());
     let(_,params)=prepare("addFolders",json!({"folderGrants":[id]}),&scopes,&picker).unwrap();
     assert!(params.get("sourceAccess").is_none(),"explicit stdin/local path grants do not invent OS access");
+}
+
+#[cfg(all(test,windows))]
+mod windows_tests{
+ use super::*;
+ #[test]fn http_actions_accept_only_typed_current_local_grants(){
+  let mut nonce=[0;16];getrandom::fill(&mut nonce).unwrap();let id:String=nonce.iter().map(|b|format!("{b:02x}")).collect();let root=std::env::temp_dir().join(format!("pf-win-actions-{id}"));photofindry_platform::fs::private_dir(&root,true).unwrap();let picker=Picker::new(&root);let scopes=Scopes::default();
+  let grant=picker.grant_path("folder",root.to_str().unwrap()).unwrap();let id=grant["grantId"].as_str().unwrap();let(method,params)=prepare("addFolders",json!({"folderGrants":[id]}),&scopes,&picker).unwrap();assert_eq!(method,"addFolders");assert_eq!(params["paths"][0],std::fs::canonicalize(&root).unwrap().to_str().unwrap());
+  for input in [json!({"folders":[root]}),json!({"folderGrants":[root]}),json!({"folderGrants":[id],"sourceAccess":[{"readerBookmark":"browser"}]})]{assert!(prepare("addFolders",input,&scopes,&picker).is_err());}
+  picker.revoke();assert!(prepare("addFolders",json!({"folderGrants":[id]}),&scopes,&picker).is_err());std::fs::remove_dir(&root).unwrap();
+ }
 }

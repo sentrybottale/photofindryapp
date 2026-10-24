@@ -1,50 +1,15 @@
 # PhotoFindry
 
-**Your photographs, rediscovered. Local processing on your Mac.**
+Local photo tagging and search for Apple-silicon Mac, Linux x86_64 and Windows x64. Your originals, models and library stay on your computer. Official builds are free; no subscription or PhotoFindry account is required.
 
-The browser rewrite uses an independent background CLI companion with a
-Svelte interface. Open [app.photofindry.com](https://app.photofindry.com) to launch
-the installed workspace. The public site receives no library access; photos,
-models, tagging, people and search stay on your Mac.
+[Install PhotoFindry](https://photofindry.com/docs/install.html) · [Open on Mac / platform setup](https://app.photofindry.com/) · [0.3.0-beta.1 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.1)
 
-The [client source](client/) is MIT licensed. It includes the browser UI, native
-launcher, generic Rust companion bridge and selected macOS interaction helpers.
-The Rust engine cores remain proprietary, supplied in official builds. Rust is a
-language, not the licensing boundary. Official builds remain free to use.
+Fresh users install the signed CLI companion directly. It starts at login and opens a local browser workspace. Mac uses the retained native Open link; Linux uses the applications menu or `photofindry open`; Windows uses the Start menu. The beta 16 Mac application remains only the one-time migration route for older app users.
 
-## Current beta: 0.2.0-beta.21
+Use the pinned setup command for your platform. Independently trust its immutable script and verifier hashes and the existing publisher key; checksums obtained from a compromised website do not authenticate themselves. The signed per-platform feed authenticates updates. See [verification](VERIFY.md) and the release's signed `QUALIFICATION.md` for exact checks and limits.
 
-[Download the CLI companion](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.2.0-beta.21)
-· [Install and migrate](INSTALLATION.md) · [Qualification](QUALIFICATION.md)
+Mac requires Apple silicon and macOS 14+ (Core ML ranking 15+). Linux requires x86_64 and a systemd user session. Windows requires x64, the Microsoft Visual C++ v14 x64 runtime and a working Vulkan driver. Vision model and projector files are selected separately. People is available on Mac/Linux; Windows has no face provider. Backup/source transfer and dedicated CLEF/Intern reviewers remain Mac-only. Mac packages use ad-hoc code sealing and publisher Ed25519 signatures, without Apple Developer ID/notarization.
 
-Build 119 installs the CLI directly through the [verified setup command](https://app.photofindry.com/#installation). Run that command again if an older companion cannot open; it repairs the same library without deleting it. The old application download is only a migration bridge for existing native users. Every explicit Open checks the authenticated CLI feed and installs a newer signed build when active work can safely drain. An offline check or active foreground job opens the verified current build with a visible reason. Login startup, background update checks and recovery remain in the local browser.
+The clean [client snapshot](client/) is MIT, covering the browser UI, native launcher, companion bridge and allowlisted interaction helpers. Rust engine cores and worker implementations remain proprietary. The private implementation repository and history are not published. See [licensing](LICENSE), [privacy](PRIVACY.md) and [source inventory](client/CLIENT-SOURCE.json).
 
-This hotfix repairs takeover from older Open-only companions and stale macOS link handlers. It keeps saved libraries, originals, model paths and jobs in place. Verify the signed release inventory before installation.
-
-The client directory is the exact reviewed snapshot associated with the release
-candidate. Its 138 files plus CLIENT-SOURCE.json match the signed source archive.
-This root page records publication status. The private development history and engine sources
-are not part of this repository. Source changes require fresh inventory review.
-
-## Build and contribute
-
-Start with [client build instructions](client/README.md); commands run inside
-`client/`. Official engine binaries are separate dependencies. A source-only build
-does not include them or become an authenticated official installation.
-
-Required CI builds/tests the actual client and scans Actions, Python, Swift,
-JavaScript and Rust. Main requires completed build, source-boundary and security checks. The owner
-controls publication; there is no mandatory second-person approval. See [security reporting](SECURITY.md), [client trust boundaries](client/SECURITY.md),
-[transparency](client/TRANSPARENCY.md) and [download verification](VERIFY.md).
-
-Existing native-app users keep their library, original photographs and selected
-model paths. Browser migration offers a verified recovery copy and a Use current
-beta alternative. Imported sources may need their originals folder confirmed on
-the current Mac. Never restore an older library just to switch interfaces.
-
-Apple-silicon Mac, macOS 14 or newer; Core ML semantic ranking needs macOS 15.
-Community betas use ad-hoc application signatures and independently signed
-artifacts. They are not Apple Developer ID signed or notarized.
-
-[Website](https://photofindry.com) · [Private feedback](https://photofindry.com/bugs) ·
-[Optional support](https://buymeacoffee.com/photorecall)
+Updates replace the program only. They preserve libraries, original photos, saved work and selected model paths. Keep independent backups; do not delete your library to repair startup. [Private feedback](https://photofindry.com/bugs) · [Optional support](https://buymeacoffee.com/photorecall).
