@@ -26,7 +26,7 @@ getrandom = "0.4"
 subtle = "2"
 libc = "0.2"
 base64 = "0.22"
-sha2 = "0.10"
+sha2 = "0.11"
 rusqlite = { version = "0.39", features = ["bundled"] }
 ring = "0.17"
 
