@@ -6,6 +6,10 @@
 
   // This component owns only the frame. Saved photos, requests, previews, jobs
   // and model metrics remain in their bounded controllers and content islands.
+  const platform = document.documentElement.dataset.platform;
+  const preview = /^(linux|windows)$/.test(platform);
+  const hostName = preview ? 'computer' : 'Mac';
+  const platformLabel = preview ? (platform === 'linux' ? 'Linux' : 'Windows') + ' preview' : 'macOS development branch';
   let navigationOpen = $state(false);
   let inspectorOpen = $state(false);
   let compactNavigation = $state(window.matchMedia('(max-width: 1023px)').matches);
@@ -193,9 +197,9 @@
       <div class="pair-card">
         <img class="pair-brand" src="/brand.png" alt="" width="80" height="80">
         <div class="eyebrow">PHOTOFINDRY / LOCAL COMPANION</div>
-        <h1 id="pair-title">Your library.<br>Right here on your Mac.</h1>
+        <h1 id="pair-title">Your library.<br>Right here on your {hostName}.</h1>
         <p class="pair-intro">Open your installed PhotoFindry to return to this library.</p>
-        <a class="primary-button local-open-link" href="photofindry-local://open">Open PhotoFindry <span aria-hidden="true">→</span></a>
+        <a class="primary-button local-open-link" hidden={preview} href="photofindry-local://open">Open PhotoFindry <span aria-hidden="true">→</span></a>
         <p class="field-help">Using a terminal launch? Connect below with its one-time code.</p>
         <form id="pair-form">
           <label for="pair-code">One-time pairing code</label>
@@ -206,7 +210,7 @@
         </form>
         <div class="pair-note"><span class="local-dot" aria-hidden="true"></span><p>This interface is served by your installed companion. No website connection is needed.</p></div>
       </div>
-      <p class="pair-footnote">macOS development branch <span aria-hidden="true">·</span> Your local PhotoFindry engine</p>
+      <p class="pair-footnote">{platformLabel} <span aria-hidden="true">·</span> Your local PhotoFindry engine</p>
       <noscript>This local interface needs JavaScript enabled in your browser.</noscript>
     </section>
 
@@ -221,7 +225,7 @@
         </nav>
         <Appearance/>
         <button id="inspector-toggle" class="pf-inspector-toggle secondary-button" type="button" aria-label="Open photo details" aria-controls="inspector" aria-expanded={inspectorOpen} bind:this={inspectorToggle} onclick={() => inspectorOpen ? closeInspector() : showDetails(inspectorToggle)}><Icon name="info"/><span>Photo details</span></button>
-        <div class="connection-actions"><span id="connection-status" class="connection-badge"><span class="local-dot" aria-hidden="true"></span>Connected to this Mac</span><button id="disconnect" class="text-button" type="button" title="Disconnect all browsers from this running companion">Disconnect browsers</button><button id="quit-companion" class="text-button" type="button">Quit PhotoFindry</button></div>
+        <div class="connection-actions"><span id="connection-status" class="connection-badge"><span class="local-dot" aria-hidden="true"></span>Connected to this {hostName}</span><button id="disconnect" class="text-button" type="button" title="Disconnect all browsers from this running companion">Disconnect browsers</button><button id="quit-companion" class="text-button" type="button">Quit PhotoFindry</button></div>
       </header>
 
       <div class="workspace pf-shell-content">
@@ -232,7 +236,7 @@
           <div class="pf-sidebar-brand"><img src="/brand.png" alt="" width="48" height="48"/><div><strong>PhotoFindry</strong><span>Your photographs,<br/>rediscovered.</span></div></div>
           <div id="workspace-navigation" class="workspace-navigation"><Navigation data={navigationData} {scope} {navigate} {closeNavigation}/></div>
           <div class="pf-sidebar-session" aria-label="Local session"><button id="sidebar-disconnect" class="text-button" type="button" onclick={() => sessionAction('disconnect')}>Disconnect browsers</button><button id="sidebar-quit" class="text-button" type="button" onclick={() => sessionAction('quit-companion')}>Quit PhotoFindry</button></div>
-          <section class="sidebar-model-section" aria-label="Local model activity"><button id="open-local-models" class="pf-local-models" type="button" onclick={() => navigate('Settings')}><Icon name="chip"/><span><strong>Local models</strong><small>{modelsConfigured ? 'Load automatically when needed' : 'Choose your local models'}</small></span><Icon name="right"/></button><button id="open-model-monitor" class="pfm-sidebar-card" type="button" aria-label="Model activity" aria-haspopup="dialog" aria-expanded="false"><span class="pfm-sidebar-heading"><span class="pfm-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>Model activity</strong><span class="pfm-info" aria-hidden="true">ⓘ</span></span><span id="sidebar-model-status" class="pfm-sidebar-status">Reading model settings…</span></button><p class="sidebar-local-note">Models and photographs stay on this Mac.</p></section>
+          <section class="sidebar-model-section" aria-label="Local model activity"><button id="open-local-models" class="pf-local-models" type="button" onclick={() => navigate('Settings')}><Icon name="chip"/><span><strong>Local models</strong><small>{modelsConfigured ? 'Load automatically when needed' : 'Choose your local models'}</small></span><Icon name="right"/></button><button id="open-model-monitor" class="pfm-sidebar-card" type="button" aria-label="Model activity" aria-haspopup="dialog" aria-expanded="false"><span class="pfm-sidebar-heading"><span class="pfm-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>Model activity</strong><span class="pfm-info" aria-hidden="true">ⓘ</span></span><span id="sidebar-model-status" class="pfm-sidebar-status">Reading model settings…</span></button><p class="sidebar-local-note">Models and photographs stay on this {hostName}.</p></section>
         </aside>
 
         <main class="library" aria-labelledby="library-title" inert={drawerOpen}>
@@ -266,7 +270,7 @@
           <div id="inspector-content" class="inspector-content"><div class="inspector-empty"><span aria-hidden="true">⌗</span><h3>A closer look</h3><p>Select a photo to see its complete saved details.</p></div></div>
         </aside>
       </div>
-      <footer class="app-footer" inert={drawerOpen}><span><span class="local-dot" aria-hidden="true"></span> Local interface · Local library</span><span>macOS development branch</span></footer>
+      <footer class="app-footer" inert={drawerOpen}><span><span class="local-dot" aria-hidden="true"></span> Local interface · Local library</span><span>{platformLabel}</span></footer>
       <div id="global-notice" class="global-notice" role="status" hidden></div>
       <div id="global-error" class="global-error" role="alert" hidden></div>
     </div>

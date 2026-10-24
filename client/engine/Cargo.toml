@@ -1,5 +1,5 @@
 [workspace]
-members = ["companion"]
+members = ["companion", "platform"]
 resolver = "3"
 
 [profile.release]

@@ -1152,6 +1152,20 @@ test('moved-folder confirmation carries the waiting job through both reviewed re
   } finally { await ui.close(); }
 });
 
+test('Windows preview keeps Removed recoverable and hides unsupported permanent deletion', async () => {
+  const ui=harness({}, {cleanupRemoved:{items:[{photo:{id:'removed-a',name:'Saved photo'},eligible:true}],totalCount:1,offset:0}});
+  ui.window.PhotoFindry.supports=feature=>feature!=='managedDeletion';
+  try{
+    await ui.window.PhotoFindryPanels.show('removed');
+    assert(!ui.all().some(node=>node.tagName==='BUTTON'&&['Delete selected permanently…','Empty Removed…'].includes(node.textContent)));
+    assert(ui.all().some(node=>node.textContent.includes('Permanent deletion is unavailable')));
+    const entry=ui.all().find(node=>node.tagName==='LABEL'&&node.textContent==='Select entry').children[0];entry.checked=true;await entry.click();
+    await ui.findButton('Restore selected').click();
+    assert(ui.calls.some(call=>call.action==='restoreLibraryEntries'&&JSON.stringify(call.params.photoIds)==='["removed-a"]'));
+    assert(!ui.calls.some(call=>['prepareRemovedDeletion','deleteRemovedEntries'].includes(call.action)));
+  }finally{await ui.close();}
+});
+
 test('an explicit face scan joining an owning job reports where the work is instead of a new queue', async () => {
   for (const [job, expected] of [
     [{ id: 'new-job', state: 'queued' }, 'Face scan queued for this photograph.'],

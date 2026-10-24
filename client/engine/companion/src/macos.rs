@@ -1945,6 +1945,27 @@ async fn run(mut config: Config) -> Result<(), String> {
     Ok(())
 }
 
+async fn open_local_browser(executable:&Path,target:&launch::LaunchTarget)->Result<(),String> {
+    let helper=launch::browser_opener(executable)?;
+    target.url()?;
+    // Transfer the one-use capability only over the trusted helper's stdin.
+    let mut browser=launch::desktop_command(&helper).arg("--open-local")
+        .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null()).kill_on_drop(true).spawn()
+        .map_err(|_| "The installed PhotoFindry browser opener is unavailable.")?;
+    let bytes=serde_json::to_vec(target).map_err(|_| "Cannot prepare local browser opening.")?;
+    let status=tokio::time::timeout(Duration::from_secs(5),async {
+        use tokio::io::AsyncWriteExt;
+        let mut input=browser.stdin.take().ok_or("Cannot contact the local browser opener.")?;
+        input.write_all(&bytes).await.map_err(|_| "Cannot contact the local browser opener.")?;
+        input.shutdown().await.map_err(|_| "Cannot complete local browser opening.")?;
+        drop(input);
+        browser.wait().await.map_err(|_| "Cannot open the local workspace in your browser.")
+    }).await.map_err(|_| "The local browser opener did not respond.")??;
+    if !status.success() {return Err("The browser did not open. Try the installed launcher again.".into());}
+    Ok(())
+}
+
 async fn launch_command(args: &[String]) -> Result<(), String> {
     let installed_only = args.first().map(String::as_str) == Some("open-companion");
     if installed_only && args.len() != 1 {return Err("Open companion accepts no paths or launch options. Run the verified installer to finish setup.".into())}
@@ -1983,27 +2004,10 @@ async fn launch_command(args: &[String]) -> Result<(), String> {
         println!("Registered this local library. Use Open PhotoFindry on app.photofindry.com or the installed CompanionLauncher.app.");
     } else {
         let executable = std::env::current_exe().map_err(|_| "Cannot locate the installed companion.")?;
-        let helper = launch::browser_opener(&executable)?;
-        let mut target = launch::open_registered(&directory, installed_only).await?;
+        let profile=if custom_state {lifecycle::OpenProfile::ExplicitState} else {lifecycle::OpenProfile::Default};
+        let mut target = launch::open_registered(&directory, installed_only, profile).await?;
         target.archive_id=archive;
-        target.url()?;
-        // A capability must not appear in process arguments or diagnostics.
-        // The trusted native helper receives a bounded record through stdin and
-        // constructs the fixed loopback URL itself with NSWorkspace.
-        let mut browser = launch::desktop_command(&helper).arg("--open-local")
-            .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null()).kill_on_drop(true).spawn()
-            .map_err(|_| "The installed PhotoFindry browser opener is unavailable.")?;
-        let bytes = serde_json::to_vec(&target).map_err(|_| "Cannot prepare local browser opening.")?;
-        let status = tokio::time::timeout(Duration::from_secs(5), async {
-            use tokio::io::AsyncWriteExt;
-            let mut input = browser.stdin.take().ok_or("Cannot contact the local browser opener.")?;
-            input.write_all(&bytes).await.map_err(|_| "Cannot contact the local browser opener.")?;
-            input.shutdown().await.map_err(|_| "Cannot complete local browser opening.")?;
-            drop(input);
-            browser.wait().await.map_err(|_| "Cannot open the local workspace in your browser.")
-        }).await.map_err(|_| "The local browser opener did not respond.")??;
-        if !status.success() { return Err("The browser did not open. Try the installed launcher again.".into()); }
+        open_local_browser(&executable,&target).await?;
     }
     Ok(())
 }

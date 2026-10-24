@@ -671,7 +671,7 @@ pub(super) async fn request_health(directory:&Path)->Result<bool> {
         Ok(serde_json::from_slice::<serde_json::Value>(&bytes).ok()==Some(serde_json::json!({"ok":true,"ready":true})))
     }).await.map_err(|_|"Local readiness timed out".to_owned())?
 }
-async fn request_open(directory: &Path) -> Result<Option<LaunchTarget>> {
+pub(super) async fn request_open(directory: &Path) -> Result<Option<LaunchTarget>> {
     let path = socket_path(directory)?;
     if socket_metadata(&path)?.is_none() { return Ok(None); }
     let operation = async {
@@ -704,11 +704,9 @@ async fn stop_owned_startup(child: &mut tokio::process::Child) {
 }
 
 /// Native/CLI-only entry. Registered paths are revalidated before any process starts.
-pub async fn open_registered(directory: &Path, installed_only: bool) -> Result<LaunchTarget> {
-    super::lifecycle::wait_for_open_maintenance(directory).await?;
+pub async fn open_registered(directory: &Path, installed_only: bool, profile: super::lifecycle::OpenProfile) -> Result<LaunchTarget> {
+    super::lifecycle::prepare_open(directory,profile).await?;
     if installed_only { super::lifecycle::require_installed(directory)?; }
-    super::lifecycle::prefer_installed(directory).await?;
-    super::lifecycle::refresh_on_open(directory).await?;
     if let Ok(record)=read_registration(directory) {
         if let Some(root)=super::lifecycle::installed_root(&record.executable) {super::lifecycle::recover(&root,false).await?;}
     }

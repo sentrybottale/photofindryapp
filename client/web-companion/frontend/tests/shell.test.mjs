@@ -9,8 +9,9 @@ const bundle = await readFile(new URL('../../ui-framework.js', import.meta.url),
 const contract = JSON.parse(await readFile(new URL('../legacy-dom-contract.json', import.meta.url), 'utf8'));
 const flush = async () => { for (let index = 0; index < 3; index += 1) await new Promise(resolve => setImmediate(resolve)); };
 
-function fixture(width = 390) {
+function fixture(width = 390, platform = null) {
   const window = new Window({ url: 'http://127.0.0.1:50001/', width, height: 900 });
+  if (platform) window.document.documentElement.dataset.platform = platform;
   let requests = 0;
   window.fetch = () => { requests += 1; throw new Error('The shell must not request library data or remote code.'); };
   window.document.body.innerHTML = '<p id="retained-document-sibling">Document resource sentinel</p><div id="photofindry-root"><p id="previous-static-frame">Static launch fallback</p></div>';
@@ -194,4 +195,21 @@ test('the exact shipped bundle is small, self-contained, production-only and car
   const notices = await readFile(new URL('../../ui-framework.NOTICES.txt', import.meta.url), 'utf8');
   for (const dependency of manifest.runtimeDependencies) assert(notices.includes(`${dependency.name} ${dependency.version}`));
   assert(notices.includes('Permission is hereby granted')); assert(notices.includes('MIT licensed')); assert(notices.includes('proprietary engines'));
+});
+
+
+for (const platform of ['linux', 'windows']) test(`${platform} frame uses its host identity and retains core controls without unavailable feature links`, async () => {
+  const ui = fixture(1440, platform);
+  try {
+    assert.match(ui.get('pair-title').textContent, /your computer/);
+    assert.match(ui.window.document.querySelector('.app-footer').textContent, platform === 'linux' ? /Linux preview/ : /Windows preview/);
+    assert.doesNotMatch(ui.window.document.querySelector('.app-footer').textContent, /macOS/);
+    assert.equal(ui.window.document.querySelector('.local-open-link').hidden, true);
+    const button = label => [...ui.window.document.querySelectorAll('button')].find(node => node.textContent.trim() === label);
+    assert.equal(button('Photo improvement').hidden, true);
+    assert.equal(button('Backups & archives').hidden, true);
+    assert.equal(button('People').hidden, false);
+    assert(ui.get('tag-pending')); assert(ui.get('ai-search')); assert(button('Jobs & activity'));
+    assert.equal(ui.requests(), 0);
+  } finally { await ui.close(); }
 });

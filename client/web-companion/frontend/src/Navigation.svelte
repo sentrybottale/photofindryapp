@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import Icon from './Icon.svelte';
   let { data, scope, navigate, closeNavigation } = $props();
+  const preview = /^(linux|windows)$/.test(document.documentElement.dataset.platform);
   let children = $state({});
   let expanded = $state([]);
   let loading = $state('');
@@ -77,9 +78,9 @@
 </section>
 <section class="pf-nav-group" aria-label="Organize and improve">
   <h2 class="pf-nav-heading">Workspace</h2>
-  <button class="pf-nav-item" type="button" onclick={() => navigate('Photo improvement')}><Icon name="sparkles"/><span class="pf-nav-label">Photo improvement</span></button>
+  <button class="pf-nav-item" type="button" hidden={preview} onclick={() => navigate('Photo improvement')}><Icon name="sparkles"/><span class="pf-nav-label">Photo improvement</span></button>
   <button class="pf-nav-item" type="button" onclick={() => navigate('Jobs')}><Icon name="jobs"/><span class="pf-nav-label">Jobs & activity</span><span class="pf-nav-count">{format(data.jobs)}</span></button>
-  <button class="pf-nav-item" type="button" onclick={() => navigate('Backups & archives')}><Icon name="archive"/><span class="pf-nav-label">Backups & archives</span></button>
+  <button class="pf-nav-item" type="button" hidden={preview} onclick={() => navigate('Backups & archives')}><Icon name="archive"/><span class="pf-nav-label">Backups & archives</span></button>
   <button class="pf-nav-item" type="button" onclick={() => navigate('Removed')}><Icon name="trash"/><span class="pf-nav-label">Removed</span></button>
 </section>
 <section class="pf-nav-group pf-nav-utilities" aria-label="Application">

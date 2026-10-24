@@ -2,6 +2,9 @@
 
 (() => {
   const P = window.PhotoFindry;
+  const localText = value => window.PhotoFindry?.localText?.(value) ?? value;
+  const supports = feature => window.PhotoFindry?.supports?.(feature) !== false;
+  const isPreview = () => (window.PhotoFindry?.isPreview?.() ?? window.PhotoFindry?.isLinux?.()) === true;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat();
   const str = (value) => typeof value === 'string' ? value : '';
@@ -52,6 +55,8 @@
   };
   function button(label, operation, primary = false) {
     const node = el('button', primary ? 'primary-button' : 'secondary-button', label);
+    const capability = { 'Improve':'photoReview', 'Review details':'photoReview', 'Screen saved tags':'photoReview', 'Improve this folder':'photoReview', 'Improve overnight':'photoReview', 'Metadata':'metadata', 'Scan metadata in current scope':'metadata', 'Review uninstall…':'nativeUninstall', 'Uninstall companion…':'nativeUninstall' }[label];
+    if (capability && !supports(capability)) node.hidden = true;
     node.type = 'button';
     node.addEventListener('click', async () => {
       if (node.disabled || !node.isConnected || node.closest?.('dialog')?.open === false) return;
@@ -163,7 +168,7 @@
     ['Help & feedback', () => window.dispatchEvent(new CustomEvent('photofindry:feedback'))],
   ];
   if (!window.PhotoFindryShell?.ownsNavigation) {
-    for (const [label, operation] of navigation) { const node = button(label, operation); node.className = 'nav-item'; $('workspace-navigation').append(node); }
+    for (const [label, operation] of navigation.filter(([label]) => (supports('photoReview') || label !== 'Photo improvement') && (supports('backupTransfer') || label !== 'Backups & archives'))) { const node = button(label, operation); node.className = 'nav-item'; $('workspace-navigation').append(node); }
     const support = button('☕ Support PhotoFindry', () => window.PhotoFindrySupport?.open()); support.classList.add('support-link'); $('workspace-navigation').append(support);
   }
   function navigate(destination) {
@@ -171,6 +176,7 @@
     if (destination === 'This library') return window.PhotoFindryOnboarding?.openLibraryInfo();
     if (destination === 'Support PhotoFindry') return window.PhotoFindrySupport?.open();
     if (destination === 'Browse folders') return openFolderChooser();
+    if (destination === 'Improve library' && !supports('photoReview')) { P.showNotice('Photo improvement is not available in this preview. Saved details are kept.'); return; }
     if (destination === 'Improve library') return enqueue('improve', { ...scopedParams(), force: false });
     const operation = navigation.find(([label]) => label === destination)?.[1];
     if (!operation) throw new Error('This view is unavailable. Reopen PhotoFindry and try again.');
@@ -178,14 +184,17 @@
   }
   function openAbout() {
     const { body } = modal('About PhotoFindry', 'Find the photograph you remember. Free to use, with optional support.');
-    body.append(el('p', 'dialog-intro', 'This browser workspace is bundled into the installed macOS companion. The website cannot replace its code or receive its local session. Library databases, original photographs and model files stay on this Mac.'), el('p', 'dialog-intro', 'The background companion starts at login and checks for signed updates. Manage startup, updates and recovery below. The one-time migration application is no longer needed. Updates preserve your library and chosen model paths. Community betas are not Apple-notarized.'), el('p', 'dialog-intro', 'PhotoFindry is free to use, with an MIT open-source client and proprietary local engines. Third-party licences and notices are retained with the installed runtime. Your photos, human labels and saved details remain portable through backups and source archives.'), button('Privacy & distribution', openPrivacy), button('Optional Buy Me a Coffee support', () => window.PhotoFindrySupport?.open()), button('Uninstall companion…', openUninstall), lifecycleControls());
+    if (isPreview() && !supports('signedUpdates')) { body.append(el('p', 'dialog-intro', 'Your photographs, saved library and chosen models stay on this computer. This workspace is installed with this preview; the website receives no library access.'), el('p', 'dialog-intro', 'Tag photographs, browse saved previews, search your saved details and manage Jobs locally. Automatic updates, face discovery and photo improvement are not available in this preview.'), button('Privacy & distribution', openPrivacy), button('Optional Buy Me a Coffee support', () => window.PhotoFindrySupport?.open()), lifecycleControls()); return; }
+    if (isPreview()) { body.append(el('p', 'dialog-intro', 'PhotoFindry runs locally on this computer. The signed companion starts at login and checks its platform’s authenticated feed when you open it. Updates preserve your library, original photographs and chosen models.'), el('p', 'dialog-intro', 'PhotoFindry is free to use, with an MIT client and proprietary local engines. Features follow the providers available on this computer.'), button('Privacy & distribution', openPrivacy), button('Optional Buy Me a Coffee support', () => window.PhotoFindrySupport?.open()), lifecycleControls()); return; }
+    body.append(el('p', 'dialog-intro', localText('This browser workspace is bundled into the installed macOS companion. The website cannot replace its code or receive its local session. Library databases, original photographs and model files stay on this Mac.')), el('p', 'dialog-intro', 'The background companion starts at login and checks for signed updates. Manage startup, updates and recovery below. The one-time migration application is no longer needed. Updates preserve your library and chosen model paths. Community betas are not Apple-notarized.'), el('p', 'dialog-intro', 'PhotoFindry is free to use, with an MIT open-source client and proprietary local engines. Third-party licences and notices are retained with the installed runtime. Your photos, human labels and saved details remain portable through backups and source archives.'), button('Privacy & distribution', openPrivacy), button('Optional Buy Me a Coffee support', () => window.PhotoFindrySupport?.open()), button('Uninstall companion…', openUninstall), lifecycleControls());
   }
   function lifecycleControls() {
+    if (isPreview() && !supports('signedUpdates')) return section(P.getState?.().platformCapabilities?.platform === 'windows' ? 'Windows preview' : 'Linux preview', 'Open PhotoFindry from its installed launcher. To update, install a newer private preview build. Your saved library, original photographs and chosen model files are kept.');
     const panel = section('Background companion', 'PhotoFindry runs locally without keeping the migration application open. Save pending edits before installing or switching versions.');
     const message = el('p', 'settings-live', 'Checking this installation…');
     message.setAttribute('role', 'status');
     const controls = el('div', 'button-row');
-    const reopen = el('a', 'secondary-button', 'Open PhotoFindry'); reopen.href = 'photofindry-local://open';
+    const reopen = el('a', 'secondary-button', isPreview() ? 'Installation and reopen help' : 'Open PhotoFindry'); reopen.href = isPreview() ? 'https://app.photofindry.com/#installation' : 'photofindry-local://open';
     const repairLinks = el('a', 'secondary-button', 'Repair Open PhotoFindry links');
     repairLinks.href = 'https://app.photofindry.com/#installation'; repairLinks.target = '_blank'; repairLinks.rel = 'noopener noreferrer'; repairLinks.referrerPolicy = 'no-referrer'; repairLinks.hidden = true;
     const refresh = button('Refresh status', load);
@@ -230,7 +239,7 @@
       message.textContent = `Version ${str(value.version)} · build ${num(value.build)}. ${str(value.status?.message)}${value.openUpdate?.message ? ' '+str(value.openUpdate.message) : ''}${value.linkRepair?.message ? ' Open PhotoFindry links need repair: '+str(value.linkRepair.message) : ''}`;
       const actions = [
         [value.autostart ? 'Turn off login startup' : 'Start at login', value.autostart ? 'disable-autostart' : 'enable-autostart'],
-        [value.automaticUpdates ? 'Turn off background update checks' : 'Check for updates in the background', value.automaticUpdates ? 'disable-update-checks' : 'enable-update-checks'],
+        ...(!isPreview() ? [[value.automaticUpdates ? 'Turn off background update checks' : 'Check for updates in the background', value.automaticUpdates ? 'disable-update-checks' : 'enable-update-checks']] : []),
         ['Check for updates', 'check'],
       ];
       if (num(value.available?.build) > num(value.build)) actions.push(['Install signed update', 'update']);
@@ -293,7 +302,7 @@
         const checkedHandoff = Boolean(uninstallHandoff);
         if (plan.pending === true) uninstallHandoff ||= { opening: false, status: 'A macOS uninstall confirmation is already open. Continue there to cancel or uninstall, then check its result.' };
         else if (!uninstallHandoff?.opening) uninstallHandoff = null;
-        review.replaceChildren(section('Remove from this Mac', `${str(plan.packageLabel) || 'This companion package'} will be moved to Trash. Its launcher registration will be removed. Running jobs will stop safely; other installations are left alone.`));
+        review.replaceChildren(section(localText('Remove from this Mac'), `${str(plan.packageLabel) || 'This companion package'} will be moved to Trash. Its launcher registration will be removed. Running jobs will stop safely; other installations are left alone.`));
         const kept = section('Keep your library and files', `${str(plan.libraryLabel) || 'Your saved local library'} stays where it is. Original photographs, model files, saved tags, previews and saved settings are preserved.`);
         const keptList = el('ul');
         for (const item of list(plan.keeps).filter(value => typeof value === 'string').slice(0, 12)) keptList.append(el('li', '', item));
@@ -313,9 +322,10 @@
     await loadPlan();
   }
   function openPrivacy() {
+    if (isPreview()) { const { body } = modal('Privacy & distribution', 'Your photographs stay yours.'); for (const [title, description] of [['Local processing', 'Tagging and search inference run locally. Originals stay in their folders. Library records, names, previews and model files remain on this computer.'], ['Public entry and local workspace', 'This workspace is bundled with the installed companion and served from loopback. The website receives no library session or local API authority.'], ['Connections you choose', 'Model and support links open external pages only when selected. Those hosts receive normal connection information. This preview has no integrated model downloader or feedback submission.'], ['Installation and updates', supports('signedUpdates') ? 'Installers and updates authenticate publisher signatures with the retained key. Open checks this platform’s fixed signed feed. Active jobs keep the current version usable until work is paused or finished. Saved data and chosen models are kept.' : 'This is a private preview. Automatic updates and the Mac migration channel are unavailable. Install newer preview builds through the private installer. Saved data and chosen models are kept.'], ['Distribution and ownership', 'PhotoFindry is free to use, with an MIT client and proprietary local engines. Engine implementation remains private. Third-party software retains its licences and notices.']]) body.append(section(title, description)); return; }
     const { body } = modal('Privacy & distribution', 'Your photographs stay yours.');
     for (const [title, description] of [
-      ['Processing on this Mac', 'Tagging, search inference and face processing run locally. Originals stay in their folders. Library records, names, previews and model files remain on this Mac. Backups and source archives keep your saved work portable.'],
+      [localText('Processing on this Mac'), localText('Tagging, search inference and face processing run locally. Originals stay in their folders. Library records, names, previews and model files remain on this Mac. Backups and source archives keep your saved work portable.')],
       ['Public entry and local workspace', 'The public site opens the installed launcher. This trusted workspace is bundled with the companion and served from loopback. The website receives no library session or local API authority. No mandatory account, advertising analytics or background feedback reporting is added.'],
       ['Connections you choose', 'Model downloads contact their pinned hosts only when requested. Feedback sends the report, selected screenshots and optional diagnostic attachment you review. Support and website links open external pages only when selected. Those hosts receive normal connection information such as IP addresses.'],
       ['Working offline', 'Local photo workflows can run without internet when the required models and originals are available. Cloud-only originals may need your cloud provider. This build does not enforce an operating-system network sandbox.'],
@@ -326,6 +336,7 @@
   }
   window.addEventListener('photofindry:feedback', openFeedback);
   function openFeedback() {
+    if (!supports('feedback')) { const { body } = modal('Help & feedback', 'The feedback form is not available in this preview.'); body.append(el('p', 'dialog-intro', 'Your library and diagnostic files are kept on this computer. Report the issue through your existing support conversation.'), externalLink('PhotoFindry support', 'https://photofindry.com/bugs')); return; }
     if (feedbackDialog?.open) { feedbackDialog.focus(); return; }
     feedbackDraft ||= { kind: 'Bug report', area: 'General', summary: '', details: '', steps: '', expected: '', contact: '', includeEnvironment: true, submissionId: crypto.randomUUID(), receipt: null, screenshots: [], diagnostics: null };
     const draft = feedbackDraft;
@@ -785,7 +796,7 @@
     const start = input('time', job.schedule?.start || '22:00'); const end = input('time', job.schedule?.end || '07:00');
     const grid = el('div', 'settings-grid'); grid.append(field('Schedule', mode), field('From', start), field('Until', end));
     const change = () => { start.disabled = end.disabled = mode.value !== 'overnight'; }; mode.addEventListener('change', change); change();
-    body.append(grid, el('p', 'dialog-intro', 'Uses this Mac’s local clock. Keep the companion running and the Mac awake. Closing the lid or choosing Sleep still pauses work.'), button('Save schedule', async () => {
+    body.append(grid, el('p', 'dialog-intro', localText('Uses this Mac’s local clock. Keep the companion running and the Mac awake. Closing the lid or choosing Sleep still pauses work.')), button('Save schedule', async () => {
       if (mode.value === 'overnight' && (!start.value || !end.value || start.value === end.value)) throw new Error('Choose different start and end times.');
       await jobAction('schedule', job.id, { mode: mode.value, start: start.value, end: end.value }); dialog.close();
     }, true));
@@ -994,8 +1005,8 @@
     const stopAll = keyed(button(cancellingAll ? 'Stopping…' : 'Stop all remaining', () => confirmAction('Stop all remaining jobs?', 'This stops running work and cancels every waiting, paused and scheduled job, including jobs outside this page. Failed jobs move to Activity. Saved photos and reviewed matches are kept. The queue stays paused.', 'Stop all remaining', stopAllRemaining)), 'queue', 'cancelAll');
     stopAll.disabled = queueCount === 0 || cancellingAll; toolbar.append(queueToggle, stopAll);
     const power = keyed(select([['off', 'Keep awake: off'], ['processing', 'Awake while processing'], ['queue', 'Awake until queue finishes']], snapshot.powerPreferences?.mode || 'processing'), 'queue', 'keepAwake');
-    power.setAttribute('aria-label', 'Keep Mac awake'); power.addEventListener('change', () => run(() => P.action('configurePower', { mode: power.value }))); toolbar.append(power);
-    if (!jobsDialog.activity) fragment.append(toolbar, el('p', 'jobs-guidance', queue.pauseMessage || queue.error || (queue.paused ? 'Queue paused. Resume continues jobs paused with the queue. Individually paused jobs, resource holds and schedules keep their own controls.' : 'One local processing lane. Every new action runs first. Scheduled jobs need this companion running and your Mac awake. Display sleep is allowed.')));
+    power.setAttribute('aria-label', localText('Keep Mac awake')); power.addEventListener('change', () => run(() => P.action('configurePower', { mode: power.value }))); if (supports('powerInhibition')) toolbar.append(power);
+    if (!jobsDialog.activity) fragment.append(toolbar, el('p', 'jobs-guidance', queue.pauseMessage || queue.error || (queue.paused ? 'Queue paused. Resume continues jobs paused with the queue. Individually paused jobs, resource holds and schedules keep their own controls.' : localText('One local processing lane. Every new action runs first. Scheduled jobs need this companion running and your Mac awake. Display sleep is allowed.'))));
     if (!jobsDialog.activity && snapshot.powerPreferences?.error) fragment.append(el('p', 'error-text', snapshot.powerPreferences.error));
     const queueList = el('div', 'job-list'); pending.forEach((job) => queueList.append(jobCard(job)));
     if (!jobsDialog.activity && pending.length < queueCount) fragment.append(el('p', 'jobs-guidance', `Showing next ${fmt.format(pending.length)} of ${fmt.format(queueCount)} jobs. More appear as jobs finish.`));
@@ -1036,7 +1047,7 @@
 
   async function openTaggingDiagnostic(photoId) {
     if (typeof photoId !== 'string' || !photoId || photoId.length > 128) throw new Error('Choose a photograph with a saved diagnostic.');
-    const { dialog, body } = modal('Tagging diagnostic', 'Read the saved final attempt and validation details for this photograph. Model output is private and stays on this Mac.');
+    const { dialog, body } = modal('Tagging diagnostic', localText('Read the saved final attempt and validation details for this photograph. Model output is private and stays on this Mac.'));
     const controller = new AbortController();
     dialog.addEventListener('close', () => controller.abort(), { once: true });
     const content = el('div', 'diagnostic-content'); content.append(el('p', 'settings-live', 'Reading saved diagnostic…')); body.append(content);
@@ -1115,10 +1126,10 @@
       row.append(el('span', '', title), label, fileActions, description, check); (kind === 'template' ? advanced : models).append(row);
     }
     const reviewerController = new AbortController();
-    const reviewerEditor = window.PhotoFindryPanels?.mountReviewSettings?.(models, {
+    const reviewerEditor = supports('photoReview') && window.PhotoFindryPanels?.mountReviewSettings?.(models, {
       signal: reviewerController.signal, isCurrent: () => opened.dialog.open,
     });
-    if (!reviewerEditor) models.append(el('p', 'error-text', 'Photo detail reviewer controls could not be loaded. Reopen the local workspace.'));
+    if (supports('photoReview') && !reviewerEditor) models.append(el('p', 'error-text', 'Photo detail reviewer controls could not be loaded. Reopen the local workspace.'));
     opened.dialog.addEventListener('close', () => reviewerController.abort(), { once: true });
     const jinja = checkbox('Use the model’s chat formatting (recommended)', settings.jinja !== false);
     jinja.node.addEventListener('change', () => { draft.dirty = draft.modelDirty = true; void checkModels(); });
@@ -1147,7 +1158,7 @@
     }
     const smartCrops = checkbox('Inspect small details during improvement', settings.smartCrops === true);
     smartCrops.node.addEventListener('change', () => { draft.dirty = draft.modelDirty = true; });
-    models.append(smartCrops.wrapper, el('p', '', 'Tagging starts with one whole-photo overview. Optional improvement may inspect bounded saved detail crops; existing tags remain available.'));
+    if (supports('photoReview')) models.append(smartCrops.wrapper, el('p', '', 'Tagging starts with one whole-photo overview. Optional improvement may inspect bounded saved detail crops; existing tags remain available.'));
     models.append(checkStatus);
     const saveModels = async () => {
       if (!draft.modelDirty) return;
@@ -1161,18 +1172,19 @@
     const checkPerformance = button('Check performance', async () => { await saveModels(); await P.action('optimizeModel'); });
     const stopPerformance = button('Stop performance check', () => P.action('cancelModelOptimization'));
     modelActions.append(button('Check files', () => checkModels()), button('Start model', async () => { await saveModels(); await P.action('startModel'); }), button('Unload model', () => P.action('stopModel')), checkPerformance, stopPerformance);
+    checkPerformance.hidden = stopPerformance.hidden = !supports('modelOptimization');
     models.append(modelActions); const modelStatus = el('p', 'settings-live'); models.append(modelStatus);
     const optimization = section('Automatic performance', 'The first eligible tagging job can compare a small local sample. Sample checks are separate from photographs processed; retained details and memory are checked before a faster profile is chosen.');
     const optimizationStatus = el('p', 'settings-live');
     const optimizationProgress = el('progress'); optimizationProgress.max = 1; optimizationProgress.setAttribute('aria-label', 'Performance sample checks');
     const optimizationSummary = el('p', 'settings-live'); const optimizationReports = el('div', 'settings-optimization-reports');
-    optimization.append(optimizationStatus, optimizationProgress, optimizationSummary, optimizationReports); models.append(optimization);
+    optimization.append(optimizationStatus, optimizationProgress, optimizationSummary, optimizationReports); if (supports('modelOptimization')) models.append(optimization);
     let optimizationReportKey = '';
     const downloads = section('Verified model downloads', 'Downloads run only when requested, use pinned sources and hashes, and keep files in the folder chosen through the native dialog. Choosing a download never changes your saved model settings automatically.');
     const downloadControls = el('div', 'button-row');
     downloadControls.append(button('Download search reranker · 639 MB', () => P.action('startDownload', { kind: 'reranker' })), button('Download CLEF Flash pair · 10.9 GB', () => P.action('startDownload', { kind: 'clef' })), button('Cancel download', () => P.action('cancelDownload')));
     const downloadLive = el('div'); downloads.append(downloadControls, downloadLive, el('p', '', 'The search reranker is Qwen3-Reranker 0.6B Q8_0 (Apache 2.0). CLEF Flash is a separate photo detail reviewer; choose its provider in Photo improvement.'), externalLink('Reranker source & licence', 'https://huggingface.co/ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF'), document.createTextNode(' · '), externalLink('CLEF Flash source & licence', 'https://ollama.com/library/clef-flash/9b-q8_0'));
-    const recommendations = section('Vision model starting points', 'Choose a vision-capable GGUF and its matching mmproj GGUF from the same repository. Keep space for macOS, the projector and runtime. Keep model chat formatting enabled; a separate template file is usually unnecessary.');
+    const recommendations = section('Vision model starting points', isPreview() ? 'Choose a vision-capable GGUF and its matching mmproj GGUF from the same repository. Keep space for the operating system, adapter and runtime.' : 'Choose a vision-capable GGUF and its matching mmproj GGUF from the same repository. Keep space for macOS, the projector and runtime. Keep model chat formatting enabled; a separate template file is usually unnecessary.');
     const memoryTier = el('p', 'settings-live'); recommendations.append(memoryTier);
     for (const [label, url, detail] of [
       ['8–12 GB · Qwen3.5 4B Q4_K_M', 'https://huggingface.co/HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive', 'Compact starting point. About 3.4 GB for the model and matching BF16 projector.'],
@@ -1182,7 +1194,7 @@
       ['16 GB and above · Gemma 4 E4B alternative', 'https://huggingface.co/HauhauCS/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive', 'Works with detail crops. About 6.6 GiB model-process RAM in our test; too tight for the default 8 GB recommendation.'],
     ]) { const row = el('p'); row.append(externalLink(label, url), el('span', '', ` · ${detail}`)); recommendations.append(row); }
     recommendations.append(el('p', '', 'These preserve the native app’s starting recommendations. Qwen 4B and Gemma E4B were tested on four photos on a 32 GB Mac; other pairs and memory tiers remain estimates awaiting qualification. Try a few selected photos and inspect Model activity first. Links open external model pages; downloads from those pages are separate from the verified companion downloads above.'));
-    recommendations.append(el('p', '', 'Choose a vision / image-text-to-text GGUF supported by llama.cpp on Apple silicon. Apple Metal acceleration comes from the bundled runtime; no separate Metal model is needed. MLX, safetensors and text-only models do not meet these tagging requirements.'));
+    recommendations.append(el('p', '', isPreview() ? 'Choose a vision-capable GGUF and its matching mmproj adapter supported by the bundled local runtime. Model files remain in the folders you choose.' : 'Choose a vision / image-text-to-text GGUF supported by llama.cpp on Apple silicon. Apple Metal acceleration comes from the bundled runtime; no separate Metal model is needed. MLX, safetensors and text-only models do not meet these tagging requirements.'));
     const metadata = section('Photo metadata', 'Read locally without rewriting originals. Changes control both display and derived search indexing.');
     const metadataGrid = el('div', 'settings-grid'); const metadataNodes = {};
     for (const [key, label] of [['location', 'Location'], ['camera', 'Camera'], ['lens', 'Lens'], ['focal', 'Focal length'], ['date', 'Capture date & time'], ['exposure', 'Exposure, aperture, shutter & ISO']]) {
@@ -1210,14 +1222,14 @@
         catch (error) { snapshot.searchAppearance = { ...snapshot.searchAppearance, progressArtEnabled: previous }; stories.node.checked = previous; renderActivity(); throw error; }
       });
     });
-    search.append(indexEnabled.wrapper, stories.wrapper);
+    search.append(indexEnabled.wrapper); if (supports('fontStories')) search.append(stories.wrapper);
     const searchActions = el('div', 'button-row'); searchActions.append(button('Retry search indexing', () => P.action('configureSearchIndex', { enabled: true, retry: true })), button('Queue search indexing', () => enqueue('semantic', scopedParams()))); search.append(searchActions);
     const indexStatus = el('p', 'settings-live'); search.append(indexStatus);
-    const power = section('Keep Mac awake', 'Display sleep and system power preferences remain unchanged. Lid closure and manual sleep still stop processing.');
+    const power = section(localText('Keep Mac awake'), 'Display sleep and system power preferences remain unchanged. Lid closure and manual sleep still stop processing.');
     const awake = select([['off', 'Off'], ['processing', 'While processing'], ['queue', 'Until queue finishes']], snapshot.powerPreferences?.mode || 'processing'); awake.addEventListener('change', () => { draft.dirty = true; }); power.append(field('Prevent idle system sleep', awake));
     const uninstall = section('Uninstall companion', 'Remove this companion through a macOS confirmation. Your saved library, original photographs, model files and saved settings are kept.');
     uninstall.append(button('Review uninstall…', openUninstall));
-    body.append(models, downloads, recommendations, metadata, storage, search, power, lifecycleControls(), uninstall);
+    body.append(models, ...(supports('modelDownloads') ? [downloads] : []), recommendations, ...(supports('metadata') ? [metadata] : []), storage, search, ...(supports('powerInhibition') ? [power] : []), lifecycleControls(), ...(supports('nativeUninstall') ? [uninstall] : []));
     const footer = el('div', 'settings-footer'); footer.append(button('Close', () => settingsDialog?.close()), button('Save settings', async () => {
       const budgetValue = Number(budget.value); if (!Number.isFinite(budgetValue) || budgetValue < 0.0625 || budgetValue > 1024) throw new Error('Choose a preview budget from 0.0625 to 1024 GiB.');
       await saveModels();
@@ -1230,14 +1242,14 @@
       await P.action('configureStorage', { keepOnBrowse: keepPreviews.node.checked, dimension: Number(dimension.value), budgetBytes: Math.round(budgetValue * 1024 ** 3) });
       await P.action('configureSearchAppearance', { progressArtEnabled: stories.node.checked });
       await P.action('configureSearchIndex', { enabled: indexEnabled.node.checked });
-      await P.action('configurePower', { mode: awake.value });
-      draft.dirty = false; P.showNotice('Settings saved on this Mac.');
+      if (supports('powerInhibition')) await P.action('configurePower', { mode: awake.value });
+      draft.dirty = false; P.showNotice(localText('Settings saved on this Mac.'));
     }, true)); settingsDialog.append(footer);
     settingsDialog.update = () => {
       const physicalMemory = snapshot.monitor?.resources?.physicalMemoryBytes;
       const gib = Number.isFinite(physicalMemory) && physicalMemory > 0 ? Math.floor(physicalMemory / 1024 ** 3) : null;
       const suggested = gib === null ? '' : gib < 16 ? 'Qwen3.5 4B · Q4_K_M' : gib < 24 ? 'Qwen3.5 9B · Q4_K_M' : gib < 32 ? 'Qwen3.5 9B · Q6_K' : gib < 48 ? 'Qwen3.6 35B-A3B · Q4_K_M' : gib < 64 ? 'Qwen3.6 35B-A3B · Q6_K_P' : 'Qwen3.6 35B-A3B · Q8_K_P';
-      memoryTier.textContent = gib === null ? 'Mac memory has not been reported yet. Choose a tier for your actual Mac memory and test a small sample.' : `This Mac · ${gib} GiB memory. Suggested starting point: ${suggested}. Exact setup still needs a small local sample check.`;
+      memoryTier.textContent = gib === null ? localText('Mac memory has not been reported yet. Choose a tier for your actual Mac memory and test a small sample.') : localText(`This Mac · ${gib} GiB memory. Suggested starting point: ${suggested}. Exact setup still needs a small local sample check.`);
       const runtimeMessage = modelConfigured() && snapshot.runtime?.status === 'stopped' ? 'Configured; loads automatically when needed.' : snapshot.runtime?.message;
       modelStatus.textContent = runtimeMessage || '';
       const status = snapshot.modelOptimization || {}, result = status.result || {};
@@ -1431,7 +1443,7 @@
     }
     set('activity-count', checking ? `${fmt.format(completed)} of ${fmt.format(total)} sample checks${job.kind === 'tagging' ? ` · ${facts.count}` : ''}` : facts.count);
     $('activity-count').hidden = total === 0;
-    set('activity-detail', checking ? job.kind === 'tagging' ? 'Tagging starts automatically when this check finishes. Sample checks do not count as tagged photographs.' : 'Finding suitable settings for this Mac. Saved photo details stay unchanged.' : [facts.message, facts.sourceMessage].filter(Boolean).join(' '));
+    set('activity-detail', checking ? job.kind === 'tagging' ? 'Tagging starts automatically when this check finishes. Sample checks do not count as tagged photographs.' : localText('Finding suitable settings for this Mac. Saved photo details stay unchanged.') : [facts.message, facts.sourceMessage].filter(Boolean).join(' '));
     const timing = snapshot.monitor?.jobTiming;
     let estimate = '';
     if (!checking && job.kind === 'tagging' && timing && snapshot.job?.jobId === job.id && !facts.settled) {
@@ -1460,7 +1472,7 @@
     for (const cell of cells) { context.fillStyle = `rgb(${cell.red},${cell.green},${cell.blue})`; context.fillRect(cell.column * 4, cell.row * 4, 3, 3); }
   }
   function updateStory(job, story) {
-    if (snapshot.searchAppearance?.progressArtEnabled === false || !['tagging', 'improve', 'aiSearch'].includes(job.kind)) { clearStory(); $('activity-story')?.remove(); return; }
+    if (!supports('fontStories') || snapshot.searchAppearance?.progressArtEnabled === false || !['tagging', 'improve', 'aiSearch'].includes(job.kind)) { clearStory(); $('activity-story')?.remove(); return; }
     if (!storyCanvas || !storyCanvas.isConnected) {
       storyCanvas = el('canvas', 'activity-story'); storyCanvas.id = 'activity-story'; storyCanvas.width = storyCanvas.height = 64;
       storyCanvas.setAttribute('role', 'img'); storyCanvas.setAttribute('aria-label', 'Findrydal decorative story from saved details'); $('job-strip').append(storyCanvas); paintStory();
