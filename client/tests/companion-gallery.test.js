@@ -1095,3 +1095,55 @@ test('text fallback review shortcuts open complete saved preview without changin
     assert.match(ui.ids.get('preview-details').textContent, /A saved fact/);
   } finally { await ui.close(); }
 });
+
+
+test('available uncached originals prepare automatically through the bounded gallery queue', async () => {
+  const first = deferred(); let active = 0, peak = 0;
+  const ui = harness({ initialHandlers: { '/api/action': async ({ action }) => {
+    assert.equal(action, 'ensurePreview'); active++; peak = Math.max(peak, active);
+    await first.promise; active--; return {};
+  } } });
+  try {
+    ui.setLibrary(page(Array.from({length: 9}, (_, i) => photo(`uncached-${i}`, {hasPreview:false, source:{accessOriginals:true,status:'available',mode:'connected'}}))));
+    await ui.pair();
+    assert.equal(ui.calls.filter(c => c.route === '/api/action').length, 4);
+    first.resolve(); await ui.flush(); await ui.flush();
+    assert.equal(peak, 4); assert.equal(ui.createdURLs.length, 9);
+    assert(ui.calls.filter(c => c.route === '/api/action').every(c => c.input.action === 'ensurePreview'));
+    assert(ui.ids.get('gallery').children.every(tile => tile.querySelector('img')));
+  } finally {first.resolve(); await ui.close();}
+});
+
+test('automatic preview preparation respects retention, missing sources and withdrawn pages', async () => {
+  const wait = deferred(); const ui = harness({initialHandlers:{'/api/action':()=>wait.promise}});
+  try {
+    ui.state.storagePreferences = {keepOnBrowse:false};
+    ui.setLibrary(page([photo('disabled',{hasPreview:false,source:{accessOriginals:true,status:'available'}})]));
+    await ui.pair(); assert(!ui.calls.some(c=>c.route==='/api/action'));
+    ui.state.storagePreferences.keepOnBrowse=true; await ui.window.PhotoFindry.refreshState();
+    ui.setLibrary(page([photo('offline',{hasPreview:false,source:{accessOriginals:true,status:'offline'}})]));
+    await ui.window.PhotoFindry.refreshCurrentPage(); await ui.flush();
+    assert(!ui.calls.some(c=>c.route==='/api/action'));
+    ui.setLibrary(page([photo('old',{hasPreview:false,source:{accessOriginals:true,status:'available'}})]));
+    await ui.window.PhotoFindry.refreshCurrentPage(); await ui.flush();
+    const call=ui.calls.find(c=>c.route==='/api/action'); assert(call);
+    ui.setLibrary(page([])); await ui.window.PhotoFindry.refreshCurrentPage(); await ui.flush();
+    assert(call.signal.aborted); wait.resolve({}); await ui.flush();
+    assert.equal(ui.createdURLs.length,0); assert.equal(ui.ids.get('gallery').children.length,0);
+  } finally {wait.resolve({});await ui.close();}
+});
+
+
+test('another saved preview does not restart queued preparation for unchanged uncached photos', async () => {
+  const wait=deferred();const ui=harness({initialHandlers:{'/api/action':()=>wait.promise}});
+  try {
+    const missing=photo('inflight',{hasPreview:false,previewRevision:undefined,source:{accessOriginals:true,status:'available',rootId:'original-root'}});
+    ui.setLibrary(page([missing]));await ui.pair();
+    const requests=ui.calls.filter(c=>c.route==='/api/action');assert.equal(requests.length,1);
+    ui.state.galleryRevision='another-preview-saved';
+    await ui.window.PhotoFindry.refreshState();await ui.window.PhotoFindry.refreshCurrentPage();await ui.flush();
+    assert.equal(ui.calls.filter(c=>c.route==='/api/action').length,1);
+    assert.equal(requests[0].signal.aborted,false);
+    wait.resolve({});await ui.flush();assert.equal(ui.createdURLs.length,1);
+  } finally {wait.resolve({});await ui.close();}
+});

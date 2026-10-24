@@ -1151,3 +1151,19 @@ test('moved-folder confirmation carries the waiting job through both reviewed re
     assert.deepEqual(ui.errors, []);
   } finally { await ui.close(); }
 });
+
+test('an explicit face scan joining an owning job reports where the work is instead of a new queue', async () => {
+  for (const [job, expected] of [
+    [{ id: 'new-job', state: 'queued' }, 'Face scan queued for this photograph.'],
+    [{ id: 'automatic', state: 'queued', reusedExisting: true }, 'Face discovery for these photographs is already queued or running. Its progress is in Jobs.'],
+    [{ id: 'automatic', state: 'paused', reusedExisting: true }, 'These photographs are already in a paused face scan. Resume it in Jobs when ready; saved faces are kept.'],
+  ]) {
+    const ui = harness({ people: { people: [], faces: [] } }, { '/api/photo': () => ({ id: 'p', name: 'Portrait.jpg', faces: [] }), enqueueJob: () => job });
+    try {
+      await ui.window.PhotoFindryPanels.show('people', { photoId: 'p' });
+      await ui.findButton('Scan faces in this photograph').click();
+      assert.deepEqual(ui.calls.find(c => c.action === 'enqueueJob').params, { kind: 'faces', params: { photoIds: ['p'] } });
+      assert.deepEqual(ui.notices, [expected]); assert.deepEqual(ui.errors, []);
+    } finally { await ui.close(); }
+  }
+});
