@@ -965,6 +965,9 @@ fn verify_private(file: &stdfs::File, user: &UserSid, directory: bool) -> io::Re
     for index in 0..sizes.AceCount {
         let mut ace = null_mut();
         bool_result(unsafe { GetAce(acl, index, &mut ace) })?;
+        if ace.is_null() {
+            return Err(denied("Private state returned a missing access-control entry."));
+        }
         // ACCESS_ALLOWED_ACE_TYPE is the native numeric0. Object/callback/deny
         // ACEs are deliberately unsupported rather than loosely interpreted.
         let header = unsafe { &*ace.cast::<windows_sys::Win32::Security::ACE_HEADER>() };
