@@ -37,7 +37,7 @@ If a checksum reports **FAILED**, nothing was run. A command copied from an olde
 
 If an older companion cannot open, rerun the same verified setup command above. It authenticates the latest compatible CLI release, even when the command was saved before that release. It follows the registered library and repairs the program without requiring the broken companion to launch. If setup fails, its message explains the next action. Quit an older application if it still owns the library, then retry. An existing registered library is retained, including custom paths; an existing library needing handover gets a verified recovery copy before opening. Originals and selected models stay in place. The command also repairs a missing browser connection for an already installed companion.
 
-GitHub source archives are not runnable packages. The update ZIP and DMG are retained for the old app's migration/update channel, not fresh installation. No existing library is deleted as a setup or recovery step. This beta uses ad-hoc macOS code signatures and separate publisher Ed25519 signatures; it is not Apple Developer ID signed or notarized.
+GitHub source archives are not runnable packages. The update ZIP and DMG are retained for the old app's migration/update channel, not fresh installation. No existing library is deleted as a setup or recovery step. This beta uses ad-hoc macOS code signatures and separate publisher Ed25519 signatures.
 
 ## Retained folder access
 

@@ -66,6 +66,6 @@ offers Recover and open.
 
 The app bundle uses ad-hoc macOS signatures. These are distinct from the
 maintainer's Ed25519 download/update signatures and do not provide Apple publisher
-validation. This beta is not Apple Developer ID signed or notarized. Signature
+validation. Signature
 verification proves possession of the signing key and exact bytes, not absence of
 bugs, enforced isolation or a security guarantee.

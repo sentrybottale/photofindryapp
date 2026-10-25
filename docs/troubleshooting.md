@@ -4,7 +4,7 @@ Begin with the visible status and the smallest reproducible example. Keep your l
 
 ## macOS will not open the app
 
-Confirm the download is from the official GitHub release and verify its signed inventory. This beta is not Apple-notarized. Follow Apple's per-app Open Anyway flow only if you decide to trust it. Do not disable Gatekeeper, run unknown installer commands, or strip quarantine recursively. Read [installation](https://photofindry.com/docs/install.html).
+Confirm the download is from the official GitHub release and verify its signed inventory. Follow Apple's per-app Open Anyway flow only if you decide to trust it. Do not disable Gatekeeper, run unknown installer commands, or strip quarantine recursively. Read [installation](https://photofindry.com/docs/install.html).
 
 ## No update appears
 

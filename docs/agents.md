@@ -14,7 +14,7 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 
 ## Install safely
 
-1. Check the user's architecture, macOS version and available storage. Explain beta and non-notarized status.
+1. Check the user's architecture, macOS version and available storage. Explain beta status.
 2. Link the direct CLI setup and verification guide. The DMG and app-update ZIP are only for existing native users migrating to the CLI. GitHub Source code archives are not installers.
 3. Keep trust decisions and macOS authorization with the user. Never disable Gatekeeper globally, strip quarantine recursively, request private signing keys or execute downloaded scripts blindly.
 4. Use the verified direct CLI setup for new users. It installs the independent CLI with login startup and signed updates, then exits. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
