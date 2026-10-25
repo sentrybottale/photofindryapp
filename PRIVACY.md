@@ -20,9 +20,9 @@ Send Feedback submits directly to this private service and returns a report refe
 
 The marketing homepage uses optional PostHog website analytics only after you accept analytics cookies. PostHog uses an EU endpoint and identified-only profiles. Session recording and automatic interaction capture are disabled. The app.photofindry.com entry hub has its own explicit analytics consent, without replay, automatic interaction capture or person profiles. It never receives local-library authority. Neither website consent grants consent for localhost analytics. The documentation pages and feedback form do not load this analytics script. Infrastructure may maintain operational connection logs; “no app tracking” is not a promise that no server can observe a network request.
 
-## Why GitHub rather than Apple's stores and notarization?
+## Why a direct companion rather than Apple's stores?
 
-The owner chose an OwnTransit-style direct GitHub beta distribution path. Mac App Store qualification, Developer ID signing and Apple notarization are separate tracks and are not part of this release. This is a distribution decision, not a claim that Apple's checks are unnecessary or that proprietary/free software is automatically safe.
+PhotoFindry is distributed directly: a signed command-line companion from the official GitHub release, updated through its own Ed25519-signed feed, with the browser as its interface. It does not go through the Mac App Store, by design. This is a distribution decision, not a claim that any software is automatically safe.
 
 The app bundle is ad-hoc signed. Separate pinned Ed25519 signatures authenticate the release inventory, update feed and archive. They establish approved bytes and possession of the signing key, not absence of vulnerabilities. Follow the official verification and per-app installation guidance.
 

@@ -31,7 +31,7 @@ For first installation, independently trust the instructions and their pinned by
 
 If an older companion cannot open, rerun the same verified setup command above. It follows the registered library and repairs the program without requiring the broken companion to launch. If setup fails, its message explains the next action. Quit an older application if it still owns the library, then retry. An existing registered library is retained, including custom paths; an existing library needing handover gets a verified recovery copy before opening. Originals and selected models stay in place. The command also repairs a missing browser connection for an already installed companion.
 
-GitHub source archives are not runnable packages. The update ZIP and DMG are retained for the old app's migration/update channel, not fresh installation. No existing library is deleted as a setup or recovery step. This beta uses ad-hoc macOS code signatures and separate publisher Ed25519 signatures; it is not Apple Developer ID signed or notarized.
+GitHub source archives are not runnable packages. The update ZIP and DMG are retained for the old app's migration/update channel, not fresh installation. No existing library is deleted as a setup or recovery step. This beta uses ad-hoc macOS code signatures and separate publisher Ed25519 signatures.
 
 ## Update an existing installation
 
@@ -181,7 +181,7 @@ Begin with the visible status and the smallest reproducible example. Keep your l
 
 ## macOS will not open the app
 
-Confirm the download is from the official GitHub release and verify its signed inventory. This beta is not Apple-notarized. Follow Apple's per-app Open Anyway flow only if you decide to trust it. Do not disable Gatekeeper, run unknown installer commands, or strip quarantine recursively. Read [installation](https://photofindry.com/docs/install.html).
+Confirm the download is from the official GitHub release and verify its signed inventory. Follow Apple's per-app Open Anyway flow only if you decide to trust it. Do not disable Gatekeeper, run unknown installer commands, or strip quarantine recursively. Read [installation](https://photofindry.com/docs/install.html).
 
 ## No update appears
 
@@ -272,9 +272,9 @@ Send Feedback submits directly to this private service and returns a report refe
 
 The marketing homepage uses optional PostHog website analytics only after you accept analytics cookies. PostHog uses an EU endpoint and identified-only profiles. Session recording and automatic interaction capture are disabled. The app.photofindry.com entry hub has its own explicit analytics consent, without replay, automatic interaction capture or person profiles. It never receives local-library authority. Neither website consent grants consent for localhost analytics. The documentation pages and feedback form do not load this analytics script. Infrastructure may maintain operational connection logs; “no app tracking” is not a promise that no server can observe a network request.
 
-## Why GitHub rather than Apple's stores and notarization?
+## Why a direct companion rather than Apple's stores?
 
-The owner chose an OwnTransit-style direct GitHub beta distribution path. Mac App Store qualification, Developer ID signing and Apple notarization are separate tracks and are not part of this release. This is a distribution decision, not a claim that Apple's checks are unnecessary or that proprietary/free software is automatically safe.
+PhotoFindry is distributed directly: a signed command-line companion from the official GitHub release, updated through its own Ed25519-signed feed, with the browser as its interface. It does not go through the Mac App Store, by design. This is a distribution decision, not a claim that any software is automatically safe.
 
 The app bundle is ad-hoc signed. Separate pinned Ed25519 signatures authenticate the release inventory, update feed and archive. They establish approved bytes and possession of the signing key, not absence of vulnerabilities. Follow the official verification and per-app installation guidance.
 
@@ -312,7 +312,7 @@ Official sources: https://photofindry.com and https://github.com/sentrybottale/p
 
 ## Install safely
 
-1. Check the user's architecture, macOS version and available storage. Explain beta and non-notarized status.
+1. Check the user's architecture, macOS version and available storage. Explain beta status.
 2. Link the official standalone CLI release, verified setup instructions and signature guide. A DMG is retained only for the older Mac app's one-time migration. GitHub Source code archives are not installers.
 3. Keep trust decisions and macOS authorization with the user. Never disable Gatekeeper globally, strip quarantine recursively, request private signing keys or execute downloaded scripts blindly.
 4. Run the one-time installer after verification. It installs the independent CLI with login startup and signed updates, then exits. Choose a small first photo folder and a supported model pair. Never overwrite originals or move the user's models without their request.
