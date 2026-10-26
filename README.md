@@ -6,7 +6,7 @@ PhotoFindry tags and searches photographs locally on Apple-silicon Mac, Linux x8
 
 ## Install the current beta
 
-**0.3.0-beta.1 · build 131** — [release notes and downloads](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.1).
+**0.3.0-beta.2 · build 132** — [release notes and downloads](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2).
 
 Choose the instructions for the computer where you will run PhotoFindry:
 
@@ -34,7 +34,7 @@ First-install trust matters: independently trust the setup instructions, immutab
 
 - **Local tagging and search.** Select compatible vision GGUF weights and their matching multimodal projector separately; model files can stay in any folder. Search models are bundled.
 - **People on Mac and Linux.** Windows does not yet include the face provider.
-- **Platform-specific features.** Library backup/source transfer and dedicated CLEF/Intern review runtimes remain Mac-only. See [platform differences and tested scope](INSTALLATION.md#platform-differences).
+- **Platform-specific features.** Whole-library backup and restore work across Mac, Linux and Windows; source archives and dedicated CLEF/Intern review runtimes remain Mac-only. See [platform differences and tested scope](INSTALLATION.md#platform-differences).
 - **Your originals stay in place.** Cached previews are not backups of original photographs. Keep independent backups.
 
 The clean [client snapshot](client/) is MIT, covering the browser UI, native launcher, companion bridge and allowlisted interaction helpers. Rust engine cores and worker implementations remain proprietary. The implementation repository and history remain private. See [licensing](LICENSE), [privacy](PRIVACY.md) and the [client source inventory](client/CLIENT-SOURCE.json).

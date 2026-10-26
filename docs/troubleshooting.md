@@ -106,3 +106,12 @@ The current release retains long saved evidence in bounded scoring passages.
 Install the update and run the search again; do not retag or erase the library.
 All retrieved candidates remain available, and ranking does not confirm a visual
 match. Jobs shows the actual failure and retry action if another issue remains.
+
+
+## Tagging preparation and review retries
+
+A configured but stopped local model starts automatically when tagging begins. Model preparation and loading appear in the activity panel. If startup fails, read the specific local error and use its recovery or retry action; restarting configuration is not required solely because a model is unloaded.
+
+An unchanged failed automatic improvement review stays held instead of repeating the same failure. Check the error and selected reviewer, then explicitly retry after correcting the cause. Accepted facts remain saved.
+
+On Windows, a memory safety pause requires a fresh native resource check before Resume. The small search reranker uses CPU execution to keep its memory bounded; the selected vision model can still use Vulkan.
