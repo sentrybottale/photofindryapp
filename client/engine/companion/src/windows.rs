@@ -11,6 +11,8 @@ mod cli_release;
 mod lifecycle;
 #[path = "windows_entry.rs"]
 mod entry;
+#[path = "library_restore.rs"]
+mod library_restore;
 #[path = "windows_model_files.rs"]
 mod model_files;
 #[path = "windows_native.rs"]
@@ -79,6 +81,7 @@ struct State {
     closing: AtomicBool,
     cleanup: AtomicBool,
     model_checks: Arc<Semaphore>,
+    replacement: library_restore::Replacement,
 }
 fn response(status: StatusCode, mime: &'static str, bytes: impl Into<Bytes>) -> Reply {
     let mut result = Response::new(Full::new(bytes.into()));
@@ -246,13 +249,10 @@ fn capabilities() -> Value {
 fn windows_method_supported(method: &str) -> bool {
     !matches!(
         method,
-        "restoreLibrary"
-            | "prepareSourceArchive"
+        "prepareSourceArchive"
             | "inspectSourceArchive"
-            | "inspectBackup"
             | "attachSourceArchive"
             | "exportSourceArchive"
-            | "exportLibrary"
             | "exportPhotos"
             | "importSourceArchive"
             | "prepareRemovedDeletion"
@@ -322,7 +322,8 @@ fn operation_error(message: &str) -> Reply {
     let safe = message
         .split_whitespace()
         .map(|word| {
-            if Path::new(word).is_absolute() {
+            // Restored Mac locations are paths too, though not absolute here.
+            if Path::new(word).is_absolute() || (word.starts_with('/') && word.len() > 1) {
                 Path::new(word)
                     .file_name()
                     .and_then(|s| s.to_str())
@@ -335,10 +336,13 @@ fn operation_error(message: &str) -> Reply {
         .join(" ");
     error(StatusCode::CONFLICT, &safe)
 }
-async fn api(path: &str, bytes: &[u8], state: &State) -> Reply {
+async fn api(path: &str, bytes: &[u8], state: &Arc<State>) -> Reply {
     let invalid = || error(StatusCode::BAD_REQUEST, "Invalid request fields.");
     if state.closing.load(Ordering::Acquire) {
         return operation_error("The companion is closing. Reopen it after shutdown finishes.");
+    }
+    if state.replacement.replacing() && !library_restore::Replacement::allowed_while_replacing(path) {
+        return operation_error("The restored library is opening. Try again in a moment.");
     }
     match path {
         "/api/pair" => {
@@ -425,8 +429,11 @@ async fn api(path: &str, bytes: &[u8], state: &State) -> Reply {
             if serde_json::from_slice::<Empty>(bytes).is_err() {
                 return invalid();
             }
+            if state.replacement.replacing() {
+                return json_response(state.replacement.opening_snapshot());
+            }
             let mut snapshot = state.worker.snapshot();
-            snapshot["libraryGeneration"] = json!(0);
+            snapshot["libraryGeneration"] = json!(state.replacement.generation());
             snapshot["platformCapabilities"] = capabilities();
             snapshot["sourceObserver"] = json!({"available":true,"provider":"bounded-polling"});
             snapshot["powerPreferences"] = json!({"mode":"allowSleep","available":false});
@@ -446,7 +453,7 @@ async fn api(path: &str, bytes: &[u8], state: &State) -> Reply {
             }
             let s = state.worker.snapshot();
             json_response(
-                json!({"libraryId":s["libraryId"],"libraryGeneration":0,"locationLabel":state.data,"ready":s["libraryId"].is_string()&&s["loading"]!=true&&s["libraryError"].is_null(),"error":s["libraryError"]}),
+                json!({"libraryId":s["libraryId"],"libraryGeneration":state.replacement.generation(),"locationLabel":state.data,"ready":s["libraryId"].is_string()&&s["loading"]!=true&&s["libraryError"].is_null(),"error":s["libraryError"]}),
             )
         }
         "/api/appearance" => {
@@ -554,7 +561,6 @@ async fn api(path: &str, bytes: &[u8], state: &State) -> Reply {
                 input.action.as_str(),
                 "prepareSourceArchive"
                     | "inspectSourceArchive"
-                    | "inspectBackup"
                     | "feedbackDiagnostics"
                     | "feedbackEnvironment"
                     | "cancelFeedback"
@@ -595,7 +601,33 @@ async fn api(path: &str, bytes: &[u8], state: &State) -> Reply {
                 }
             }
             let limit = params["limit"].as_u64().unwrap_or(60);
-            match state.worker.call(method, params).await {
+            let completed = if method == "restoreLibrary" {
+                // The restart that publishes a staged restore belongs to the
+                // accepted action, not to this HTTP request.
+                let owner = state.clone();
+                tokio::spawn(async move {
+                    let (call, restart) = (owner.worker.clone(), owner.worker.clone());
+                    library_restore::run(
+                        async move { call.call("restoreLibrary", params).await },
+                        async move || {
+                            restart.restart().await?;
+                            Ok(restart.snapshot())
+                        },
+                        &owner.replacement,
+                        || {
+                            owner.scopes.reset();
+                            owner.picker.revoke();
+                            release_cleanup(&owner);
+                        },
+                    )
+                    .await
+                })
+                .await
+                .unwrap_or_else(|_| Err("The local restore owner stopped unexpectedly.".into()))
+            } else {
+                state.worker.call(method, params).await
+            };
+            match completed {
                 Ok(mut v) => {
                     if ["jobResults", "aiSearchPage"].contains(&method) {
                         v["limit"] = json!(limit);
@@ -1012,8 +1044,10 @@ fn asset(path: &str, state: &State) -> Reply {
         _ => error(StatusCode::NOT_FOUND, "Unknown local asset."),
     };
 }
-fn generation_header(headers: &HeaderMap) -> bool {
-    one_header(headers, "x-photofindry-library-generation") == Some("0")
+/// The browser must name the library it last observed. A restore advances
+/// the generation, so stale tabs cannot act on the replaced library.
+fn generation_header(headers: &HeaderMap, current: u64) -> bool {
+    one_header(headers, "x-photofindry-library-generation") == Some(current.to_string().as_str())
 }
 async fn handle(request: Request<Incoming>, state: Arc<State>) -> Result<Reply, Infallible> {
     let path = request.uri().path().to_owned();
@@ -1061,7 +1095,7 @@ async fn handle(request: Request<Incoming>, state: Arc<State>) -> Result<Reply, 
     if matches!(
         path.as_str(),
         "/api/action" | "/api/model-files/check" | "/api/review-files/check"
-    ) && !generation_header(&headers)
+    ) && !generation_header(&headers, state.replacement.generation())
     {
         return Ok(error(
             StatusCode::CONFLICT,
@@ -1454,6 +1488,7 @@ async fn run(config: Config) -> Result<(), String> {
         closing: AtomicBool::new(false),
         cleanup: AtomicBool::new(false),
         model_checks: Arc::new(Semaphore::new(1)),
+        replacement: library_restore::Replacement::default(),
     });
     let code = state
         .authority
@@ -1714,6 +1749,17 @@ pub async fn main() {
 mod tests {
     use super::*;
     #[test]
+    fn restored_library_generation_refuses_stale_browser_actions() {
+        let mut h = HeaderMap::new();
+        assert!(!generation_header(&h, 0));
+        h.insert("x-photofindry-library-generation", HeaderValue::from_static("0"));
+        assert!(generation_header(&h, 0) && !generation_header(&h, 1));
+        h.insert("x-photofindry-library-generation", HeaderValue::from_static("1"));
+        assert!(generation_header(&h, 1));
+        h.append("x-photofindry-library-generation", HeaderValue::from_static("1"));
+        assert!(!generation_header(&h, 1), "duplicate headers stay ambiguous");
+    }
+    #[test]
     fn origin_and_headers_fail_closed() {
         let mut h = HeaderMap::new();
         h.insert("host", HeaderValue::from_static("127.0.0.1:8123"));
@@ -1754,11 +1800,10 @@ mod tests {
         assert_eq!(c["libraryReplacement"], false);
         assert_eq!(c["managedDeletion"], false);
         assert_eq!(c["backupTransfer"], false);
+        assert_eq!(c["libraryBackup"], true);
         for name in [
             "prepareSourceArchive",
             "inspectSourceArchive",
-            "inspectBackup",
-            "restoreLibrary",
             "attachSourceArchive",
             "prepareRemovedDeletion",
             "deleteRemovedEntries",
@@ -1766,6 +1811,9 @@ mod tests {
             assert!(!windows_method_supported(name));
         }
         for name in [
+            "inspectBackup",
+            "exportLibrary",
+            "restoreLibrary",
             "configure",
             "startModel",
             "process",

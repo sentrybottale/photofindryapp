@@ -273,3 +273,41 @@ test('main-page runtime controls respect model and queue state and reveal only o
   assert.match(ui.body.textContent, /last-reviewer\.gguf/);
   ui.disconnect(); assert(start.disabled); assert(unload.disabled);
 });
+
+test('a source-held tagging job exposes its scoped recovery even when the model is ready', async () => {
+  const ui = harness(), opened = [];
+  ui.window.PhotoFindryPanels = { show: (...args) => opened.push(args) };
+  const job = { id: 'held-tagging', kind: 'tagging', state: 'paused', pauseReason: 'source-waiting',
+    sourceNextAction: { kind: 'reviewIdentity', sourceId: 'source-one', rootId: 'root-one' } };
+  const state = { workerGeneration: 0, settings: { modelConfigured: true, projectorConfigured: true },
+    jobs: { jobs: [job] }, monitor: metric({ phase: 'idle' }), runtime: { status: 'ready' } };
+  ui.setFullState(state); ui.setAPI(() => state); ui.connect(); await ui.window.PhotoFindryModelMonitor.refresh();
+  assert.match(ui.body.textContent, /Tagging is waiting for originals/);
+  const recovery = ui.find('Review originals'); assert.equal(recovery.hidden, false);
+  await recovery.click();
+  assert.equal(JSON.stringify(opened), JSON.stringify([['sources', { jobId: 'held-tagging', sourceId: 'source-one', rootId: 'root-one' }]]));
+  assert(!ui.calls.some(call => call.action), 'Opening recovery must not confirm originals or resume the job.');
+  const resumed = { ...state, jobs: { jobs: [{ ...job, state: 'running', pauseReason: null }] } };
+  ui.emit('photofindry:state', resumed);
+  assert.equal(recovery.hidden, true); assert.doesNotMatch(ui.body.textContent, /Tagging is waiting for originals/);
+  await recovery.click(); assert.equal(opened.length, 1, 'A stale control cannot reopen an old job.');
+  ui.disconnect();
+});
+
+test('loading and failed startup remain visible without an active model, and retry can reach ready', async () => {
+  const ui = harness();
+  let state = { workerGeneration: 0, settings: { modelConfigured: true, projectorConfigured: true }, jobs: { jobs: [] },
+    monitor: metric({ phase: 'idle', activeModel: null, loadedModels: [] }), runtime: { status: 'starting' } };
+  ui.setFullState(state); ui.setAPI(() => state); ui.connect(); await ui.window.PhotoFindryModelMonitor.refresh();
+  assert.equal(ui.status.textContent, 'Loading model…');
+  state = { ...state, runtime: { status: 'error', message: 'The selected model file could not be opened.' } };
+  await ui.window.PhotoFindryModelMonitor.refresh();
+  assert.equal(ui.status.textContent, 'Model needs attention');
+  assert.match(ui.body.textContent, /selected model file could not be opened.*Retry Start tagger/);
+  await ui.byLabel('Start tagging model').click(); assert(ui.calls.some(call => call.action === 'startModel'));
+  state = { ...state, monitor: metric({ phase: 'idle', modelActivityRevision: 2 }), runtime: { status: 'ready' } };
+  await ui.window.PhotoFindryModelMonitor.refresh();
+  assert.equal(ui.status.textContent, 'Model ready');
+  assert.doesNotMatch(ui.body.textContent, /selected model file could not be opened/);
+  ui.disconnect();
+});

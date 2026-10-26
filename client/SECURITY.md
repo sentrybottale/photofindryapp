@@ -35,5 +35,5 @@ for a private reporting route. A prepared CI workflow is not proof that required
 branch checks or every-push security reviews are enabled on a live repository.
 
 The release gates and their exact evidence scope are described in TRANSPARENCY.md.
-No claim of Apple notarization, OS-enforced engine isolation or flawless security
+No claim of OS-enforced engine isolation or flawless security
 follows from this source publication.

@@ -607,7 +607,10 @@ test('Jobs preserves saved-model failures, ignores old source progress in a new 
     const failed = ui.window.PhotoFindryJobs.card({ id: 'failure', kind: 'tagging', title: 'Failed batch', state: 'failed', modelName: 'saved-with-job.gguf', failureSummary: ['Final response failed validation.'], total: 4, completed: 2 });
     assert.match(failed.textContent, /Final response failed validation.*Model saved with job: saved-with-job\.gguf/s);
     const review = ui.window.PhotoFindryJobs.card({ id: 'review-failure', kind: 'improve', state: 'failed', failureSummary: ['Invalid evidence review: visual age requires an explicitly approximate range for the same person.'] });
-    assert.match(review.textContent, /Saved tags are kept.*Retry to use automatic correction/s);
+    assert.match(review.textContent, /Saved tags are kept.*Retry reruns failed photos.*saved model/s);
+    const corrected = ui.window.PhotoFindryJobs.card({ id: 'corrected-review', kind: 'improve', state: 'failed', failureSummary: ['The local review model returned an invalid answer after one automatic correction. Final validation: Invalid evidence review: invalid subject.'] });
+    assert.match(corrected.textContent, /rejected after automatic correction/);
+    assert.doesNotMatch(corrected.textContent, /Retry to use automatic correction/);
     assert.equal(review.children.find(node => node.tagName === 'DETAILS').open, false);
     assert.match(review.children.find(node => node.tagName === 'DETAILS').textContent, /visual age requires/);
     const checking = ui.window.PhotoFindryJobs.card({ id: 'source', kind: 'sourceRecovery', title: 'Check source', state: 'running', phase: 'checking', progressDetails: { phase: 'match', checked: 500, total: 500 } });
@@ -1001,6 +1004,21 @@ test('macOS read consent recovery gives an actionable Files path and explicit re
   } finally { await ui.close(); }
 });
 
+
+for (const platform of ['linux', 'windows']) test(`${platform} library backups appear without unsupported source archives`, async () => {
+  const ui = harness({ withPanels: true, state: { platformCapabilities: { platform, libraryBackup: true, backupTransfer: false } } });
+  try {
+    const navigation = ui.ids.get('workspace-navigation').children.map(node => node.textContent);
+    assert(navigation.includes('Backups & archives'));
+    await ui.findButton('Backups & archives').click(); await new Promise(resolve => setImmediate(resolve));
+    const content = ui.all().find(node => node.className === 'pfp-body');
+    assert(content.textContent.includes('Portable library backup'));
+    assert(ui.findButton('Export library backup…') && ui.findButton('Import library backup…'));
+    assert(!content.textContent.includes('Inspect & attach archive'), 'Source archives stay hidden without their provider.');
+    assert(content.textContent.includes("choose each source's originals folder on this computer"));
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
 
 for (const platform of ['linux', 'windows']) test(`${platform} preview shows reported providers and hides unreported features`, async () => {
   const ui = harness({ withPanels: true, state: { platformCapabilities: { platform, photoReview: true, photoReviewProviders: ['tagging-model'], metadata: true, faceDetection: true }, photoReviewSettings: { provider: 'clef-flash' }, monitor: { resources: { physicalMemoryBytes: 32 * 1024 ** 3 } } } });

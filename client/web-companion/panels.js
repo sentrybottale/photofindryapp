@@ -322,6 +322,9 @@
     } else if (permission) {
       heading = 'Folder access needed';
       detail = 'macOS needs permission to read this folder. Choose it to allow access; saved photographs and completed work are kept.';
+    } else if (!unavailable && (identityConflict || conflicts > 0)) {
+      heading = 'Some original identities need review';
+      detail = 'Review the matching locations in the saved folder below. Confirm only if they are the same originals; choose another folder if their location changed.';
     } else if (needsChoice) {
       heading = localText('Choose this Mac’s originals folder once');
       detail = localText('Select the matching folder on this Mac. PhotoFindry then watches its availability and file changes automatically. Saved tags and search remain available.');
@@ -334,9 +337,6 @@
     } else if (status === 'unavailable') {
       heading = 'Some originals are temporarily unavailable';
       detail = 'Saved locations and returning files are checked automatically. Saved photos and tags are kept; temporary absence does not mean permanent deletion.';
-    } else if (identityConflict || conflicts > 0) {
-      heading = 'Some original identities need review';
-      detail = 'Only conflicting or uncertain originals need a decision. Other verified photographs continue automatically; a disconnected drive is never treated as deleted photos.';
     } else if (status === 'missing' || missing > 0) {
       heading = 'Some originals are temporarily unavailable';
       detail = 'Saved locations and returning files are checked automatically. Saved photos and tags are kept; temporary absence does not mean permanent deletion.';
@@ -357,7 +357,8 @@
       const chooseFolder = button(permission ? 'Allow folder access…' : 'Choose originals folder…', () => locate(source, rootInfo), 'primary');
       chooseFolder.classList.add('pfp-choose-originals'); chooseFolder.disabled = roots.length > 1 && !rootInfo;
       connection.append(row(chooseFolder));
-    } else if ((selected || identityConflict) && (identityConflict || conflicts > 0) && !unavailable) {
+    }
+    if ((identityConflict || conflicts > 0) && !unavailable) {
       connection.append(row(button('Review identity conflicts', () => {
         if (roots.length > 1 && !rootInfo) throw Error('Select the affected saved folder in Source options first.');
         return connectionPlan(source, rootInfo);
@@ -995,7 +996,9 @@
   }
 
   function renderPortability() {
-    if (!supports('backupTransfer')) { body.append(notice('Backups and archives are not available in this preview. Your saved library and original photographs are kept.')); return; }
+    // Linux/Windows offer whole-library backups before source archives.
+    const archives = supports('backupTransfer');
+    if (!archives && !supports('libraryBackup')) { body.append(notice('Backups and archives are not available in this preview. Your saved library and original photographs are kept.')); return; }
     const backup = card('Portable library backup', 'Import the whole .photofindrybackup folder exported by PhotoFindry, not a file inside it. Legacy .photorecallbackup folders are accepted too. Import replaces this library after verification and keeps a recovery backup of the current library first.');
     backup.append(el('p', 'pfp-muted', localText('Backups include saved evidence, people, corrections and review history. Original photographs and model weights are excluded. Host model settings stay on this Mac.')));
     const images = checkbox('Include available cached previews', true); backup.append(images.node, row(button('Export library backup…', async () => {
@@ -1005,7 +1008,8 @@
     const archive = card('Source archives', 'Choose a .photofindrysource.zip file to add one source and its saved work alongside the existing gallery. Whole-library .photofindrybackup folders use Import library backup instead. Exported ZIPs are not synchronized automatically.');
     const source = sourceSelect(view.sourceId, false); archive.append(field('Source to export', source), row(button('Export source…', () => { const selectedSource = sources().find((item) => item.id === source.value); if (!selectedSource) throw Error('Choose a source first.'); return archivePlan(selectedSource, false); }),
       button('Archive & disconnect…', () => { const selectedSource = sources().find((item) => item.id === source.value); if (!selectedSource) throw Error('Choose a source first.'); return archivePlan(selectedSource, true); }), button('Inspect & attach archive…', inspectArchive)));
-    body.append(backup, archive, notice('Restore verifies and stages a package before replacing the current library, preserving a rollback backup. Imported progress remains paused until you explicitly start it.'));
+    body.append(backup, ...(archives ? [archive] : []), notice(archives ? 'Restore verifies and stages a package before replacing the current library, preserving a rollback backup. Imported progress remains paused until you explicitly start it.'
+      : 'Restore verifies and stages a package before replacing the current library, preserving a rollback backup. Imported progress remains paused until you explicitly start it. A library from another computer keeps its tags; choose each source\'s originals folder on this computer in Files to reconnect its photographs. Source archives are not available in this preview.'));
   }
   async function inspectBackup() {
     const generation = view.generation;

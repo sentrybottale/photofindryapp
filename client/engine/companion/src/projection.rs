@@ -2,6 +2,27 @@
 use serde_json::{Value, json};
 use std::{collections::HashMap, path::Path, sync::Mutex};
 
+/// A saved location, including one restored from another computer: a Mac
+/// `/Users/...` path on Windows, or a Windows `C:\...`/`\\?\C:\...` path on
+/// Linux/Mac, is not absolute here but must still be redacted to a label and an
+/// opaque scope, never passed to the browser as raw text.
+fn saved_path(path: &str) -> bool {
+    Path::new(path).is_absolute()
+        || (cfg!(windows) && path.starts_with('/') && !path.starts_with("//") && !path.contains('\\'))
+        || (cfg!(unix) && windows_location(path))
+}
+fn windows_location(path: &str) -> bool {
+    let rest = path.strip_prefix("\\\\?\\").unwrap_or(path).as_bytes();
+    rest.len() >= 3 && rest[0].is_ascii_alphabetic() && rest[1] == b':' && rest[2] == b'\\' && !path.contains('/')
+}
+/// The last name of a saved location, whichever system's separator it uses.
+fn saved_name(path: &str) -> Option<&str> {
+    if cfg!(unix) && windows_location(path) {
+        return path.rsplit('\\').find(|part| !part.is_empty() && !part.ends_with(':'));
+    }
+    Path::new(path).file_name().and_then(|v| v.to_str())
+}
+
 #[derive(Default)]
 pub struct Scopes {
     paths: Mutex<HashMap<String, String>>,
@@ -9,7 +30,7 @@ pub struct Scopes {
 impl Scopes {
     pub fn reset(&self) { self.paths.lock().unwrap().clear(); }
     pub fn register(&self, path: &str) -> Option<String> {
-        if !Path::new(path).is_absolute() || path.len() > 16384 {
+        if !saved_path(path) || path.len() > 16384 {
             return None;
         }
         let mut paths = self.paths.lock().unwrap();
@@ -152,7 +173,7 @@ impl Scopes {
                         );
                         continue;
                     }
-                    if value.as_str().is_some_and(|s| Path::new(s).is_absolute())
+                    if value.as_str().is_some_and(saved_path)
                         && (key == "path"
                             || key == "folder"
                             || key == "aiFolder"
@@ -174,10 +195,7 @@ impl Scopes {
                             result.insert("hasPreview".into(), json!(true));
                             continue;
                         }
-                        let label = Path::new(path)
-                            .file_name()
-                            .and_then(|v| v.to_str())
-                            .unwrap_or("Folder");
+                        let label = saved_name(path).unwrap_or("Folder");
                         result.insert(
                             if key == "path" {
                                 "pathLabel".into()
@@ -234,7 +252,7 @@ impl Scopes {
 }
 
 fn source_location_label(value: &Value) -> Option<String> {
-    let path = value.as_str().filter(|path| Path::new(path).is_absolute() && !path.contains('\0'))?;
+    let path = value.as_str().filter(|path| saved_path(path) && !path.contains('\0'))?;
     Some(path.chars().take(4096).collect())
 }
 
@@ -373,6 +391,21 @@ mod tests {
         assert_eq!(paths["scopeIds"].as_array().unwrap().len(), 1);
     }
 
+#[cfg(all(test, unix))]
+mod windows_location_tests {
+    use super::*;
+    #[test]
+    fn restored_windows_locations_are_redacted_to_names_and_scopes() {
+        let scopes = Scopes::default();
+        let shown = scopes.project(&json!({"photos":[{"id":"p","caption":"c","path":r"\\?\C:\Users\owner\Copied Photos\a.jpg","folder":r"\\?\C:\Users\owner\Copied Photos"}]}));
+        let text = shown.to_string();
+        assert!(!text.contains("owner"), "{text}");
+        assert_eq!(shown["photos"][0]["folderLabel"], "Copied Photos");
+        assert!(shown["photos"][0]["scopeId"].is_string());
+        assert_eq!(saved_name(r"C:\"), None);
+        assert!(!saved_path(r"\\server\share\a.jpg"));
+    }
+}
 #[cfg(test)]
 #[test]
 fn native_access_carriers_and_owner_references_never_reach_presentation() {

@@ -57,6 +57,9 @@ pub fn capability_fields(features: Features) -> Value {
         "photoReview": true,
         "photoReviewProviders": ["tagging-model"],
         "heifImages": "platform-codec",
+        // Whole-library .photofindrybackup export/inspect/restore. Source
+        // archives (`backupTransfer`) still have no Linux/Windows provider.
+        "libraryBackup": true,
         "rawImages": "embedded-jpeg-rendition",
     })
 }
