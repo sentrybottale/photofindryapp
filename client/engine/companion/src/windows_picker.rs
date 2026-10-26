@@ -19,13 +19,40 @@ const KINDS: &[&str] = &[
     "reviewProjector",
     "template",
     "reranker",
+    "backupOpen",
+    "backupSave",
 ];
+const BACKUP: &str = ".photofindrybackup";
+const LEGACY_BACKUP: &str = ".photorecallbackup";
+fn folder_kind(kind: &str) -> bool {
+    ["folder", "backupOpen"].contains(&kind)
+}
+/// A portable backup is a folder package. A save destination does not exist
+/// yet, so its grant binds the existing parent folder that will receive it.
 fn open_selection(path: &Path, kind: &str) -> std::io::Result<fs::File> {
-    if kind == "folder" {
-        fs::open_read_directory_no_reparse(path)
+    if kind == "backupSave" {
+        if std::fs::symlink_metadata(path).is_ok() {
+            return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
+        }
+        let parent = path.parent().ok_or(std::io::ErrorKind::InvalidInput)?;
+        return fs::open_read_directory_no_reparse(parent);
+    }
+    if folder_kind(kind) {
+        let folder = fs::open_read_directory_no_reparse(path)?;
+        if kind == "backupOpen" {
+            fs::open_read_no_reparse(&path.join("manifest.json"))?;
+        }
+        Ok(folder)
     } else {
         fs::open_read_no_reparse(path)
     }
+}
+fn backup_package(path: &Path) -> bool {
+    path.file_name().and_then(|v| v.to_str()).is_some_and(|name| {
+        let lower = name.to_ascii_lowercase();
+        (lower.len() > BACKUP.len() && lower.ends_with(BACKUP))
+            || (lower.len() > LEGACY_BACKUP.len() && lower.ends_with(LEGACY_BACKUP))
+    })
 }
 struct Grant {
     path: PathBuf,
@@ -67,14 +94,28 @@ impl Picker {
             "reviewProjector" => "projector",
             other => other,
         };
-        let path =
-            std::fs::canonicalize(raw).map_err(|_| "The selected location is unavailable.")?;
-        let file = open_selection(&path, kind)
-            .map_err(|_| "The selected location cannot be opened safely.")?;
+        let path = if kind == "backupSave" {
+            let raw = Path::new(raw);
+            let name = raw.file_name().and_then(|v| v.to_str()).ok_or("Choose a backup name.")?;
+            let name = if name.to_ascii_lowercase().ends_with(BACKUP) { name.to_owned() } else { format!("{name}{BACKUP}") };
+            std::fs::canonicalize(raw.parent().ok_or("Invalid backup destination.")?)
+                .map_err(|_| "The destination folder is unavailable.")?
+                .join(name)
+        } else {
+            std::fs::canonicalize(raw).map_err(|_| "The selected location is unavailable.")?
+        };
+        if kind == "backupOpen" && !backup_package(&path) {
+            return Err("Choose a .photofindrybackup or legacy .photorecallbackup folder.".into());
+        }
+        let file = open_selection(&path, kind).map_err(|_| {
+            if kind == "backupSave" { "The backup destination already exists or its folder cannot be opened safely." }
+            else if kind == "backupOpen" { "Choose the whole .photofindrybackup folder exported by PhotoFindry." }
+            else { "The selected location cannot be opened safely." }
+        })?;
         let identity =
             fs::identity(&file).map_err(|_| "The selected file identity is unavailable.")?;
         let folder = identity.attributes & 0x10 != 0;
-        if folder != (kind == "folder") {
+        if folder != (folder_kind(kind) || kind == "backupSave") {
             return Err("The selected location has the wrong type.".into());
         }
         let mut bytes = [0; 32];
@@ -116,7 +157,7 @@ impl Picker {
             fs::identity(&file).map_err(|_| "The selected location identity is unavailable.")?;
         if now.volume != old.identity.volume
             || now.file_id != old.identity.file_id
-            || (kind != "folder"
+            || (!folder_kind(kind) && kind != "backupSave"
                 && (now.size != old.identity.size
                     || now.modified_100ns != old.identity.modified_100ns
                     || now.changed_100ns != old.identity.changed_100ns))
@@ -224,6 +265,35 @@ mod tests {
         assert!(picker.resolve(folder, "folder").is_ok());
         picker.revoke();
         assert!(picker.resolve(folder, "folder").is_err());
+        std::fs::remove_dir_all(path).unwrap();
+    }
+    #[test]
+    fn backup_grants_bind_packages_and_new_destinations() {
+        let mut nonce = [0; 16];
+        getrandom::fill(&mut nonce).unwrap();
+        let id: String = nonce.iter().map(|b| format!("{b:02x}")).collect();
+        let path = std::env::temp_dir().join(format!("pf-win-backup-picker-{id}"));
+        fs::private_dir(&path, true).unwrap();
+        let package = path.join("Library.photofindrybackup");
+        std::fs::create_dir(&package).unwrap();
+        let picker = Picker::new(&path);
+        assert!(picker.grant_path("backupOpen", package.to_str().unwrap()).is_err(), "a package needs its manifest");
+        std::fs::write(package.join("manifest.json"), b"{}").unwrap();
+        let open = picker.grant_path("backupOpen", package.to_str().unwrap()).unwrap();
+        let grant = open["grantId"].as_str().unwrap();
+        assert_eq!(picker.resolve(grant, "backupOpen").unwrap(), std::fs::canonicalize(&package).unwrap().to_str().unwrap());
+        assert!(picker.resolve(grant, "folder").is_err() && picker.resolve(grant, "backupSave").is_err());
+        std::fs::create_dir(path.join("plain")).unwrap();
+        std::fs::write(path.join("plain").join("manifest.json"), b"{}").unwrap();
+        assert!(picker.grant_path("backupOpen", path.join("plain").to_str().unwrap()).is_err());
+        assert!(picker.grant_path("backupOpen", package.join("manifest.json").to_str().unwrap()).is_err());
+        let save = picker.grant_path("backupSave", path.join("Export").to_str().unwrap()).unwrap();
+        let grant = save["grantId"].as_str().unwrap();
+        let destination = picker.resolve(grant, "backupSave").unwrap();
+        assert!(destination.ends_with("Export.photofindrybackup"));
+        std::fs::create_dir(&destination).unwrap();
+        assert!(picker.resolve(grant, "backupSave").is_err(), "a destination that appeared is refused");
+        assert!(picker.grant_path("backupSave", path.join("missing").join("Export").to_str().unwrap()).is_err());
         std::fs::remove_dir_all(path).unwrap();
     }
 }

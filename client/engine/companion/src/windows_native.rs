@@ -141,9 +141,11 @@ pub fn choose(kind: &str) -> Result<Option<PathBuf>, String> {
         },
         UI::Shell::{
             FOS_DONTADDTORECENT, FOS_FILEMUSTEXIST, FOS_FORCEFILESYSTEM, FOS_NOCHANGEDIR,
-            FOS_PATHMUSTEXIST, FOS_PICKFOLDERS, FileOpenDialog, IFileOpenDialog, SIGDN_FILESYSPATH,
+            FOS_PATHMUSTEXIST, FOS_PICKFOLDERS, FileOpenDialog, FileSaveDialog, IFileDialog,
+            IFileOpenDialog, IFileSaveDialog, SIGDN_FILESYSPATH,
         },
     };
+    use windows_api::core::Interface;
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE)
             .ok()
@@ -159,18 +161,34 @@ pub fn choose(kind: &str) -> Result<Option<PathBuf>, String> {
     }
     let _apartment = Apartment;
     unsafe {
-        let dialog: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER)
-            .map_err(|_| "The Windows file chooser is unavailable.")?;
+        // A backup destination is a new folder package name, chosen with the
+        // save dialog; the picker validates and binds its existing parent.
+        let save = kind == "backupSave";
+        let dialog: IFileDialog = if save {
+            CoCreateInstance::<_, IFileSaveDialog>(&FileSaveDialog, None, CLSCTX_INPROC_SERVER)
+                .and_then(|v| v.cast())
+        } else {
+            CoCreateInstance::<_, IFileOpenDialog>(&FileOpenDialog, None, CLSCTX_INPROC_SERVER)
+                .and_then(|v| v.cast())
+        }
+        .map_err(|_| "The Windows file chooser is unavailable.")?;
         let mut options = dialog
             .GetOptions()
             .map_err(|_| "The Windows file chooser could not be configured.")?
             | FOS_FORCEFILESYSTEM
-            | FOS_FILEMUSTEXIST
             | FOS_PATHMUSTEXIST
             | FOS_NOCHANGEDIR
             | FOS_DONTADDTORECENT;
-        if ["folder", "sourceFolder"].contains(&kind) {
+        if !save {
+            options |= FOS_FILEMUSTEXIST;
+        }
+        if ["folder", "sourceFolder", "backupOpen"].contains(&kind) {
             options |= FOS_PICKFOLDERS;
+        }
+        if save {
+            dialog
+                .SetFileName(w!("PhotoFindry Library.photofindrybackup"))
+                .map_err(|_| "The backup name could not be suggested.")?;
         }
         dialog
             .SetOptions(options)

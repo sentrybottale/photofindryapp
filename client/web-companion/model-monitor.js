@@ -87,6 +87,18 @@
   unloadModel.title = 'Pause the current model task and unload its model. Saved progress is kept.';
   startTagger.setAttribute('aria-label', 'Start tagging model'); unloadModel.setAttribute('aria-label', 'Unload active model');
   runtimeControls.append(startTagger, unloadModel); button.after(runtimeControls);
+  const runtimeHelp = el('p', 'pfm-help');
+  runtimeHelp.setAttribute('aria-live', 'polite');
+  const recoverTagging = el('button', 'pfm-memory-logs', 'Review originals');
+  recoverTagging.type = 'button'; recoverTagging.hidden = true;
+  runtimeControls.after(runtimeHelp); runtimeHelp.after(recoverTagging);
+  let blockedTagging = null;
+  recoverTagging.addEventListener('click', () => {
+    if (!blockedTagging || !connected) return;
+    const next = blockedTagging.sourceNextAction;
+    window.PhotoFindryPanels?.show('sources', { jobId: blockedTagging.id,
+      sourceId: next.sourceId, ...(next.rootId ? { rootId: next.rootId } : {}) });
+  });
   async function runtimeAction(name) {
     if (runtimeActionPending) return;
     runtimeActionPending = true; renderRuntimeControls();
@@ -105,6 +117,23 @@
     const transfer = state.sourceTransfer?.running === true || state.storageJob?.running === true;
     startTagger.disabled = !connected || runtimeActionPending || transfer || loaded || preparing || running.length > 0 || state.job?.running === true || state.aiSearch?.running === true || !state.settings?.modelConfigured || !state.settings?.projectorConfigured;
     unloadModel.disabled = !connected || runtimeActionPending || !(loaded || preparing || modelWork || state.job?.running === true);
+    blockedTagging = queue.find(job => job.kind === 'tagging' && job.state === 'paused'
+      && ['source-waiting', 'source-missing', 'safety-source'].includes(job.pauseReason)
+      && ['reviewIdentity', 'allowAccess'].includes(job.sourceNextAction?.kind)
+      && job.sourceNextAction?.sourceId) || null;
+    recoverTagging.hidden = !connected || !blockedTagging;
+    set(recoverTagging, blockedTagging?.sourceNextAction?.kind === 'allowAccess' ? 'Allow folder access' : 'Review originals');
+    const configured = state.settings?.modelConfigured && state.settings?.projectorConfigured;
+    set(runtimeHelp, !connected ? '' : blockedTagging
+      ? 'Tagging is waiting for originals. Loading the model does not resolve this; open the affected folder below.'
+      : runtime.status === 'error' ? `${string(runtime.message)} Retry Start tagger or check the model files in Settings.`
+      : runtime.status === 'starting' ? 'Loading the saved tagging model…'
+      : !configured ? 'Choose a vision model and matching projector in Settings.'
+      : transfer ? 'Wait for the file operation to finish. Its progress and controls are in Files.'
+      : running.length || modelWork ? 'A job is using the processing lane. Open Jobs for progress and Pause.'
+      : preparing ? 'Checking model performance. Open Settings for progress and Stop.'
+      : 'The saved model loads automatically for Tag photos. Start tagger only loads the model.');
+    runtimeHelp.hidden = !connected;
   }
 
   const dialog = el('dialog', 'pfm-dialog');
@@ -211,6 +240,8 @@
     if (!monitor) return 'Waiting for local metrics…';
     if (monitor.modelActivityVersion === 1) {
       const active = monitor.activeModel;
+      if (!active && runtime.status === 'error') return 'Model needs attention';
+      if (!active && runtime.status === 'starting') return 'Loading model…';
       if (!active) return 'No model loaded';
       if (active.status === 'starting') return 'Loading model…';
       if (isActive()) {

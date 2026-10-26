@@ -712,6 +712,25 @@ test('a missing access owner points to verified recovery separately from origina
   } finally {await ui.close();}
 });
 
+test('a partially connected saved folder offers identity review without repeating folder selection', async () => {
+  const source = automaticSource({ status: 'available', originalsFolderSelected: false, needsReview: 4,
+    roots: [{ id: 'root-a', selected: false, status: 'available', needsReview: 4, locationLabel: '/saved/Work' }] });
+  const ui = harness({ sources: [source] }, { prepareSourceConnection: {
+    sourceId: source.id, planId: 'review-plan', count: 4, unresolved: 1, rootLocationLabel: '/saved/Work', examples: [],
+  } });
+  try {
+    await ui.window.PhotoFindryPanels.show('sources', { sourceId: source.id, rootId: 'root-a', jobId: 'blocked-tagging' });
+    const connection = ui.all().find(node => node.className.includes('pfp-automatic-source'));
+    assert.match(connection.textContent, /Some original identities need review/);
+    assert(connection.children.some(node => node.textContent.includes('Review identity conflicts')));
+    await ui.findButton('Review identity conflicts').click();
+    assert.equal(ui.findButton('Confirm matching locations').disabled, false);
+    assert.deepEqual(ui.calls.find(call => call.action === 'prepareSourceConnection').params, { sourceId: source.id, rootId: 'root-a' });
+    assert(!ui.calls.some(call => ['locateSource', 'confirmSourceConnection', 'jobAction'].includes(call.action)));
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
+
 test('automatic source exceptions remain explicit and an offline drive is never presented as deleted', async () => {
   for (const [overrides,label] of [[{status:'needsReview',needsReview:2},'Review identity conflicts'],[{status:'permission',accessOriginals:false},'Allow folder access…']]) {
     const source=automaticSource(overrides);const ui=harness({sources:[source]});
