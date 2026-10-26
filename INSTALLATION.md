@@ -1,6 +1,6 @@
 # Install PhotoFindry
 
-**Current release: 0.3.0-beta.1 · build 131.** Installation guide updated 26 October 2026.
+**Current release: 0.3.0-beta.2 · build 132.** Installation guide updated 26 October 2026.
 
 PhotoFindry installs a local background companion and opens a browser workspace. The public website does not receive your photos or library session. You do not need a PhotoFindry account, a subscription, a compiler, or a checkout of this repository.
 
@@ -81,7 +81,7 @@ The command's execution-policy option applies to the setup child process; it doe
 
 Open **PhotoFindry** from the **Start menu**. The installed companion runs locally and opens the browser interface. It starts when you sign in unless you disable startup in the companion settings.
 
-Windows currently has no People/face provider, portable library backup/source transfer, or dedicated CLEF/Intern review runtime. The configured vision model is selected separately during first run.
+Windows has no People/face provider, source archives or dedicated CLEF/Intern review runtime. Portable whole-library backup and restore are available. The configured vision model is selected separately during first run.
 
 ## Linux (x86-64)
 
@@ -130,7 +130,7 @@ Linux core installation and real-model checks were performed on an x86-64 Ubuntu
 3. **Add a small source folder in Files.** Choose the existing originals folder with the platform picker. Original photographs stay in place. Cloud-backed originals need to be available locally when processing reads them.
 4. **Start tagging.** Adding a folder alone does not establish that it has accepted tags. Follow progress in Jobs. Saved jobs may reopen paused; choose Resume when you want them to continue.
 5. **Try ordinary search, then Local AI Search.** Ordinary search uses saved information. Local AI Search is an explicit model-assisted action.
-6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.1 / build 131**; a later signed release may be installed by the same setup command.
+6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.2 / build 132**; a later signed release may be installed by the same setup command.
 
 See [Getting started](https://github.com/sentrybottale/photofindryapp/blob/main/docs/getting-started.md) and [Search](https://github.com/sentrybottale/photofindryapp/blob/main/docs/search.md) for the full workflow.
 
@@ -138,13 +138,13 @@ See [Getting started](https://github.com/sentrybottale/photofindryapp/blob/main/
 
 **For normal installation, use the verified setup block above.** It selects and verifies the correct package, registers the companion and installs startup. Downloading a ZIP alone does not perform those steps.
 
-The [0.3.0-beta.1 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.1) contains these program archives:
+The [0.3.0-beta.2 release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2) contains these program archives:
 
 | Platform | Program archive | Download size, excluding your vision model |
 | --- | --- | --- |
-| Apple-silicon Mac | `PhotoFindry-0.3.0-beta.1-arm64-companion.zip` | 398,483,420 bytes (about 398 MB) |
-| Linux x86-64 | `PhotoFindry-0.3.0-beta.1-linux-x86_64-companion.tar.gz` | 364,357,379 bytes (about 364 MB) |
-| Windows x64 | `PhotoFindry-0.3.0-beta.1-windows-x86_64-companion.zip` | 87,194,889 bytes (about 87 MB) |
+| Apple-silicon Mac | `PhotoFindry-0.3.0-beta.2-arm64-companion.zip` | 398,498,932 bytes (about 398 MB) |
+| Linux x86-64 | `PhotoFindry-0.3.0-beta.2-linux-x86_64-companion.tar.gz` | 364,381,093 bytes (about 364 MB) |
+| Windows x64 | `PhotoFindry-0.3.0-beta.2-windows-x86_64-companion.zip` | 87,222,087 bytes (about 87 MB) |
 
 Other assets have different purposes:
 
@@ -200,6 +200,6 @@ Further help: [Troubleshooting guide](https://github.com/sentrybottale/photofind
 
 ## Platform differences
 
-People is included on Mac and Linux; Windows has no face provider. Library backup/source transfer and dedicated CLEF/Intern review runtimes remain Mac-only. Cross-platform customer-library migration is not offered by this release. Keep independent backups of originals on every platform; previews are reduced cached copies, not original-photo backups.
+People is included on Mac and Linux; Windows has no face provider. Whole-library backup and restore work across Mac, Linux and Windows. Source archives and dedicated CLEF/Intern review runtimes remain Mac-only. Keep independent backups of originals on every platform; previews are reduced cached copies, not original-photo backups.
 
-macOS 14 is the declared minimum, with macOS 27.0 used for the published qualification. Linux/Windows core trials used small real-evidence libraries; they do not establish every desktop, codec, GPU or full-library performance combination. Read the [release's QUALIFICATION.md](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.1/QUALIFICATION.md) for the actual tested scope.
+macOS 14 is the declared minimum, with macOS 27.0 used for the published qualification. Linux/Windows core trials used small real-evidence libraries; they do not establish every desktop, codec, GPU or full-library performance combination. Read the [release's QUALIFICATION.md](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.2/QUALIFICATION.md) for the actual tested scope.

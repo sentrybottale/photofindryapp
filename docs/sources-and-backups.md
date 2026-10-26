@@ -1,6 +1,6 @@
 # Files, offline previews and backups
 
-People is supported on Mac and Linux. Library backup and source transfer in this guide are Mac features; Linux/Windows do not currently offer them. Keep independent backups of your library and originals.
+People is supported on Mac and Linux. Whole-library backup and restore work on Mac, Linux and Windows from 0.3.0-beta.2. Source archives remain a Mac feature. Keep independent backups of your library and originals.
 
 Original photographs belong in the folders and drives you choose. PhotoFindry's library stores saved details, people corrections and prepared image copies separately.
 
@@ -14,11 +14,11 @@ PhotoFindry checks registered sources in the background while the companion is r
 
 Use **Backups & archives → Export library backup…** to export a portable library backup. New packages use `.photofindrybackup`; legacy `.photorecallbackup` packages remain readable. These packages preserve supported saved library evidence, not original photo files or model weights.
 
-Keep independent backups of originals. Restore is a deliberate operation: review the selected archive and the recovery information shown by the app. Model file choices belong to the host Mac and should not be silently replaced by a restore.
+Keep independent backups of originals. Restore is a deliberate operation: review the selected archive and the recovery information shown by the app. Restore preserves the receiving computer's model file choices. It verifies and stages the selected package before replacing the library, keeps a recovery copy, and leaves imported work paused. Select the whole .photofindrybackup folder, not a file inside it.
 
 ## Source archives
 
-Files offers scoped source snapshots and additive attachment. Archives can carry supported saved details and selected previews. A source archive is a snapshot, not a live synchronized drive: export a new one after later changes. Original photographs and model weights are not included.
+On Mac, Files offers scoped source snapshots and additive attachment. Archives can carry supported saved details and selected previews. A source archive is a snapshot, not a live synchronized drive: export a new one after later changes. Original photographs and model weights are not included.
 
 ## Cleanup and updates
 
@@ -28,7 +28,7 @@ Routine CLI updates replace versioned program files. Your retained folder-access
 
 ## Choose originals once, then follow their status
 
-For a source added or attached from another Mac, open Files and choose its originals folder on this computer. The native chooser records that local folder choice; PhotoFindry checks its originals in the background. A matching source does not require a second routine confirmation. Verified later folder and file moves keep the same saved photographs and details. Changed or ambiguous originals still need review; matching names and sizes alone do not confirm identical pixels.
+After restoring a library from another computer or operating system, open Files and choose the corresponding originals folder on this computer. Foreign computer paths are not opened. The native chooser records that local folder choice; PhotoFindry checks its originals in the background. A matching source does not require a second routine confirmation. Verified later folder and file moves keep the same saved photographs and details. Changed or ambiguous originals still need review; matching names and sizes alone do not confirm identical pixels.
 
 The internal access helper is retained across ordinary CLI updates. It opens only for a native folder choice or access restoration; there is no permanent Mac application to keep open. macOS can still revoke access or require consent. If Files reports that specific denial, choose **Allow folder access…** for the affected folder. A disconnected drive, a missing original and an unavailable helper have different recovery actions.
 
