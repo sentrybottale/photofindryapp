@@ -1147,3 +1147,20 @@ test('another saved preview does not restart queued preparation for unchanged un
     wait.resolve({});await ui.flush();assert.equal(ui.createdURLs.length,1);
   } finally {wait.resolve({});await ui.close();}
 });
+
+
+test('ordinary search follows the native default and keeps related matching an explicit choice', async () => {
+  const ui=harness();
+  try {
+    await ui.pair();
+    assert.equal(ui.window.PhotoFindry.getScope().includeRelated,false);
+    await ui.window.PhotoFindry.setScope({query:'woman'});
+    assert.equal(ui.calls.filter(call=>call.route==='/api/library').at(-1).input.includeRelated,false);
+    await ui.window.PhotoFindry.setScope({includeRelated:true});
+    assert.equal(ui.calls.filter(call=>call.route==='/api/library').at(-1).input.includeRelated,true);
+    await ui.ids.get('clear-filters').click();await ui.flush();
+    assert.equal(ui.window.PhotoFindry.getScope().includeRelated,true,'clearing filters retains the explicit related choice');
+    await ui.ids.get('disconnect').click();await ui.flush();
+    assert.equal(ui.window.PhotoFindry.getScope().includeRelated,false);
+  } finally {await ui.close();}
+});

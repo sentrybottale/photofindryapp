@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "8e69a8a46b54fb9bad3fad2bf5ba9f041c3d07e644043eac14873b60366a54ac",
+  "exportManifestSHA256": "f7f7e3216e7b4fcfae45f6da545219bc61cacec2fec2e99bc97d3ee6be029117",
   "files": [
     {
       "bytes": 1182,
@@ -537,9 +537,9 @@
       "sha256": "124a22f842c439d57144b10f6be747b979a4d62358fd6485fbbd321d9ca0758f"
     },
     {
-      "bytes": 78068,
+      "bytes": 78997,
       "path": "tests/companion-gallery.test.js",
-      "sha256": "593749025b734bb5e7bf076801c9da6e8fb98b40c6714aea13560f2903d607fa"
+      "sha256": "8df8831e5218a9699aeedbdd0ac00003d041e32d2667211993c31b82b599e4b4"
     },
     {
       "bytes": 25470,
@@ -597,9 +597,9 @@
       "sha256": "0018335c3d2acbc5d0cfd9b2bea8dee5fe8fa30c72f9751f24a6fbfd75294c23"
     },
     {
-      "bytes": 123732,
+      "bytes": 123735,
       "path": "web-companion/app.js",
-      "sha256": "3bd2061841fef22d0bfebc0fedfcd46e87dc7d2813d49acae68fb1c4cd09a3ac"
+      "sha256": "b28545b287b84fd554e8d6ee14cf8e49f20dc5439e6f99a10c645050422ede62"
     },
     {
       "bytes": 2797,
@@ -839,6 +839,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "0d37aa12bf5218f1d49f81b728ea17aab94b4773",
+  "privateBuildRevision": "0658e62134a1089b2e934e2db6e83aad7ceb34d4",
   "schema": 1
 }

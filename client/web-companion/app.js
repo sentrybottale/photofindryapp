@@ -82,7 +82,7 @@
     workerGeneration: null,
     photoWorkflowKey: null,
     libraryLoaded: false,
-    scope: { sourceId: '', scopeId: '', status: 'all', sort: 'library', metadataFilters: {}, locationOptions: {}, includeRelated: true },
+    scope: { sourceId: '', scopeId: '', status: 'all', sort: 'library', metadataFilters: {}, locationOptions: {}, includeRelated: false },
     aiJobId: null,
     aiSort: 'relevance',
     candidateView: 'best',
@@ -293,7 +293,7 @@
     clearPage(); state.libraryLoaded = false; state.galleryRevision = null; state.photoWorkflowKey = null;
     state.aiJobId = null; state.aiRequestIDs.clear(); state.lastAIInvalidation = ''; state.offset = 0; state.total = 0;
     if (replaced) {
-      state.scope = { sourceId: '', scopeId: '', status: 'all', sort: 'library', metadataFilters: {}, locationOptions: {}, includeRelated: true };
+      state.scope = { sourceId: '', scopeId: '', status: 'all', sort: 'library', metadataFilters: {}, locationOptions: {}, includeRelated: false };
       $('search').value = ''; state.query = '';
       $('result-count').textContent = ''; $('page-label').textContent = '';
       $('global-error').textContent = ''; $('global-error').hidden = true;
@@ -602,7 +602,7 @@
     state.aiJobId = null;
     state.lastPage = null;
     state.aiRequestIDs.clear(); state.lastAIInvalidation = '';
-    state.scope = { sourceId: '', scopeId: '', status: 'all', sort: 'library', metadataFilters: {}, locationOptions: {}, includeRelated: true };
+    state.scope = { sourceId: '', scopeId: '', status: 'all', sort: 'library', metadataFilters: {}, locationOptions: {}, includeRelated: false };
     state.pairController?.abort();
     state.pairController = null;
     clearPage();
