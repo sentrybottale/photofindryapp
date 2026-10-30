@@ -1,6 +1,6 @@
 # Install PhotoFindry
 
-**Current release: 0.3.0-beta.2 · build 132.** Installation guide updated 26 October 2026.
+**Mac/Linux: 0.3.0-beta.3 · build 136. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 30 October 2026.
 
 PhotoFindry installs a local background companion and opens a browser workspace. The public website does not receive your photos or library session. You do not need a PhotoFindry account, a subscription, a compiler, or a checkout of this repository.
 
@@ -142,8 +142,8 @@ The [0.3.0-beta.2 release](https://github.com/sentrybottale/photofindryapp/relea
 
 | Platform | Program archive | Download size, excluding your vision model |
 | --- | --- | --- |
-| Apple-silicon Mac | `PhotoFindry-0.3.0-beta.2-arm64-companion.zip` | 398,498,932 bytes (about 398 MB) |
-| Linux x86-64 | `PhotoFindry-0.3.0-beta.2-linux-x86_64-companion.tar.gz` | 364,381,093 bytes (about 364 MB) |
+| Apple-silicon Mac | `PhotoFindry-0.3.0-beta.2-arm64-companion.zip` | 398,589,265 bytes (about 398 MB) |
+| Linux x86-64 | `PhotoFindry-0.3.0-beta.2-linux-x86_64-companion.tar.gz` | 364,454,429 bytes (about 364 MB) |
 | Windows x64 | `PhotoFindry-0.3.0-beta.2-windows-x86_64-companion.zip` | 87,222,087 bytes (about 87 MB) |
 
 Other assets have different purposes:

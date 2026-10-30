@@ -6,7 +6,7 @@ PhotoFindry tags and searches photographs locally on Apple-silicon Mac, Linux x8
 
 ## Install the current beta
 
-**0.3.0-beta.2 · build 132** — [release notes and downloads](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2).
+**Mac/Linux: 0.3.0-beta.3 · build 136** — [release notes and downloads](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.3). **Windows: 0.3.0-beta.2 · build 132** remains available from its signed platform feed.
 
 Choose the instructions for the computer where you will run PhotoFindry:
 
