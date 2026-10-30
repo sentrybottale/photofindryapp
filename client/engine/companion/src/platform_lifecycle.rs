@@ -1035,12 +1035,23 @@ pub async fn web_status(data: &Path) -> Result<Value> {
 pub fn schedule(action: &str, data: &Path) -> Result<()> {
     if !matches!(action,"check"|"update"|"rollback"|"recover"|"enable-autostart"|"disable-autostart"){return Err("Unsupported maintenance action.".into());}
     let root=installed_root(&self_executable()?).ok_or("Open the installed signed companion to manage updates.")?;
-    let _lock=operation_lock(&root)?;
+    let lock=operation_lock(&root)?;
     let cfg=read_state(&root)?;
     if !same_library_directory(&cfg.data,data)?{return Err("This process does not own the installed library.".into());}
     if matches!(action,"update"|"rollback"|"recover"){require_idle(&cfg)?;}
     note(&root,"queued","Companion maintenance is scheduled. Your library stays in place.");
-    service::schedule(&root,action)
+    dispatch_maintenance(lock, || service::schedule(&root,action))
+}
+fn dispatch_maintenance(lock: Lock, dispatch: impl FnOnce() -> Result<()>) -> Result<()> {
+    // systemd-run can start the child before it returns. The child owns the
+    // mutation lock and revalidates the installation/idle queue itself. Keeping
+    // the parent's validation lock here races that child. The fixed per-root
+    // transient unit still rejects overlapping maintenance dispatches.
+    #[cfg(target_os = "linux")]
+    drop(lock);
+    #[cfg(windows)]
+    let _lock = lock;
+    dispatch()
 }
 // Explicit default Open checks the fixed signed feed; isolated entry requests
 // keep their fixture paths and never contact or claim the default installation.
@@ -1159,6 +1170,39 @@ const USAGE: &str = "Use lifecycle install --release FILE [--data-dir DIR] [--la
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn maintenance_child_can_lock_before_dispatch_returns_and_excludes_other_operations() {
+        let temp=std::env::temp_dir().join(format!("pf-handoff-{}-{}",std::process::id(),nonce().unwrap()));
+        private_dir(&temp,true).unwrap();
+        let parent=operation_lock(&temp).unwrap();
+        assert!(operation_lock(&temp).is_err(),"Validation must exclude another operation");
+        dispatch_maintenance(parent,|| {
+            // A separate thread/open file description models a child started
+            // synchronously by systemd-run, before dispatch has returned.
+            let (ready_tx,ready_rx)=std::sync::mpsc::channel();
+            let (done_tx,done_rx)=std::sync::mpsc::channel();
+            let child_root=temp.clone();
+            let child=std::thread::spawn(move|| {
+                let child_lock=operation_lock(&child_root);
+                ready_tx.send(child_lock.is_ok()).unwrap();
+                done_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                drop(child_lock);
+            });
+            let acquired=ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            let competing=operation_lock(&temp);
+            done_tx.send(()).unwrap();
+            child.join().unwrap();
+            assert!(acquired,"The child must acquire its operation lock while dispatch is still running");
+            assert!(competing.is_err(),"The child's mutation lock must exclude competing operations");
+            Ok(())
+        }).unwrap();
+        drop(operation_lock(&temp).unwrap());
+        let parent=operation_lock(&temp).unwrap();
+        assert!(dispatch_maintenance(parent,||Err("scheduler rejected request".into())).is_err());
+        drop(operation_lock(&temp).unwrap());
+        fs::remove_dir_all(temp).unwrap();
+    }
     fn sample(root: &Path) -> Installation {
         let base = root.parent().unwrap();
         Installation { schema: 1, current: 132, previous: Some(131), highest: 132, data: base.join("Library"), launch_state: base.join("Launch"), autostart: true }

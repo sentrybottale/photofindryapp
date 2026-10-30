@@ -813,15 +813,17 @@
     const waiting = Math.max(0, num(job.waitingOriginalCount ?? job.deferredOriginalCount)), missing = Math.max(0, num(job.missingOriginalCount));
     const dependency = (Array.isArray(snapshot.sources) ? snapshot.sources : []).find(source => source.id === (job.sourceNextAction?.sourceId || job.sourceId));
     const dependencyRoot = (Array.isArray(dependency?.roots) ? dependency.roots : []).find(root => root.id === job.sourceNextAction?.rootId);
+    const recovery = dependencyRoot?.recovery?.version === 1 ? dependencyRoot.recovery : dependency?.recovery?.version === 1 ? dependency.recovery : null;
     const checkingIdentity = dependency?.automaticLifecycleVersion === 1
       && (dependencyRoot ? dependencyRoot.selectionPending === true : dependency.folderSelectionPending === true)
       && !['needsReview', 'changed'].includes(dependencyRoot?.status || dependency.selectionStatus)
       && !(num(dependencyRoot?.needsReview ?? dependency.needsReview) > 0);
     const deferredIdentityReview = checkingIdentity && job.sourceNextAction?.kind === 'reviewIdentity';
     const sourceException = job.sourceNextAction?.kind === 'allowAccess' || job.sourceNextAction?.kind === 'reviewIdentity' && !deferredIdentityReview;
-    const recover = sourceWork && !deferredIdentityReview && (!automaticWait || sourceException) && (sourceWait && Boolean(job.sourceNextAction || job.pauseReason === 'safety-source')
+    const recover = recovery ? sourceWork && Boolean(job.sourceNextAction?.sourceId || job.sourceId) && (sourceWait || !terminal(job) && job.state !== 'paused' && waiting + missing > 0)
+      : sourceWork && !deferredIdentityReview && (!automaticWait || sourceException) && (sourceWait && Boolean(job.sourceNextAction || job.pauseReason === 'safety-source')
       || !['completed', 'cancelled', 'paused'].includes(job.state) && waiting + missing > 0 && Boolean(job.sourceNextAction));
-    const sourceMessage = recover ? ({
+    const sourceMessage = recover && recovery ? str(recovery.message) : recover ? ({
       reviewIdentity: 'Some originals have conflicting or uncertain identity. Review only these originals in Files; other usable photos can continue.',
       allowAccess: 'Open Files, select this source, and choose its originals folder again to allow access. Saved details are kept.',
     })[job.sourceNextAction?.kind] || '' : '';
@@ -835,6 +837,9 @@
     else if (job.state === 'queued' && snapshot.jobs?.paused) message = 'Waiting for Resume queue. This job’s schedule still applies.';
     else if (job.state === 'queued' && job.waitingForSchedule) message = 'Waiting for its scheduled window. Choose Run now to start sooner.';
     else if (job.state === 'paused' && job.pauseReason === 'user' && (!message || /^paused[. ]*$/i.test(message))) message = 'Paused individually. Resume this job to continue.';
+    if (sourceWait && recovery) message = recovery.phase === 'ready'
+      ? 'Originals are connected. PhotoFindry is rechecking the waiting job photos automatically; saved progress is kept.' : str(recovery.message);
+    if (sourceWait && recovery && snapshot.jobs?.paused) message += ' Processing remains paused until you resume it.';
     const parts = job.sourceLifecycleVersion === 1
       ? [`${fmt.format(Math.max(0, completed - skipped - (job.kind === 'tagging' ? failed : 0)))} ${job.kind === 'tagging' ? 'tagged' : 'processed'}`]
       : [`${fmt.format(completed)} of ${fmt.format(total)} ${job.kind === 'aiSearch' ? 'reviewed' : 'processed'}`];
@@ -848,7 +853,7 @@
     if (waiting) parts.push(`${fmt.format(waiting)} originals waiting`);
     if (failed) parts.push(`${fmt.format(failed)} need attention`);
     if (skipped) parts.push(`${fmt.format(skipped)} removed from library`);
-    return { settled, sourceWait, automaticWait, recover, checkingIdentity, total, completed, failed, waiting, status, message, sourceMessage, count: parts.join(' · '), meterCompleted };
+    return { settled, sourceWait, automaticWait, recover, recovery, checkingIdentity, total, completed, failed, waiting, status, message, sourceMessage, count: parts.join(' · '), meterCompleted };
   }
   function sourceProgress(job) {
     const explicit = ['prepare', 'checking', 'verify', 'connect', 'publish'].includes(job.phase) ? job.phase : null;
@@ -870,9 +875,11 @@
       default: return { title: terminal(job) ? 'Source check finished' : 'Preparing source check', message: checked ? `${fmt.format(checked)} originals checked` : scanned ? `${fmt.format(scanned)} file locations saved` : str(job.message), meter: running };
     }
   }
-  function recoveryAction(job) {
-    jobsDialog?.close(); window.PhotoFindryPanels?.show('sources', { jobId: job.id,
-      sourceId: job.sourceNextAction?.sourceId || job.sourceId, ...(job.sourceNextAction?.rootId ? { rootId: job.sourceNextAction.rootId } : {}) });
+  function recoveryAction(job, action = null) {
+    jobsDialog?.close();
+    const context = { jobId: job.id, sourceId: job.sourceNextAction?.sourceId || job.sourceId,
+      ...(job.sourceNextAction?.rootId ? { rootId: job.sourceNextAction.rootId } : {}), ...(action ? { action } : {}) };
+    return action && window.PhotoFindryPanels?.recoverSource ? window.PhotoFindryPanels.recoverSource(context) : window.PhotoFindryPanels?.show('sources', context);
   }
   function jobActions(job, compact = false) {
     const facts = jobFacts(job), actions = [];
@@ -897,10 +904,11 @@
       }
     }
     if (facts.settled) add('retryMissing', 'Tag recovered photos', () => jobAction('retryMissing', job.id));
-    if (facts.recover) add('recoverOriginals', job.sourceNextAction?.kind === 'reviewIdentity' ? 'Review originals' : job.sourceNextAction?.kind === 'allowAccess' ? 'Open Files' : job.sourceNextAction?.title || 'Find originals', () => recoveryAction(job), true);
+    if (facts.recover) add('recoverOriginals', facts.recovery ? ({ chooseFolder: 'Choose originals folder', allowAccess: 'Allow folder access', reviewOriginals: 'Review originals', showFolder: 'Open originals folder', recoverCompanion: 'Recover connection' })[facts.recovery.action] || 'Connection status'
+      : job.sourceNextAction?.kind === 'reviewIdentity' ? 'Review originals' : job.sourceNextAction?.kind === 'allowAccess' ? 'Open Files' : job.sourceNextAction?.title || 'Find originals', () => recoveryAction(job, facts.recovery?.action), true);
     else if (job.state === 'paused' && !facts.automaticWait && !facts.settled) add('resume', 'Resume', () => jobAction('resume', job.id), true);
     else if (compact && facts.sourceWait && !facts.recover && !facts.automaticWait && !facts.checkingIdentity) add('recoverOriginals', 'Open Files', () => recoveryAction(job));
-    if (job.state === 'paused' && job.sourceNextAction?.kind === 'allowAccess') add('retryAccess', 'Retry access', () => jobAction('resume', job.id));
+    if (!facts.recovery && job.state === 'paused' && job.sourceNextAction?.kind === 'allowAccess') add('retryAccess', 'Retry access', () => jobAction('resume', job.id));
     if (job.state === 'failed') {
       add('retry', 'Retry', () => jobAction('retry', job.id), true);
       if (!compact && job.dismissedFromQueue !== true) add('dismissJob', 'Dismiss from queue', () => jobAction('dismissJob', job.id));

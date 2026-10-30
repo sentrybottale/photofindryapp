@@ -64,8 +64,7 @@ signed update. Failed or interrupted switches retain verified prior software
 and never automatically restore an older library. The local opening helper
 offers Recover and open.
 
-The app bundle uses ad-hoc macOS signatures. These are distinct from the
+The companion’s native executables use ad-hoc macOS code seals. These are distinct from the
 maintainer's Ed25519 download/update signatures and do not provide Apple publisher
-validation. Signature
-verification proves possession of the signing key and exact bytes, not absence of
+validation. Signature verification proves possession of the signing key and exact bytes, not absence of
 bugs, enforced isolation or a security guarantee.

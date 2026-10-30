@@ -653,6 +653,8 @@ test('automatic initial reconciliation shows bounded progress and only freshly c
     let connection=ui.all().find(node=>node.className.includes('pfp-automatic-source'));
     assert.match(connection.textContent,/Checking originals automatically/);
     assert.match(connection.textContent,/Locations checked32 of 90,000/);
+    assert.match(connection.textContent,/Still to check89,968/);
+    assert.match(connection.textContent,/Unchecked originals are not counted as missing/);
     assert.match(connection.textContent,/Identity checkIn progress/);
     assert(!visiblePanelButtons(ui).includes('Review identity conflicts'));
     source.needsReview=1;source.roots[0].needsReview=1;source.roots[0].observationChecked=33;
@@ -665,6 +667,33 @@ test('automatic initial reconciliation shows bounded progress and only freshly c
       'rendering system progress never confirms identities or resumes processing');
     assert.deepEqual(ui.errors,[]);
   } finally {await ui.close();}
+});
+
+test('automatic source observations preserve the matching-originals review across refresh and drafts', async () => {
+  const source = automaticSource({ needsReview: 1 });
+  const plan = { planId: 'retained-plan', sourceId: source.id, rootId: 'root-a', count: 19, unresolved: 1 };
+  const ui = harness({ sources: [source] }, { prepareSourceConnection: plan });
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    ui.emit('photofindry:state', structuredClone(ui.state));
+    await ui.findButton('Review identity conflicts').click();
+    assert(visiblePanelButtons(ui).includes('Confirm matching locations'));
+    source.available += 1;
+    ui.emit('photofindry:state', structuredClone(ui.state));
+    await new Promise(resolve => setTimeout(resolve, 250));
+    assert(visiblePanelButtons(ui).includes('Confirm matching locations'), 'completed review survives automatic refresh');
+    const name = ui.field('Source name'); name.value = 'Unfinished name'; await name.fire('input'); name.focus();
+    source.available += 1;
+    ui.emit('photofindry:state', structuredClone(ui.state));
+    await new Promise(resolve => setTimeout(resolve, 250));
+    assert(visiblePanelButtons(ui).includes('Confirm matching locations'), 'partial availability repaint retains the review');
+    assert.equal(ui.field('Source name'), name);
+    assert.equal(ui.calls.filter(call => call.action === 'prepareSourceConnection').length, 1);
+    assert(!ui.calls.some(call => call.action === 'confirmSourceConnection'));
+    await ui.findButton('Cancel review').click();
+    assert(!visiblePanelButtons(ui).includes('Confirm matching locations'));
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
 });
 
 test('native access renewal stays automatic and preserves source-name edits', async () => {
@@ -1199,4 +1228,71 @@ test('an explicit face scan joining an owning job reports where the work is inst
       assert.deepEqual(ui.notices, [expected]); assert.deepEqual(ui.errors, []);
     } finally { await ui.close(); }
   }
+});
+
+function actionableSource(action = 'reviewOriginals') {
+  const source = automaticSource({ available: 42, needsReview: 20000 });
+  Object.assign(source.roots[0], { photoCount: 60978, available: 42, needsReview: 20000,
+    unchecked: 40936, recovery: { version: 1, phase: 'needsReview', action,
+      title: 'Some originals need verification', message: 'Other verified photos can continue.' } });
+  return source;
+}
+
+test('actionable source recovery exposes permission and retry directly without queue jobs', async () => {
+  for (const [action, label, expected] of [['allowAccess', 'Allow folder access…', 'locateSource'], ['retry', 'Retry connection', 'retrySourceObservation']]) {
+    const source = actionableSource(action); const ui = harness({ sources: [source] }, { locateSource: { submittedJob: { id: 'selection', sourceId: source.id, rootId: 'root-a', kind: 'sourceSelection', state: 'running', automaticLifecycleVersion: 1 } } });
+    ui.window.PhotoFindry.pick = async () => ({ grantId: 'retained-native-choice', locationLabel: source.roots[0].locationLabel });
+    try {
+      await ui.window.PhotoFindryPanels.show('sources');
+      await ui.findButton(label).click();
+      assert.equal(ui.calls.filter(call => call.action === expected).length, 1);
+      assert(!ui.calls.some(call => ['enqueueJob', 'jobAction', 'prepareSourceConnection'].includes(call.action)));
+      assert.deepEqual(ui.errors, []);
+    } finally { await ui.close(); }
+  }
+});
+
+test('background folder review has progress, one inline acknowledgement, and one confirmation', async () => {
+  const source = actionableSource(); const plan = { planId: 'review-one', sourceId: source.id, rootId: 'root-a', phase: 'ready', count: 20000, unresolved: 3 };
+  let polls = 0;
+  const ui = harness({ sources: [source] }, {
+    prepareSourceConnection: { ...plan, phase: 'preparing', running: true, completed: 0, total: 60978 },
+    sourceConnectionReview: () => { polls++; return plan; },
+    confirmSourceConnection: { submittedJob: { id: 'only-confirmation' } },
+  });
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const opening = ui.findButton('Review originals').click();
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.match(ui.all().find(node => node.className.includes('pfp-originals-review')).textContent, /Other photos can continue processing/);
+    await opening;
+    assert.equal(polls, 1);
+    assert.deepEqual(ui.calls.find(call => call.action === 'prepareSourceConnection').params, { sourceId: source.id, rootId: 'root-a', background: true });
+    const connect = ui.findButton('Connect 20,000 matching originals');
+    assert.equal(connect.disabled, true);
+    assert.equal(ui.calls.some(call => call.action === 'confirmSourceConnection'), false);
+    const ack = ui.all().find(node => node.tagName === 'INPUT' && node.parentNode?.textContent.includes('These are the same originals.'));
+    assert(ack); ack.checked = true; await ack.fire('change');
+    await connect.click();
+    assert.equal(ui.calls.filter(call => call.action === 'confirmSourceConnection').length, 1);
+    assert.equal(ui.all().some(node => node.tagName === 'DIALOG' && node.open), false);
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
+
+test('reopening an existing folder review polls its receipt without starting another review', async () => {
+  const source = actionableSource();
+  const ui = harness({ sources: [source], storageJob: { kind: 'sourceReview', running: true, sourceId: source.id, rootId: 'root-a', planId: 'durable-review' } }, {
+    sourceConnectionReview: { planId: 'durable-review', sourceId: source.id, phase: 'ready', count: 5, unresolved: 0 },
+  });
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    assert(ui.findButton('Connect 5 matching originals').disabled);
+    assert.equal(ui.calls.filter(call => call.action === 'sourceConnectionReview').length, 1);
+    assert.equal(ui.calls.filter(call => call.action === 'prepareSourceConnection').length, 0);
+    await ui.findButton('Cancel review').click();
+    assert.deepEqual(ui.calls.find(call => call.action === 'cancelSourceConnectionReview').params, { planId: 'durable-review' });
+    assert.equal(ui.all().some(node => node.textContent === 'Connect 5 matching originals'), false);
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
 });

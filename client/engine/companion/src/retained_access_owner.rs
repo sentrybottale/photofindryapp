@@ -222,6 +222,92 @@ fn replace_owner(at: &Path, state: &Owner) -> Result<()> {
         .sync_all()
         .map_err(|_| FAILURE.into())
 }
+pub fn network_grant_candidate(root:&Path,id:&str)->Result<Option<serde_json::Value>> {
+    use std::io::Read;
+    if !super::source_access::owner_id(id) {return Err("Invalid source access reference.".into());}
+    let at=root.join("source-access-state");let _directory=launch::private_directory(&at,false)?;
+    let file=launch::private_file(&at.join(format!("{id}.json")),false)?;
+    if file.metadata().map_err(|_|FAILURE)?.len()>131072 {return Err("The retained folder record exceeds its bound.".into());}
+    let mut bytes=Vec::new();file.take(131073).read_to_end(&mut bytes).map_err(|_|FAILURE)?;
+    let record:serde_json::Value=serde_json::from_slice(&bytes).map_err(|_|"The retained folder record is invalid.")?;
+    if record["schema"]!=1 || record["ownerGrantId"]!=id {return Err("The retained folder record changed.".into());}
+    if record["volumeUUID"].as_str().is_none_or(str::is_empty) && record["permissionVolumePolicy"]!="network-bookmark" {return Ok(None);}
+    Ok(Some(record))
+}
+fn network_permission_record(record:&serde_json::Value,info:&serde_json::Value)->Option<serde_json::Value> {
+    let selected=record["selectedPath"].as_str()?;
+    let volume=record["volumeUUID"].as_str().filter(|v|!v.is_empty())?;
+    let current=info["volumeUUID"].as_str().filter(|v|!v.is_empty())?;
+    if !selected.starts_with('/') || selected.len()>16384 || selected.contains('\0')
+        || info["path"]!=selected || info["status"]!="available" || info["isDirectory"]!=true
+        || info["exists"]!=true || info["local"]!=false || volume==current
+        || record["bookmark"].as_str().is_none_or(str::is_empty) {return None;}
+    let mut next=record.clone();
+    // The original UUID remains evidence, but a network mount UUID must not
+    // override successful OS bookmark restoration. Per-photo byte identity is
+    // still enforced by the worker, including the changed-volume return fence.
+    next["selectedVolumeUUID"]=serde_json::json!(volume);
+    next["permissionVolumePolicy"]=serde_json::json!("network-bookmark");
+    next["volumeUUID"]=serde_json::json!("");
+    Some(next)
+}
+#[cfg(test)]
+mod network_permission_tests {
+    use super::*;
+    use serde_json::{Value,json};
+    #[test]
+    fn network_mount_compatibility_preserves_the_bookmark_and_requires_matching_native_metadata() {
+        let record=json!({"schema":1,"ownerGrantId":"a".repeat(64),"selectedPath":"/Network/Originals","bookmark":"unchanged-owner-bookmark","volumeUUID":"old-mount","checkMountedVolume":true});
+        let info=json!({"path":"/Network/Originals","status":"available","exists":true,"isDirectory":true,"local":false,"volumeUUID":"new-mount"});
+        let next=network_permission_record(&record,&info).unwrap();
+        assert_eq!(next["bookmark"],record["bookmark"]);assert_eq!(next["ownerGrantId"],record["ownerGrantId"]);
+        assert_eq!(next["selectedPath"],record["selectedPath"]);assert_eq!(next["volumeUUID"],"");
+        assert_eq!(next["selectedVolumeUUID"],"old-mount");assert!(next.get("readerBookmark").is_none());
+        for (key,value) in [("local",json!(true)),("local",Value::Null),("status",json!("permission")),("status",json!("offline")),
+            ("path",json!("/Other/Originals")),("isDirectory",json!(false)),("volumeUUID",json!("old-mount")),("volumeUUID",json!(""))] {
+            let mut wrong=info.clone();wrong[key]=value;
+            assert!(network_permission_record(&record,&wrong).is_none(),"{key}");
+        }
+    }
+    #[test]
+    fn compatibility_update_is_private_and_does_not_overwrite_a_refreshed_grant() {
+        let mut nonce=[0u8;16];getrandom::fill(&mut nonce).unwrap();
+        let base=fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("pf-network-grant-{}",release::digest(&nonce)));
+        let _guard=Stage(base.clone());launch::private_directory(&base,true).unwrap();
+        let store=base.join("source-access-state");launch::private_directory(&store,true).unwrap();
+        let id="a".repeat(64);let file=store.join(format!("{id}.json"));
+        let record=json!({"schema":1,"ownerGrantId":id,"selectedPath":"/Network/Originals","bookmark":"retained","volumeUUID":"old"});
+        write_new(&file,&serde_json::to_vec(&record).unwrap()).unwrap();
+        let info=json!({"path":"/Network/Originals","status":"available","exists":true,"isDirectory":true,"local":false,"volumeUUID":"new"});
+        let mut stale=record.clone();stale["bookmark"]=json!("obsolete");
+        assert!(!normalize_network_grant(&base,&id,&stale,&info).unwrap());
+        assert!(normalize_network_grant(&base,&id,&record,&info).unwrap());
+        let saved:serde_json::Value=serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+        assert_eq!(saved["bookmark"],"retained");assert_eq!(saved["volumeUUID"],"");
+        assert_eq!(fs::metadata(&file).unwrap().mode()&0o777,0o600);
+        assert_eq!(network_grant_candidate(&base,&id).unwrap().unwrap()["permissionVolumePolicy"],"network-bookmark");
+        assert!(network_grant_candidate(&base,"../escape").is_err());
+    }
+}
+pub fn normalize_network_grant(root:&Path,id:&str,before:&serde_json::Value,info:&serde_json::Value)->Result<bool> {
+    let Some(next)=network_permission_record(before,info) else{return Ok(false)};
+    let at=root.join("source-access-state");let directory=launch::private_directory(&at,false)?;
+    let Some(_lock)=launch::try_lock(&at,"network-compatibility.lock")? else{return Ok(false)};
+    if network_grant_candidate(root,id)?.as_ref()!=Some(before) {return Ok(false);}
+    let mut nonce=[0u8;16];getrandom::fill(&mut nonce).map_err(|_|FAILURE)?;
+    let temporary=at.join(format!(".network-{}",release::digest(&nonce)));
+    let bytes=serde_json::to_vec(&next).map_err(|_|FAILURE)?;
+    if bytes.len()>131072 {return Err("The retained folder record exceeds its bound.".into());}
+    write_new(&temporary,&bytes)?;
+    let result=(||{
+        launch::same_directory(&at,&directory)?;
+        if network_grant_candidate(root,id)?.as_ref()!=Some(before) {return Ok(false);}
+        fs::rename(&temporary,at.join(format!("{id}.json"))).map_err(|_|FAILURE)?;
+        directory.sync_all().map_err(|_|FAILURE)?;
+        Ok(true)
+    })();
+    let _=fs::remove_file(&temporary);result
+}
 /// An existing good owner always wins, including a newer CLI whose packaged
 /// helper bytes differ. No ordinary update re-signs or replaces its identity.
 pub fn provision(

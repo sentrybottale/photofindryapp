@@ -22,7 +22,7 @@ The marketing homepage uses optional PostHog website analytics only after you ac
 
 ## Why a direct companion rather than Apple's stores?
 
-PhotoFindry is distributed directly: a signed command-line companion from the official GitHub release, updated through its own Ed25519-signed feed, with the browser as its interface. It does not go through the Mac App Store, by design. This is a distribution decision, not a claim that any software is automatically safe.
+PhotoFindry is distributed directly: a signed command-line companion from the official GitHub release, updated through its own Ed25519-signed feed, with the browser as its interface. This is a distribution decision, not a claim that any software is automatically safe.
 
 The app bundle is ad-hoc signed. Separate pinned Ed25519 signatures authenticate the release inventory, update feed and archive. They establish approved bytes and possession of the signing key, not absence of vulnerabilities. Follow the official verification and per-app installation guidance.
 

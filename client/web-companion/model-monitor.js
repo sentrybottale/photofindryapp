@@ -96,9 +96,19 @@
   recoverTagging.addEventListener('click', () => {
     if (!blockedTagging || !connected) return;
     const next = blockedTagging.sourceNextAction;
-    window.PhotoFindryPanels?.show('sources', { jobId: blockedTagging.id,
-      sourceId: next.sourceId, ...(next.rootId ? { rootId: next.rootId } : {}) });
+    const recovery = taggingRecovery(blockedTagging);
+    const context = { jobId: blockedTagging.id, sourceId: next?.sourceId || blockedTagging.sourceId,
+      ...(next?.rootId ? { rootId: next.rootId } : {}), ...(recovery ? { action: recovery.action } : {}) };
+    const result = recovery && window.PhotoFindryPanels?.recoverSource ? window.PhotoFindryPanels.recoverSource(context)
+      : window.PhotoFindryPanels?.show('sources', context);
+    result?.catch?.(error => P.showError?.(error.message));
   });
+  function taggingRecovery(job) {
+    const source = (lastFullState?.sources || []).find(source => source.id === (job.sourceNextAction?.sourceId || job.sourceId));
+    const root = (source?.roots || []).find(root => root.id === job.sourceNextAction?.rootId);
+    const recovery = root?.recovery || source?.recovery;
+    return recovery?.version === 1 ? recovery : null;
+  }
   async function runtimeAction(name) {
     if (runtimeActionPending) return;
     runtimeActionPending = true; renderRuntimeControls();
@@ -114,18 +124,22 @@
     const loaded = monitor?.modelActivityVersion === 1 ? Boolean(monitor.activeModel) : ['starting', 'ready'].includes(runtime.status);
     const preparing = state.modelOptimization?.running === true;
     const modelWork = running.some(job => ['tagging', 'improve', 'reviewScreen', 'aiSearch'].includes(job.kind));
-    const transfer = state.sourceTransfer?.running === true || state.storageJob?.running === true;
+    const transfer = state.sourceTransfer?.running === true || state.storageJob?.running === true && state.storageJob.blocksProcessing !== false;
     startTagger.disabled = !connected || runtimeActionPending || transfer || loaded || preparing || running.length > 0 || state.job?.running === true || state.aiSearch?.running === true || !state.settings?.modelConfigured || !state.settings?.projectorConfigured;
     unloadModel.disabled = !connected || runtimeActionPending || !(loaded || preparing || modelWork || state.job?.running === true);
-    blockedTagging = queue.find(job => job.kind === 'tagging' && job.state === 'paused'
-      && ['source-waiting', 'source-missing', 'safety-source'].includes(job.pauseReason)
-      && ['reviewIdentity', 'allowAccess'].includes(job.sourceNextAction?.kind)
-      && job.sourceNextAction?.sourceId) || null;
+    blockedTagging = queue.find(job => job.kind === 'tagging'
+      && (job.state === 'paused' && ['source-waiting', 'source-missing', 'safety-source'].includes(job.pauseReason)
+        || taggingRecovery(job) && ['running', 'queued'].includes(job.state) && Number(job.waitingOriginalCount || job.deferredOriginalCount || 0) > 0)
+      && (taggingRecovery(job) || ['reviewIdentity', 'allowAccess'].includes(job.sourceNextAction?.kind))
+      && (job.sourceNextAction?.sourceId || job.sourceId)) || null;
+    const recovery = blockedTagging && taggingRecovery(blockedTagging);
     recoverTagging.hidden = !connected || !blockedTagging;
-    set(recoverTagging, blockedTagging?.sourceNextAction?.kind === 'allowAccess' ? 'Allow folder access' : 'Review originals');
+    set(recoverTagging, recovery ? ({ chooseFolder: 'Choose originals folder', allowAccess: 'Allow folder access', reviewOriginals: 'Review originals', showFolder: 'Open originals folder' })[recovery.action] || 'Connection status'
+      : blockedTagging?.sourceNextAction?.kind === 'allowAccess' ? 'Allow folder access' : 'Review originals');
     const configured = state.settings?.modelConfigured && state.settings?.projectorConfigured;
     set(runtimeHelp, !connected ? '' : blockedTagging
-      ? 'Tagging is waiting for originals. Loading the model does not resolve this; open the affected folder below.'
+      ? recovery ? (recovery.phase === 'ready' ? 'Originals are connected. Waiting job photos are being rechecked automatically.' : string(recovery.message))
+        : 'Tagging is waiting for originals. Loading the model does not resolve this; open the affected folder below.'
       : runtime.status === 'error' ? `${string(runtime.message)} Retry Start tagger or check the model files in Settings.`
       : runtime.status === 'starting' ? 'Loading the saved tagging model…'
       : !configured ? 'Choose a vision model and matching projector in Settings.'
