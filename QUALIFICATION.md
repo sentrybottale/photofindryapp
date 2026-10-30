@@ -1,39 +1,34 @@
-# PhotoFindry 0.3.0-beta.3 / build 136 qualification
+# PhotoFindry 0.3.0-beta.4 / build 137 qualification
 
-This release updates Mac and Linux. Windows retains its separately signed 0.3.0-beta.2 / build 132 release. The existing beta 16 Mac-app migration channel is unchanged.
+This hotfix updates the Mac companion. Linux retains its signed 0.3.0-beta.3 / build 136 release and Windows retains 0.3.0-beta.2 / build 132. The existing beta 16 Mac-app migration channel is unchanged.
+
+## Change
+
+Build 136 treated a cloud-drive remount (for example pCloud, which assigns new device and inode numbers on every mount) as a request to SHA-256-read every original, and saved that mode on the folder. The same-volume re-plug of an external drive also forced a whole-folder byte check. Build 137 reconnects these folders by each file's size, modification time and change time. A replaced file receives a new change time and is still compared against its saved checksum; a mismatch is reported as changed and its saved tags are not transferred. The saved byte-only mode is removed from existing folders automatically. No library migration, retagging or folder review is required.
 
 ## Exact candidate checks
 
-The Mac signed lifecycle passed 17 checks and Linux passed 13: upgrade, rollback, signature rejection, interruption, recovery and preserved-data uninstall/reinstall. The complete Mac source matrix passed: 1,585 JavaScript tests, zero failures (31 optional skips), Python, Rust and Swift. Required delivered-source checks are separate from optional source experiments.
+The signed lifecycle passed all 17 checks from the published build 136 to candidate 137: upgrade, rollback, anti-replay, signature rejection, interrupted switch recovery, serving policy and preserved-data uninstall/reinstall. The complete Mac source matrix passed against the exact package: 1,616 JavaScript tests with 1,588 passes, zero failures and 28 optional skips; 247 Python tests (two opt-in skips); 851 Rust tests with zero failures (14 ignored); and the Swift build. The first matrix attempt failed one unchanged companion timing test (`dropped_request_stops_only_its_owned_helper`, a 400 ms helper-start budget under full load); it passed alone three times and the complete matrix then passed. The failed attempt is retained.
 
-Both installed candidates passed all seven real-core checks. Mac reused a 93,807-photo isolated library on an Apple M1 with 8 GiB RAM and macOS 27.0.1. Linux used the retained 19-photo real-evidence fixture on the headless GE Intel N100 CPU host with about 7.5 GiB usable RAM. No routine full-library export/import or index rebuild was used.
+The installed candidate passed the real-core checks on a 93,807-photo isolated library on an Apple M5 MacBook Pro with 32 GiB RAM and macOS 27.0.1, using Qwen3.5 4B Q4_K_M with its matching BF16 projector and Qwen3 reranker 0.6B Q8:
 
-| Check | Mac | Linux |
-| --- | --- | --- |
-| Ordinary search | 16,396 matches; 14.83 s | 6 matches; 0.07 s |
-| Completed scoped AI | 1 candidate; 82.24 s | 1 candidate; 30.16 s |
-| Real tagging | 1 copied photograph; 23 observations; 229.10 s | 1 copied photograph; 61 observations; 371.07 s |
-| Whole-pool retrieval through saved scores | 25,394 candidates; 74.46 s | 19 candidates; 46.53 s |
-| Active Stop | 1.85 s; saved results retained | 4.12 s; saved results retained |
+| Check | Result |
+| --- | --- |
+| Ordinary search | 6,883 matches; 2.84 s first run, 0.24 s repeated |
+| Completed scoped AI | 1 candidate; 19.21 s |
+| Real tagging | 1 copied photograph; 32 observations; 30.17 s |
+| Whole-pool retrieval to saved scores | 22,192 candidates; 52.31 s |
+| Active Stop | 1.51 s; saved results retained |
+| Recovery, retained folder-access owner, uninstall | Completed results reopened; 93,807 photos and all unfinished jobs preserved |
 
-Mac tagging included the first automatic performance check for the verified model copies: four profiles were compared and the baseline was retained. Its measured baseline was about 42.7 seconds per photograph; that is a local sample, not a sustained-throughput claim. Mac used Qwen3.5 4B Q4_K_M with its matching BF16 projector and Qwen3 reranker 0.6B Q8. Linux used its configured Qwen3.5 0.8B CPU model. Quality and memory checks were retained.
+The first core attempt failed: Local AI Search started during the first reconnect pass of the fixture's network-drive folder and stopped with "The library changed during search". That pass also corrects stale saved folder paths once, which fences searches already in flight. A steady-state check then showed no further search-generation changes while source checks continued, and a fresh attempt passed every check. The failed attempt is retained; no assertion, threshold or timeout was changed.
 
-The actual interrupted Stop from the failed trial reopened as cancelled on build 136, with its input, checkpoint and targets unchanged. The corresponding regression also preserves individual pauses across interrupted shutdown. Linux additionally passed seven authenticated browser-maintenance checks, including killing a live rollback requester while the owned maintenance continued.
+These measurements come from a faster Mac than build 136's M1 / 8 GiB qualification and are not comparable throughput claims.
 
-## Normal Mac and limits
+## Limits
 
-The normal Mac upgrade retained all 93,806 photo IDs, all 101 prior jobs and their pause/cancel states, the complete header/model settings and the exact retained native folder-access owner. Work reconnected and background checking continued while the queue stayed paused. Its full original-file scan is not claimed complete; missing or changed files still need their specific recovery action.
-
-The first ordinary people search on this normal library spent 122.28 seconds validating saved evidence after the upgrade; repeating it returned the same 16,396 matches in 0.86 seconds. Validation is retained for unchanged evidence. Broad first searches can still take seconds; these results do not claim every search is instantaneous. Existing cached preview bytes and full details were checked separately.
-
-Initial model access in Downloads stalled before inference. The core trial used full-file-hash-verified copies. On the normal installation, native selection of the same original model, projector and reranker paths followed by reopening restored access; the original model loaded in 11.56 seconds. No model files were replaced or moved, and no selected paths were changed. macOS access cannot be inferred from a unit test or a successful read in Terminal.
-
-A diagnostic Recover issued before Quit finished did not reopen the normal service within the caller's 180-second budget. Starting the existing launch agent after it stopped reopened the same library. This attempt is retained separately from the completed signed lifecycle/core recovery checks; no library backup was restored.
-
-The clean MIT client export contains 168 allowlisted files plus inventory. Proprietary source/history, inference policies, user data and private traces are excluded. Required public build, boundary and security checks remain enforced. Automated scans and signatures do not establish absence of bugs or an exhaustive independent audit.
+The isolated fixture's cloud folders are checked against live provider metadata; a full scan of every original is not claimed complete. Provider-side substitutions that preserve size, modification time and change time are not detected without an explicit content comparison. Another Mac, Linux and Windows are not covered by these build 137 receipts.
 
 ## Public delivery
 
-Candidate results do not qualify public downloads. Publication requires fresh anonymous asset/signature verification, the live platform feeds, installed public update/core/Stop/recovery, required source/churn tests, the exact served installer commands and both websites. Completion is recorded only after those delivered-byte checks pass.
-
-Linux desktop GUI acceptance, another Mac, every OS/codec/GPU/cloud condition and completed refinement of the entire Mac candidate pool are not claimed. Windows is unchanged and has no People provider. Dedicated CLEF/Intern reviewers and scoped source archives remain Mac-only.
+Candidate results do not qualify public downloads. Publication requires fresh anonymous asset/signature verification, the live feed, installed public update/core/Stop/recovery, required source/churn tests, the exact served installer command and both websites. Completion is recorded only after those delivered-byte checks pass.
