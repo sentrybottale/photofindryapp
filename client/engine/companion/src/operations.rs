@@ -26,7 +26,7 @@ fn object(value: &Value, fields: &[&str]) -> Result<()> {
             | "broad" | "reject" | "undo" | "all" | "stop" | "keepResults"
             | "progressArtEnabled" | "interleave" | "location" | "camera" | "lens" | "focal"
             | "date" | "exposure" | "keepOnBrowse" | "clearTemplate" | "clearReranker"
-            | "includeRelated" | "broaden" | "resume" | "applied" | "lowMemoryTrial" => {
+            | "includeRelated" | "broaden" | "resume" | "applied" | "lowMemoryTrial" | "background" => {
                 value.is_boolean()
             }
             "offset" | "limit" | "expectedCount" | "dimension" | "budgetBytes" => {
@@ -237,7 +237,6 @@ pub fn prepare(
         | "cancelTransfer"
         | "cancelSourceTransfer"
         | "retrySourceTransfer"
-        | "cancelSourceConnectionReview"
         | "beginCleanupSession"
         | "cleanupSession"
         | "endCleanupSession"
@@ -257,7 +256,6 @@ pub fn prepare(
                 "cancelTransfer" => "cancelTransfer",
                 "cancelSourceTransfer" => "cancelSourceTransfer",
                 "retrySourceTransfer" => "retrySourceTransfer",
-                "cancelSourceConnectionReview" => "cancelSourceConnectionReview",
                 "beginCleanupSession" => "beginCleanupSession",
                 "cleanupSession" => "cleanupSession",
                 "endCleanupSession" => "endCleanupSession",
@@ -503,9 +501,23 @@ pub fn prepare(
             "renameSource"
         }
         "prepareSourceConnection" => {
-            object(&params, &["sourceId", "rootId"])?;
+            object(&params, &["sourceId", "rootId", "background"])?;
             required(&params, &["sourceId"])?;
             "prepareSourceConnection"
+        }
+        "cancelSourceConnectionReview" => {
+            object(&params, &["planId"])?;
+            "cancelSourceConnectionReview"
+        }
+        "sourceConnectionReview" => {
+            object(&params, &["sourceId", "planId"])?;
+            required(&params, &["sourceId", "planId"])?;
+            "sourceConnectionReview"
+        }
+        "retrySourceObservation" => {
+            object(&params, &["sourceId", "rootId"])?;
+            required(&params, &["sourceId"])?;
+            "retrySourceObservation"
         }
         "confirmSourceConnection" => {
             object(&params, &["sourceId", "planId", "confirmed", "resumeJobId"])?;

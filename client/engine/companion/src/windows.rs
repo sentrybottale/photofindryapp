@@ -639,7 +639,7 @@ async fn api(path: &str, bytes: &[u8], state: &Arc<State>) -> Reply {
                         state.cleanup.store(false, Ordering::Release);
                     }
                     json_response(
-                        if ["sourceDetails", "prepareSourceConnection"].contains(&method) {
+                        if ["sourceDetails", "prepareSourceConnection", "sourceConnectionReview"].contains(&method) {
                             state.scopes.project_source_locations(&v)
                         } else {
                             public_result(v, state)

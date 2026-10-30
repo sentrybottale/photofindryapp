@@ -991,7 +991,7 @@ async fn api(path: &str, bytes: &[u8], state: &State, library_guard:Option<Libra
                     if method == "endCleanupSession" {
                         state.cleanup.store(false, Ordering::Release);
                     }
-                    json_response(if ["sourceDetails", "prepareSourceConnection"].contains(&method) {
+                    json_response(if ["sourceDetails", "prepareSourceConnection", "sourceConnectionReview"].contains(&method) {
                         state.scopes.project_source_locations(&v)
                     } else {
                         public_result(v, state)

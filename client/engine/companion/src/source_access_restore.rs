@@ -18,6 +18,38 @@ use std::{
 };
 use tokio::task::JoinHandle;
 const INTERVAL: Duration = Duration::from_secs(5);
+static NETWORK_RESTORE_TURN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+async fn restore_with_compatibility(executable:PathBuf,ids:&[String],generation:u64)->Result<source_access::Restored,String> {
+    let mut restored=Owner::verified(executable.clone()).restore(ids,generation).await?;
+    if restored.failures.is_empty(){return Ok(restored);}
+    let owner=executable.clone();
+    let context=tokio::task::spawn_blocking(move||lifecycle::source_access_network_context(&owner)).await;
+    let Ok(Ok(Some((root,helper))))=context else{return Ok(restored)};
+    // Support retained protocol1 owners without replacing their sealed code or
+    // bookmark. Every repaired reference must still obtain a real OS scope.
+    let start=NETWORK_RESTORE_TURN.fetch_add(4,Ordering::Relaxed);let mut changed=false;let mut present_network=HashSet::new();
+    for offset in 0..restored.failures.len().min(4) {
+        let id=restored.failures[(start+offset)%restored.failures.len()].owner_grant_id.clone();
+        let directory=root.clone();let requested=id.clone();
+        let record=tokio::task::spawn_blocking(move||super::retained_access_owner::network_grant_candidate(&directory,&requested)).await;
+        let Ok(Ok(Some(record)))=record else{continue};
+        let Some(path)=record["selectedPath"].as_str().filter(|s|s.starts_with('/')&&!s.contains('\0')&&s.len()<=16384) else{continue};
+        let Ok(info)=source_access::network_info(&helper,path).await else{continue};
+        if info["status"]=="available"&&info["isDirectory"]==true&&info["local"]==false&&info["path"]==path {
+            present_network.insert(id.clone());
+        }
+        let directory=root.clone();
+        changed |= matches!(tokio::task::spawn_blocking(move||super::retained_access_owner::normalize_network_grant(&directory,&id,&record,&info)).await,Ok(Ok(true)));
+    }
+    if changed {restored=Owner::verified(executable).restore(ids,generation).await?;}
+    // Older owners reported every restoration problem as unavailable. A
+    // responding network folder with no restorable OS scope needs the existing
+    // native access action, rather than an endless invisible retry.
+    for failure in &mut restored.failures {
+        if present_network.contains(&failure.owner_grant_id)&&matches!(failure.kind,source_access::FailureKind::Unavailable) {failure.kind=source_access::FailureKind::InvalidGrant;}
+    }
+    Ok(restored)
+}
 struct Progress {
     generation: Option<u64>,
     cursor: Option<String>,
@@ -209,9 +241,7 @@ async fn pages_with_status(
                 return Err(error);
             }
         };
-        let restored = match Owner::verified(executable)
-            .restore(&ids, page.generation)
-            .await
+        let restored = match restore_with_compatibility(executable, &ids, page.generation).await
         {
             Ok(value) => value,
             Err(error) => {

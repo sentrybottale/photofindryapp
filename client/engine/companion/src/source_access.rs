@@ -341,3 +341,20 @@ impl Owner {
         Ok(restored)
     }
 }
+pub(super) async fn network_info(helper:&Path,path:&str)->Result<Value> {
+    let mut command=super::launch::desktop_command(helper);
+    command.args(["source-info",path]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+    for (key,_) in std::env::vars_os() {if key.to_string_lossy().starts_with("DYLD_"){command.env_remove(key);}}
+    let mut child=command.spawn().map_err(|_|UNAVAILABLE)?;
+    let output=child.stdout.take().ok_or(UNAVAILABLE)?;let errors=child.stderr.take().ok_or(UNAVAILABLE)?;
+    let work=async {
+        let (output,errors)=tokio::join!(drain(output,131072),drain(errors,4096));let _=errors?;
+        let (bytes,oversized)=output?;
+        if oversized||!child.wait().await.map_err(|_|UNAVAILABLE)?.success(){return Err(INVALID.into());}
+        serde_json::from_slice(&bytes).map_err(|_|INVALID.into())
+    };
+    match tokio::time::timeout(Duration::from_secs(2),work).await {
+        Ok(result)=>result,
+        Err(_)=>{let _=child.kill().await;let _=child.wait().await;Err("The network folder metadata check timed out.".into())}
+    }
+}

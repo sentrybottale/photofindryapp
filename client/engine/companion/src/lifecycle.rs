@@ -108,6 +108,24 @@ pub fn source_access_helper_for_current_executable() -> Result<Option<PathBuf>> 
     if executable(&root,cfg.current)!=exe{return Err("Only the active installed CLI may select original-folder access.".into());}
     Ok(Some(retained_access_owner::verified(&root,&verifier(&exe)?).map_err(source_access_warning)?))
 }
+/// Authenticate the metadata probe used by retained-owner compatibility repair.
+/// The retained owner, bookmark and OS permission identity are never replaced.
+pub fn source_access_network_context(owner: &Path) -> Result<Option<(PathBuf,PathBuf)>> {
+    let exe=self_executable()?;
+    let Some(root)=installed_root(&exe) else{return Ok(None)};
+    let cfg=read_state(&root)?;
+    if executable(&root,cfg.current)!=exe || retained_access_owner::executable(&root)!=owner { return Ok(None); }
+    let package=package(&root,cfg.current);
+    let signed=release::verify(&release::read(&root.join("versions").join(cfg.current.to_string()).join("release.json"),131072)?,&verifier(&exe)?)?;
+    if signed.build!=cfg.current {return Err("The active source-access release changed.".into());}
+    let inventory=release::inventory(&package,&signed)?;
+    for relative in ["bin/photofindry","runtime/PhotoHelper"] {
+        if inventory.get(Path::new(relative))!=Some(&release::file_hash(&package.join(relative),128*1024*1024)?) {
+            return Err("The source-access metadata reader does not match its authenticated release.".into());
+        }
+    }
+    Ok(Some((root,package.join("runtime/PhotoHelper"))))
+}
 fn source_access_warning(error: String) -> String {
     format!("PhotoFindry could not verify its retained original-folder access owner. Saved library browsing remains available. Run verified setup to review original-folder access; no new permission identity was generated. {error}")
 }

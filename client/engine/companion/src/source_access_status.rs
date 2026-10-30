@@ -125,20 +125,32 @@ pub async fn overlay(value: &mut Value, shared: &Shared, worker: &Worker, epoch:
         return;
     }
     fn apply(source: &mut Value, roots: &BTreeMap<String, Status>) {
-        if source["accessOriginals"] == false
-            || matches!(source["mode"].as_str(), Some("metadata" | "archived"))
+        if source["mode"]=="archived" || source["folderSelectionPending"]!=true
+            && (source["accessOriginals"] == false || source["mode"]=="metadata")
         {
             return;
         }
         if let Some(values) = source["roots"].as_array_mut() {
             for root in values {
-                if root["active"] == false {
+                if root["active"] == false && root["selectionPending"]!=true {
                     continue;
                 }
                 if let Some(status) = root["id"].as_str().and_then(|id| roots.get(id)) {
                     root["nativeAccessStatus"] = json!(status.label());
+                    if root["recovery"]["version"]==1 && (root["recovery"]["phase"]!="needsFolder" || *status==Status::OwnerUnavailable) {
+                        let (phase,action,title,message)=match status {
+                            Status::Restoring => ("checking","none","Restoring folder access","Saved folder permission is being restored automatically. No action is needed while this progresses."),
+                            Status::Unavailable => ("retrying","retry","Folder access is temporarily unavailable","PhotoFindry is retrying. Check that the folder opens in your file manager, then retry the connection here."),
+                            Status::PermissionDenied | Status::InvalidGrant => ("needsAccess","allowAccess","Allow folder access","Saved access to this folder could not be restored. Allow access below; your photos, tags and progress are kept."),
+                            Status::OwnerUnavailable => ("needsRepair","recoverCompanion","Recover the companion","The installed folder-access component needs repair. Use verified companion recovery; your library is kept."),
+                        };
+                        for (key,value) in [("phase",phase),("action",action),("title",title),("message",message)] {root["recovery"][key]=json!(value);}
+                    }
                 }
             }
+        }
+        if source["roots"].as_array().is_some_and(|values|values.len()==1) && source["roots"][0]["recovery"].is_object() {
+            source["recovery"]=source["roots"][0]["recovery"].clone();
         }
     }
     if let Some(sources) = value["sources"].as_array_mut() {

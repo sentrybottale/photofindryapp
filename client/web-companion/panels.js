@@ -163,7 +163,7 @@
       if (previousTransfers.get(kind)?.running && job?.phase === 'error') bridge().showError(text(job.message, text(job.error, 'The local transfer could not finish. Open Backups & archives to review its status.')));
     }
     previousTransfers = new Map(transfers.map(([kind, job]) => [kind, { running: job?.running === true, phase: job?.phase }]));
-    const work = transfers.filter(([, job]) => job && job.kind !== 'idle' && job.kind !== 'purgePrepare' && (job.kind !== 'sourceReview' || job.running)
+    const work = transfers.filter(([, job]) => job && job.kind !== 'idle' && job.kind !== 'purgePrepare' && (job.kind !== 'sourceReview' || job.running || ['error','cancelled'].includes(job.phase))
       && (job.running || ['complete', 'error', 'cancelled', 'cleanupPending', 'readyToRestart'].includes(job.phase)));
     const completedResults = list(state.transferResults).filter(result => ['library', 'source'].includes(result?.kind) && /^[a-f0-9]{64}$/i.test(result?.id || ''));
     const signature = JSON.stringify([work, completedResults]);
@@ -177,7 +177,7 @@
       const line = row(el('span', failed ? 'pfp-warning' : '', text(job.message, fallback)),
         job.running && job.total > 0 ? el('span', 'pfp-muted', `${count(job.completed)} / ${count(job.total)}`) : null);
       if (job.running) {
-        if (job.kind === 'sourceReview') line.append(button('Cancel folder review', async () => { await command('cancelSourceConnectionReview', {}, 'Stopping the folder review. Saved photographs and tags are kept.'); view.sourceRefreshNeeded = true; }));
+        if (job.kind === 'sourceReview') line.append(button('Cancel folder review', async () => { await command('cancelSourceConnectionReview', job.planId ? { planId: job.planId } : {}, 'Stopping the folder review. Saved photographs and tags are kept.'); view.sourceRefreshNeeded = true; }));
         else if (job.cancellable !== false && job.phase !== 'restoring') line.append(button('Cancel', () => command(kind === 'source' ? 'cancelSourceTransfer' : 'cancelTransfer')));
         else line.append(el('span', 'pfp-muted', 'Finishing the source update; this step cannot be cancelled.'));
       } else if (kind === 'source' && job.phase === 'cleanupPending') {
@@ -222,6 +222,17 @@
       if (normalized === 'portability') renderPortability();
       if (normalized === 'improvement') await renderImprovement();
     } catch (error) { if (generation === view.generation && error?.name !== 'AbortError') showProblem(error.message); }
+  }
+  async function recoverSource(context) {
+    await show('sources', context);
+    if (view.name !== 'sources' || root?.hidden || view.sourceId !== context.sourceId) return;
+    const source = sources().find(item => item.id === context.sourceId);
+    if (!source || source.mode === 'archived') return;
+    const rootInfo = list(source?.roots).find(item => item.id === context.rootId) || (list(source?.roots).length === 1 ? source.roots[0] : null);
+    if (!rootInfo || rootInfo.recovery?.action !== context.action) return;
+    if (['chooseFolder', 'allowAccess'].includes(context.action)) await locate(source, rootInfo);
+    else if (context.action === 'reviewOriginals') await connectionPlan(source, rootInfo, view.sourceChecks.get(source.id)?.plan);
+    else if (context.action === 'showFolder') await command('revealSource', { sourceId: source.id, rootId: rootInfo.id });
   }
   function close() {
     if (!root || root.hidden) return;
@@ -294,6 +305,7 @@
     }
   }
   function automaticSourceConnection(source, rootInfo, check) {
+    if (rootInfo?.recovery?.version === 1) return sourceRecoveryConnection(source, rootInfo, check);
     const roots = list(source.roots);
     const status = text(rootInfo?.status, source.status);
     const selected = rootInfo ? rootInfo.selected === true && status !== 'detached' : source.originalsFolderSelected === true && roots.every(root => root.selected === true || root.status === 'detached');
@@ -371,7 +383,49 @@
     const available = Number.isFinite(rootInfo?.available) ? rootInfo.available : source.available;
     appendSummary(connection, [['Photographs', count(rootInfo?.photoCount ?? source.photoCount)], [roots.length > 1 && !Number.isFinite(rootInfo?.available) ? 'Available in source' : 'Available', count(available)],
       ['Missing at checked locations', count(missing)], needsChoice ? ['Identity check', 'After folder selection'] : checking && !(conflicts > 0) ? ['Identity check', 'In progress'] : ['Identity conflicts', count(conflicts)]]);
+    if (checking && Number.isFinite(unchecked) && unchecked > 0) {
+      appendSummary(connection, [['Still to check', count(unchecked)]]);
+      connection.append(el('p', 'pfp-muted', 'Unchecked originals are not counted as missing. Tagging can use verified originals while these checks continue.'));
+    }
     nativeAccessStatus(connection, source, roots, rootInfo, permission && !checking && !ownerUnavailable);
+    return connection;
+  }
+  function sourceRecoveryConnection(source, rootInfo, check) {
+    const roots = list(source.roots), recovery = rootInfo.recovery;
+    const connectionJob = jobs().find(job => job.kind === 'sourceRecovery' && job.sourceAction === 'confirmLocations'
+      && job.sourceId === source.id && (job.sourceRootId === rootInfo.id || !job.sourceRootId && roots.length === 1) && !terminal(job));
+    const connecting = ['allowAccess','chooseFolder','recoverCompanion'].includes(recovery.action) ? null : connectionJob;
+    const connection = card(connecting ? connecting.state === 'paused' ? 'Reconnection paused' : 'Reconnecting matched originals' : text(recovery.title, 'Originals connection'),
+      connecting ? text(connecting.message, 'Saving the matching locations. No further confirmation is needed.') : text(recovery.message));
+    connection.classList.add('pfp-automatic-source'); connection.setAttribute('aria-live', 'polite');
+    if (rootInfo.nativeAccessStatus) connection.classList.add('pfp-native-access-status');
+    if (roots.length > 1) {
+      const choice = select(roots.map(root => [root.id, text(root.label, sourceLocation(root))]), rootInfo.id);
+      choice.addEventListener('change', () => { view.sourceRoots.set(source.id, choice.value); renderSourcesFresh().catch(error => showProblem(error.message)); });
+      connection.append(field('Originals folder', choice));
+    }
+    appendSummary(connection, [['Selected folder', sourceLocation(rootInfo)]]);
+    const controls = row(); controls.classList.add('pfp-source-controls'); controls.dataset.rootId = rootInfo.id;
+    controls.dataset.action = connecting ? 'connecting' : recovery.action;
+    const retry = () => command('retrySourceObservation', { sourceId: source.id, rootId: rootInfo.id }, 'Retrying this connection. Saved work and explicit pauses are kept.');
+    if (connecting?.state === 'paused') controls.append(button('Resume connection', () => command('jobAction', { id: connecting.id, action: 'resume' }), 'primary'));
+    if (!connecting) {
+      if (['chooseFolder', 'allowAccess'].includes(recovery.action)) controls.append(button(recovery.action === 'allowAccess' ? 'Allow folder access…' : 'Choose originals folder…', () => locate(source, rootInfo), 'primary'));
+      else if (recovery.action === 'reviewOriginals' && !check?.plan) controls.append(button('Review originals', () => connectionPlan(source, rootInfo), 'primary'));
+      else if (recovery.action === 'retry') controls.append(button('Retry connection', retry, 'primary'), button('Open originals folder', () => command('revealSource', { sourceId: source.id, rootId: rootInfo.id })));
+      else if (recovery.action === 'showFolder') controls.append(button('Open originals folder', () => command('revealSource', { sourceId: source.id, rootId: rootInfo.id }), 'primary'), button('Retry connection', retry));
+      else if (recovery.action === 'recoverCompanion') {
+        const recover = el('a', 'pfp-button primary', 'Recover companion'); recover.href = 'photofindry-companion://open'; controls.append(recover);
+      }
+    }
+    connection.append(controls);
+    const reviewHost = el('div', 'pfp-connection-review'); connection.append(reviewHost);
+    const progress = connecting?.progressDetails;
+    if (progress?.total > 0) appendSummary(connection, [['Locations reconnected', `${count(progress.checked)} of ${count(progress.total)}`]]);
+    else if (recovery.phase === 'checking' && rootInfo.observationTotal > 0) appendSummary(connection, [['Locations checked', `${count(rootInfo.observationChecked)} of ${count(rootInfo.observationTotal)}`]]);
+    appendSummary(connection, [['Photographs', count(rootInfo.photoCount ?? source.photoCount)], ['Available', count(rootInfo.available ?? source.available)],
+      ['Still to check', count(rootInfo.unchecked)], ['Not readable yet', count(rootInfo.unavailable)], ['Missing at checked locations', count(rootInfo.missing)],
+      ['Need verification', count(Math.max(0, (rootInfo.needsReview || 0) - (rootInfo.changed || 0)))], ['Changed originals', count(rootInfo.changed)]]);
     return connection;
   }
 
@@ -400,7 +454,8 @@
       if (sources().some(item => item.mode !== 'archived')) libraryActions.append(button('Remove source from gallery…', removeSourceFromGallery));
       body.append(summary, libraryActions, sourceArchiveLabels()); return;
     }
-    const rootInfo = roots.find(item => item.id === view.sourceRoots.get(source.id)) || (roots.length === 1 ? roots[0] : null);
+    const rootInfo = roots.find(item => item.id === view.sourceRoots.get(source.id)) || (roots.length === 1 ? roots[0]
+      : automaticSource(source) && roots.every(root => root.recovery?.version === 1) ? roots.find(root => root.recovery.action !== 'none') || roots[0] : null);
     if (rootInfo) view.sourceRoots.set(source.id, rootInfo.id);
     const savedCheck = view.sourceChecks.get(source.id);
     const check = savedCheck?.rootId === rootInfo?.id ? savedCheck : null;
@@ -463,8 +518,8 @@
       label.addEventListener('input', () => { if (label.value === sources().find(item => item.id === source.id)?.label) view.sourceDrafts.delete(source.id); else view.sourceDrafts.set(source.id, label.value); });
     }
     const sourceOptions = disclosure('Source options', field('Source name', label), row(button('Save name', async () => { if (!label.value.trim()) throw Error('Enter a source name.'); await command('renameSource', { sourceId: source.id, label: label.value.trim() }); view.sourceDrafts.delete(source.id); await renderSourcesFresh(); }),
-      button(automaticSource(source) ? 'Check now' : 'Check locations', async () => { await command('checkSources', { sourceId: source.id, automatic: false }, 'Checking saved locations.'); await renderSourcesFresh(); }),
-      ...(!automaticSource(source) || sourceConflict(source) ? [button('Review originals', () => { if (roots.length > 1 && !rootInfo) throw Error('Select the saved originals folder above first.'); return connectionPlan(source, rootInfo); })] : []), button('Review missing', () => show('cleanup', { sourceId: source.id })),
+      button(automaticSource(source) ? 'Check now' : 'Check locations', async () => { await command(rootInfo?.recovery?.version === 1 ? 'retrySourceObservation' : 'checkSources', rootInfo?.recovery?.version === 1 ? { sourceId: source.id, rootId: rootInfo.id } : { sourceId: source.id, automatic: false }, 'Checking saved locations.'); await renderSourcesFresh(); }),
+      ...(!automaticSource(source) || sourceConflict(source) && rootInfo?.recovery?.version !== 1 ? [button('Review originals', () => { if (roots.length > 1 && !rootInfo) throw Error('Select the saved originals folder above first.'); return connectionPlan(source, rootInfo); })] : []), button('Review missing', () => show('cleanup', { sourceId: source.id })),
       button('Find new photographs', async () => { await command('discoverFolders', { recursive: true }, 'Finding new photographs in registered folders. This checks file attributes and adds pending records; it does not start tagging.'); await renderSourcesFresh(); })));
     for (const item of roots) sourceOptions.append(el('p', 'pfp-muted', sourceLocation(item)),
       button('Show folder in Finder', () => command('revealSource', { sourceId: source.id, rootId: item.id })));
@@ -498,7 +553,12 @@
     }
     body.append(sourceOptions, libraryActions, sourceArchiveLabels());
     if (preservedName?.input === label && preservedName.focused) label.focus({ preventScroll: true });
-    if (!automaticSource(source) && check && !check.phase && check.rootId === rootInfo?.id && (check.plan || checkJob?.state === 'completed')) await connectionPlan(source, rootInfo, check.plan);
+    if (check && !check.phase && check.rootId === rootInfo?.id && (check.plan || !automaticSource(source) && checkJob?.state === 'completed')) await connectionPlan(source, rootInfo, check.plan);
+    else if (rootInfo?.recovery?.version === 1) {
+      const review = snapshot().storageJob;
+      if (!activeRootCheck && !(check?.phase === 'cancelled' && check.reviewId === review?.planId) && review?.kind === 'sourceReview' && review.sourceId === source.id && review.rootId === rootInfo.id
+        && (review.running || review.phase === 'complete' && rootInfo.recovery.action === 'reviewOriginals')) await connectionPlan(source, rootInfo);
+    }
     const detail = await read('sourceDetails', { sourceId: source.id, offset: view.sourceOffset, limit: 100 });
     if (generation !== view.generation || view.name !== 'sources' || source.id !== view.sourceId) return;
     if (detail.canUndo) sourceOptions.append(button('Undo last source relocation', async () => {
@@ -602,10 +662,22 @@
       await renderSourcesFresh().catch(() => {}); throw error;
     }
   }
-  async function connectionPlan(source, rootInfo, existingPlan = null) {
+  async function connectionPlan(source, rootInfo, existingPlan = null, restart = false) {
     const generation = view.generation;
+    const requestVersion = view.requestVersion;
+    const background = rootInfo?.recovery?.version === 1;
+    if (background && !view.sourceChecks.has(source.id)) view.sourceChecks.set(source.id, { rootId: rootInfo.id, verifyContents: false });
     const initialCheck = view.sourceChecks.get(source.id);
-    const isCurrent = () => generation === view.generation && view.name === 'sources' && source.id === view.sourceId && view.sourceChecks.get(source.id) === initialCheck;
+    if (background && !existingPlan && ['confirmed','confirmationFailed','cancelled'].includes(initialCheck?.phase)) {
+      delete initialCheck.phase; delete initialCheck.jobId; restart = true;
+    }
+    if (restart && initialCheck) { delete initialCheck.reviewId; delete initialCheck.plan; delete initialCheck.acknowledgedPlanId; }
+    const liveReview = snapshot().storageJob;
+    if (!restart && background && initialCheck && liveReview?.kind === 'sourceReview' && liveReview.sourceId === source.id && liveReview.rootId === rootInfo.id) {
+      if (liveReview.running || liveReview.phase === 'complete') initialCheck.reviewId = liveReview.planId;
+      else if (initialCheck.reviewId === liveReview.planId) delete initialCheck.reviewId;
+    }
+    const isCurrent = () => generation === view.generation && requestVersion === view.requestVersion && view.name === 'sources' && source.id === view.sourceId && view.sourceChecks.get(source.id) === initialCheck;
     let plan = existingPlan;
     if (!plan) {
       // A previous read can still be draining after navigation or cancellation.
@@ -614,13 +686,35 @@
       const progress = el('p', 'pfp-note', 'Checking this folder’s matching locations. The result will appear here automatically. Photo contents are not read.');
       let cancelled = false;
       const cancel = button('Cancel review', async () => {
-        cancelled = true; await command('cancelSourceConnectionReview', {}, 'Stopping the folder review. Saved photographs and tags are kept.');
-        if (isCurrent()) { view.sourceChecks.delete(source.id); await renderSourcesFresh(); }
+        cancelled = true;
+        if (background && !initialCheck?.reviewId) { progress.textContent = 'Stopping the folder check…'; return; }
+        await command('cancelSourceConnectionReview', background ? { planId: initialCheck.reviewId } : {}, 'Stopping the folder review. Saved photographs and tags are kept.');
+        if (isCurrent()) { if (background) view.sourceChecks.set(source.id, { rootId: rootInfo.id, phase: 'cancelled', reviewId: initialCheck.reviewId }); else view.sourceChecks.delete(source.id); await renderSourcesFresh(); }
       });
       preparing.append(progress, row(cancel));
       body.querySelector('.pfp-originals-review')?.remove(); (body.querySelector('.pfp-connection-review') || body).append(preparing);
       for (let attempt = 0; attempt < 6 && isCurrent() && !cancelled; attempt += 1) {
-        try { plan = await read('prepareSourceConnection', { sourceId: source.id, ...(rootInfo?.id ? { rootId: rootInfo.id } : {}) }); break; }
+        try {
+          plan = background && initialCheck?.reviewId ? await read('sourceConnectionReview', { sourceId: source.id, planId: initialCheck.reviewId })
+            : await read('prepareSourceConnection', { sourceId: source.id, ...(rootInfo?.id ? { rootId: rootInfo.id } : {}), ...(background ? { background: true } : {}) });
+          if (background) {
+            initialCheck.reviewId = plan.planId;
+            if (cancelled) { await command('cancelSourceConnectionReview', { planId: plan.planId }); if (isCurrent()) { view.sourceChecks.set(source.id, { rootId: rootInfo.id, phase: 'cancelled', reviewId: plan.planId }); await renderSourcesFresh(); } return; }
+            while (plan.running === true && isCurrent() && !cancelled) {
+              progress.textContent = plan.total > 0 ? `Checking matching locations: ${count(plan.completed)} of ${count(plan.total)}. Other photos can continue processing.`
+                : text(plan.message, 'Preparing the folder check. Other photos can continue processing.');
+              await new Promise(resolve => setTimeout(resolve, 500));
+              if (!isCurrent() || cancelled) return;
+              plan = await read('sourceConnectionReview', { sourceId: source.id, planId: initialCheck.reviewId });
+            }
+            if (['error','cancelled','interrupted','outdated'].includes(plan.phase)) throw Error(text(plan.message, 'This folder check needs to be retried. Saved work is kept.'));
+            if (['confirmed','running','complete'].includes(plan.phase)) {
+              progress.textContent = 'These locations were already confirmed. Reconnection progress is shown in Files and Jobs.';
+              cancel.hidden = true; delete initialCheck.reviewId; return;
+            }
+          }
+          break;
+        }
         catch (error) {
           if (!isCurrent() || cancelled || error?.name === 'AbortError') return;
           const busy = /folder review is still finishing|source review worker is busy/i.test(error?.message || '')
@@ -630,8 +724,9 @@
             await new Promise(resolve => setTimeout(resolve, 500)); continue;
           }
           progress.textContent = busy ? 'The previous folder review is taking longer. Cancel review to stop it, then retry the checked folder here.'
-            : `The folder review could not finish. ${text(error?.message)} Retry the checked folder or choose another folder.`;
-          preparing.append(row(button('Retry folder review', () => connectionPlan(source, rootInfo)), button('Choose another folder…', () => locate(source, rootInfo))));
+            : `The folder review could not finish. ${text(error?.message)} ${background ? 'Retry this check when the folder is available.' : 'Retry the checked folder or choose another folder.'}`;
+          preparing.append(row(button('Retry folder review', () => connectionPlan(source, rootInfo, null, true)),
+            ...(!background ? [button('Choose another folder…', () => locate(source, rootInfo))] : [])));
           return;
         }
       }
@@ -655,15 +750,30 @@
       `${count(plan.count)} matching locations · ${count(plan.unresolved)} unresolved.`,
       'The quick check compares relative paths, file sizes and saved modification dates without reading photo contents. Confirm only if this is the same originals folder. This is not a checksum verification.',
     ];
-    const node = card(matches ? 'Confirm the matching originals' : 'No matching originals in this folder');
+    const node = card(matches ? 'Confirm the matching originals' : background && !plan.unresolved
+      ? plan.verificationCount > 0 ? 'Checking originals with saved identities' : 'No confirmation needed' : 'No matching originals in this folder');
     node.classList.add('pfp-originals-review');
-    appendSummary(node, [['Saved folder', previous], [localText('On this Mac'), current], ['Matching photographs', count(plan.count)], ['Other locations in this source still unresolved', count(plan.unresolved)]]);
+    appendSummary(node, background ? [['Originals folder', current], ['Matching photographs', count(plan.count)], ['Still unresolved', count(plan.unresolved)]]
+      : [['Saved folder', previous], [localText('On this Mac'), current], ['Matching photographs', count(plan.count)], ['Other locations in this source still unresolved', count(plan.unresolved)]]);
+    if (background && !matches && plan.verificationCount > 0 && !plan.unresolved) {
+      node.append(el('p', 'pfp-muted', 'These files are verified automatically and do not need folder confirmation. If files have changed, restore the matching originals to this folder. Saved tags are kept.'),
+        row(button('Open originals folder', () => command('revealSource', { sourceId: source.id, rootId: rootInfo.id })),
+          button('Retry connection', () => command('retrySourceObservation', { sourceId: source.id, rootId: rootInfo.id }))));
+      body.querySelector('.pfp-originals-review')?.remove();(body.querySelector('.pfp-connection-review') || body).append(node);return;
+    }
+    if (background && !matches && !plan.unresolved) {
+      node.append(el('p', 'pfp-muted', 'No folder confirmation is needed. Matching originals continue automatically.'), button('Done', () => { view.sourceChecks.delete(source.id); node.remove(); }));
+      body.querySelector('.pfp-originals-review')?.remove();(body.querySelector('.pfp-connection-review') || body).append(node);return;
+    }
     if (matches) node.append(el('p', 'pfp-muted', content[3]));
     else node.append(notice('No matching files. Choose the correct originals folder.', true));
     if (list(plan.examples).length) node.append(disclosure('Example matching locations', ...list(plan.examples).slice(0, 8).map(example => el('p', 'pfp-muted', text(example.relativePath, text(example.name, 'Saved photograph'))))));
-    const confirm = button('Confirm matching locations', async () => {
+    const acknowledgement = background && matches ? checkbox('These are the same originals.', pendingCheck.acknowledgedPlanId === plan.planId) : null;
+    if (acknowledgement) node.append(acknowledgement.node);
+    const confirm = button(background ? `Connect ${count(plan.count)} matching originals` : 'Confirm matching locations', async () => {
       if (!matches || !currentReview()) return;
-      if (!await confirmation('Confirm matching original locations?', content, `Confirm ${count(plan.count)} locations`, { acknowledgement: 'I confirm this is the same originals folder.' })) return;
+      if (background) { if (pendingCheck.acknowledgedPlanId !== plan.planId) return; }
+      else if (!await confirmation('Confirm matching original locations?', content, `Confirm ${count(plan.count)} locations`, { acknowledgement: 'I confirm this is the same originals folder.' })) return;
       if (!currentReview()) return;
       // Retain the exact submitted job until it finishes. A policy flip during
       // its commit must refresh this panel, not close it or re-offer old proof.
@@ -681,11 +791,12 @@
         throw error;
       }
     }, matches ? 'primary' : '');
-    confirm.disabled = !matches;
+    confirm.disabled = !matches || Boolean(acknowledgement && !acknowledgement.control.checked);
+    acknowledgement?.control.addEventListener('change', () => { pendingCheck.acknowledgedPlanId = acknowledgement.control.checked ? plan.planId : null; confirm.disabled = !acknowledgement.control.checked; });
     node.append(row(matches ? confirm : button('Choose originals folder…', () => locate(source, rootInfo), 'primary'),
       matches ? button('Choose another folder…', () => locate(source, rootInfo)) : confirm,
-      button('Cancel review', async () => { await command('cancelSourceConnectionReview'); view.sourceChecks.delete(source.id); node.remove(); if (chooseOriginals) chooseOriginals.hidden = false; if (reviewChecked) reviewChecked.hidden = false; })));
-    if (plan.verificationCount > 0) node.append(disclosure('Compare file contents (optional)', el('p', 'pfp-muted', 'This reads complete original files with saved checksums. It is not needed for folder confirmation.'), button('Optional full-file comparison…', () => locate(source, rootInfo, true))));
+      button('Cancel review', async () => { await command('cancelSourceConnectionReview', background ? { planId: plan.planId } : {}); if (background) view.sourceChecks.set(source.id, { rootId: rootInfo.id, phase: 'cancelled', reviewId: plan.planId }); else view.sourceChecks.delete(source.id); node.remove(); if (chooseOriginals) chooseOriginals.hidden = false; if (reviewChecked) reviewChecked.hidden = false; if (background) await renderSourcesFresh(); })));
+    if (!background && plan.verificationCount > 0) node.append(disclosure('Compare file contents (optional)', el('p', 'pfp-muted', 'This reads complete original files with saved checksums. It is not needed for folder confirmation.'), button('Optional full-file comparison…', () => locate(source, rootInfo, true))));
     body.querySelector('.pfp-originals-review')?.remove();
     const host = body.querySelector('.pfp-connection-review'); (host || body).append(node);
     node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -1332,7 +1443,7 @@
       if (view.name === 'sources') {
         // Withdraw pixels and stale acknowledgements immediately, then keep the
         // selected source and its owned confirmation job visible in fresh state.
-        for (const check of view.sourceChecks.values()) delete check.plan;
+        for (const check of view.sourceChecks.values()) { delete check.plan; delete check.reviewId; delete check.acknowledgedPlanId; }
         view.confirmation?.close();
         renderStatus();
         renderSourcesFresh(true).catch(error => showProblem(error.message));
@@ -1365,7 +1476,15 @@
           const selectedRoot = roots.find(item => item.id === view.sourceRoots.get(currentSource.id)) || (roots.length === 1 ? roots[0] : null);
           const saved = view.sourceChecks.get(currentSource.id);
           const check = saved?.rootId === selectedRoot?.id ? saved : null;
-          host.replaceWith(automaticSourceConnection(currentSource, selectedRoot, check));
+          const replacement = automaticSourceConnection(currentSource, selectedRoot, check);
+          // Availability ticks do not invalidate a reviewed plan. Keep its
+          // controls attached while editing a source name suppresses full refresh.
+          // Policy changes above still withdraw stale acknowledgements.
+          const review = host.querySelector('.pfp-originals-review');
+          if (review && check?.plan) {
+            review.remove(); replacement.querySelector('.pfp-connection-review').append(review);
+          }
+          host.replaceWith(replacement);
         }
       }
       if (changed || sourceSettled && sourceChanged) { view.sourceRefreshNeeded = true; scheduleSourceRefresh(); }
@@ -1391,5 +1510,5 @@
     view.cleanupLastJob = null; view.cleanupLastCount = 0; view.cleanupAnchor = null; view.recoveryJobId = null;
   });
   window.addEventListener('pagehide', () => { view.controller?.abort(); for (const url of view.urls) URL.revokeObjectURL(url); });
-  window.PhotoFindryPanels = Object.freeze({ show, close, hide: close, onState, openArchiveCode, mountReviewSettings, removeSource: openSourceRemoval });
+  window.PhotoFindryPanels = Object.freeze({ show, close, hide: close, onState, recoverSource, openArchiveCode, mountReviewSettings, removeSource: openSourceRemoval });
 })();
