@@ -1,6 +1,6 @@
 # Install PhotoFindry
 
-**Mac: 0.3.0-beta.4 · build 137. Linux: 0.3.0-beta.3 · build 136. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 30 October 2026.
+**Mac: 0.3.0-beta.5 · build 138. Linux: 0.3.0-beta.3 · build 136. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 31 October 2026.
 
 PhotoFindry installs a local background companion and opens a browser workspace. The public website does not receive your photos or library session. You do not need a PhotoFindry account, a subscription, a compiler, or a checkout of this repository.
 
@@ -130,7 +130,7 @@ Linux core installation and real-model checks were performed on an x86-64 Ubuntu
 3. **Add a small source folder in Files.** Choose the existing originals folder with the platform picker. Original photographs stay in place. Cloud-backed originals need to be available locally when processing reads them.
 4. **Start tagging.** Adding a folder alone does not establish that it has accepted tags. Follow progress in Jobs. Saved jobs may reopen paused; choose Resume when you want them to continue.
 5. **Try ordinary search, then Local AI Search.** Ordinary search uses saved information. Local AI Search is an explicit model-assisted action.
-6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.4 / build 137** on Mac, **0.3.0-beta.3 / build 136** on Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
+6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.5 / build 138** on Mac, **0.3.0-beta.3 / build 136** on Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
 
 See [Getting started](https://github.com/sentrybottale/photofindryapp/blob/main/docs/getting-started.md) and [Search](https://github.com/sentrybottale/photofindryapp/blob/main/docs/search.md) for the full workflow.
 
@@ -142,7 +142,7 @@ The current program archives are:
 
 | Platform | Program archive | Download size, excluding your vision model |
 | --- | --- | --- |
-| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.4-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.4) | 398,587,958 bytes (about 398 MB) |
+| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.5-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.5) | 398,600,794 bytes (about 399 MB) |
 | Linux x86-64 | [`PhotoFindry-0.3.0-beta.3-linux-x86_64-companion.tar.gz`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.3) | 364,454,429 bytes (about 364 MB) |
 | Windows x64 | [`PhotoFindry-0.3.0-beta.2-windows-x86_64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2) | 87,222,087 bytes (about 87 MB) |
 
@@ -202,4 +202,4 @@ Further help: [Troubleshooting guide](https://github.com/sentrybottale/photofind
 
 People is included on Mac and Linux; Windows has no face provider. Whole-library backup and restore work across Mac, Linux and Windows. Source archives and dedicated CLEF/Intern review runtimes remain Mac-only. Keep independent backups of originals on every platform; previews are reduced cached copies, not original-photo backups.
 
-macOS 14 is the declared minimum, with macOS 27.0 used for the published qualification. Linux/Windows core trials used small real-evidence libraries; they do not establish every desktop, codec, GPU or full-library performance combination. Read each release's QUALIFICATION.md ([Mac 0.3.0-beta.4](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.4/QUALIFICATION.md), [Linux 0.3.0-beta.3](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.3/QUALIFICATION.md), [Windows 0.3.0-beta.2](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.2/QUALIFICATION.md)) for the actual tested scope.
+macOS 14 is the declared minimum, with macOS 27.0 used for the published qualification. Linux/Windows core trials used small real-evidence libraries; they do not establish every desktop, codec, GPU or full-library performance combination. Read each release's QUALIFICATION.md ([Mac 0.3.0-beta.5](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.5/QUALIFICATION.md), [Linux 0.3.0-beta.3](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.3/QUALIFICATION.md), [Windows 0.3.0-beta.2](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.2/QUALIFICATION.md)) for the actual tested scope.
