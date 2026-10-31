@@ -1,6 +1,6 @@
 # PhotoFindry
 
-Local photo tagging and search with a background CLI companion and browser workspace. Current Mac release: 0.3.0-beta.4, build 137. Linux retains 0.3.0-beta.3, build 136; Windows retains 0.3.0-beta.2, build 132. Inference and library access stay on the user's computer. The client is MIT; engine implementation and private development history remain private.
+Local photo tagging and search with a background CLI companion and browser workspace. Current Mac release: 0.3.0-beta.5, build 138. Linux retains 0.3.0-beta.3, build 136; Windows retains 0.3.0-beta.2, build 132. Inference and library access stay on the user's computer. The client is MIT; engine implementation and private development history remain private.
 
 - [Installation](https://github.com/sentrybottale/photofindryapp/blob/main/INSTALLATION.md)
 - [Release notes](https://github.com/sentrybottale/photofindryapp/blob/main/RELEASE_NOTES.md)
