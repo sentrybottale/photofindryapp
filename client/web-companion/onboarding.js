@@ -16,7 +16,8 @@
     ['Photo folders', 'Bring a few photographs.', preview ? 'Choose an originals folder once. PhotoFindry checks its availability in the background. Discovery adds pending records and keeps your originals unchanged.' : 'Choose a folder through the native Mac dialog. Discovery adds pending records; it never changes your originals or starts tagging the whole archive.'],
     ['Your first tags', 'Start with a reviewed sample.', 'Choose one registered folder, review up to eight pending photographs and select the few you want to tag. Use the tagging button when your sample is ready.'],
     ['Browse & inspect', 'Look closer at saved details.', 'Select a tile to see complete accepted observations. Double-click or press Space for a preview; the short gallery caption is only a summary.'],
-    ['Find a photograph', 'Search what has been saved.', 'Ordinary search reads saved evidence and filenames without starting a language model. Local AI Search is a separate action; its candidates are ranked suggestions, not confirmed matches.'],
+    ['Find a photograph', 'Search what has been saved.', preview ? 'Ordinary search reads saved evidence and filenames without starting a language model. Local AI Search is a separate action; its candidates are ranked suggestions, not confirmed matches.'
+      : 'Ordinary search reads saved evidence and filenames without starting a language model. Local AI Search is a separate action; its candidates are ranked suggestions, not confirmed matches. Showcase lenses add your own taste: find a few photos you are proud of, write what makes them your best work and generate a lens; choose it beside Local AI Search to see the photos that fit it first.'],
     ['People', 'Name a face you recognise.', preview ? 'Saved names and photograph labels are kept. Face discovery is not available in this preview.' : 'Your confirmed name can seed quality-qualified matches. Suggestions remain reviewable, and automatically matched faces never become reference seeds.'],
     ['Jobs & Activity', 'Work at your pace.', 'Pause keeps eligible work to resume. Stop cancels remaining targets and keeps saved tags or reviewed AI results. Reopening a queue leaves it paused until you resume or start work.'],
     ['Files & backups', 'Keep your work portable.', preview ? 'Use Files to check your originals folders. Backups and archives are not available in this preview; your existing library and original photographs are kept.' : 'Use Files to reconnect originals or remove a source after saving its restorable archive. Backups export saved evidence and selected managed assets; they omit original photographs, model weights and this Mac’s private job history.'],
@@ -351,8 +352,10 @@
       const status = note(''); liveNodes.folders = status; page.append(status);
     } else if (guide.step === 3) {
       renderTaggingChapter(page);
-    } else if (guide.step === 4 || guide.step === 5) {
+    } else if (guide.step === 4) {
       page.append(actionRow(guideAction('Try it in my library', 'library')));
+    } else if (guide.step === 5) {
+      page.append(actionRow(guideAction('Try it in my library', 'library'), ...(preview ? [] : [guideAction('Make a lens', 'lenses')])));
     } else if (guide.step === 6) {
       page.append(actionRow(guideAction('Open People', 'people')));
     } else if (guide.step === 7) {

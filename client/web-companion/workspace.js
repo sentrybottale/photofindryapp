@@ -126,7 +126,8 @@
     openSettings(); P.showNotice('Choose your model and vision projector. Your search and selection are kept.'); return false;
   }
   async function enqueue(kind, params, schedule) {
-    if (['tagging', 'improve', 'aiSearch'].includes(kind) && !requireModel()) return;
+    // A lens search needs no tagging model: the lens is already compiled.
+    if (['tagging', 'improve', 'aiSearch'].includes(kind) && !params?.lensId && !requireModel()) return;
     const identity = JSON.stringify([kind, { ...params, ...(params.photoIds ? { photoIds: [...new Set(params.photoIds)].sort() } : {}) }, schedule]);
     if (pendingSubmissions.has(identity)) return;
     pendingSubmissions.add(identity);
@@ -145,13 +146,268 @@
   }
   $('add-folder').addEventListener('click', () => run(addFolder));
   $('tag-pending').addEventListener('click', () => run(() => enqueue('tagging', scopedParams())));
+  // Showcase lenses: saved cassettes the owner can search with instead of a query.
+  // The selector is added here (the shell bundle has a fixed reviewed size).
+  const lensSelect = $('lens-select') || (() => {
+    try {
+      const anchor = $('ai-search');
+      if (!anchor?.parentNode?.insertBefore) return null;
+      const select = document.createElement('select');
+      select.id = 'lens-select'; select.setAttribute('aria-label', 'Lens'); select.hidden = true;
+      anchor.parentNode.insertBefore(select, anchor);
+      return select;
+    } catch { return null; }
+  })();
+  // "New lens" sits beside the selector: pick examples in the gallery, write
+  // why they are the best, and the search job compiles and applies the lens.
+  const lensNew = $('lens-new') || (() => {
+    try {
+      const anchor = $('ai-search');
+      if (!anchor?.parentNode?.insertBefore) return null;
+      const node = document.createElement('button');
+      node.id = 'lens-new'; node.type = 'button'; node.className = 'secondary-button'; node.textContent = 'New lens'; node.hidden = true;
+      node.title = 'Make a Showcase lens from photos of your library and your own words';
+      node.addEventListener('click', () => run(openLensDraft));
+      anchor.parentNode.insertBefore(node, anchor);
+      return node;
+    } catch { return null; }
+  })();
+  // Lenses are made and managed in the Lenses panel; the buttons here open it.
+  function openLensDraft() {
+    if (!supports('showcaseLenses')) { P.showNotice('Showcase lenses need the macOS companion build with its vision helper.'); return; }
+    if (!window.PhotoFindryPanels) { P.showError('The local panel could not be loaded. Reopen the companion interface.'); return; }
+    window.PhotoFindryPanels.show('lenses', { new: true });
+  }
+  const lensManage = $('lens-manage') || (() => {
+    try {
+      const anchor = $('ai-search');
+      if (!anchor?.parentNode?.insertBefore) return null;
+      const node = document.createElement('button');
+      node.id = 'lens-manage'; node.type = 'button'; node.className = 'secondary-button'; node.textContent = 'Lenses'; node.hidden = true;
+      node.title = 'Your Showcase lenses: search with one, make a new version, delete';
+      node.addEventListener('click', () => run(() => { if (window.PhotoFindryPanels) window.PhotoFindryPanels.show('lenses'); }));
+      anchor.parentNode.insertBefore(node, anchor);
+      return node;
+    } catch { return null; }
+  })();
+  // The lens card sits right under the search box while a lens search is open:
+  // the lens's own words, the rules compiled from them (kept or set aside, and
+  // for a new lens the owner's choice), the examples against the floor, and
+  // every next step: save, search again, prepare missing previews, export the
+  // photos for a website section, delete. The engine decides; this only shows.
+  const lensCard = $('lens-card') || (() => {
+    try {
+      const help = $('search-help');
+      if (!help?.parentNode?.insertBefore) return null;
+      const node = document.createElement('section');
+      node.id = 'lens-card'; node.className = 'lens-card'; node.hidden = true; node.setAttribute('aria-label', 'Showcase lens');
+      help.parentNode.insertBefore(node, help.nextSibling);
+      return node;
+    } catch { return null; }
+  })();
+  let lensIndex = [];
+  let lensShootTypes = [];
+  const lensChoices = new Map();
+  let lensCardSignature = '';
+  let lensCardUrls = [];
+  let lensCardController = null;
+  const savedLensFor = (jobId, lensId) => lensIndex.find((lens) => lens.fromJob === jobId)?.id || (lensIndex.some((lens) => lens.id === lensId) ? lensId : '');
+  const slug = (text) => String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'section';
+  const typeLabel = (id) => String(id || '').replace(/[-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  function markDraftOption(label) {
+    if (!lensSelect) return;
+    let option = [...(lensSelect.options || [])].find((item) => item.value === '__job__');
+    if (!label) { if (option) { option.remove(); if (lensSelect.value === '__job__' || !lensSelect.value) lensSelect.value = ''; } return; }
+    if (!option) { option = lensOption('', '__job__'); option.disabled = true; lensSelect.append(option); }
+    option.textContent = label; lensSelect.hidden = false; lensSelect.value = '__job__';
+  }
+  async function saveLensFromJob(jobId, lens) {
+    const statuses = Object.fromEntries(lensChoices.get(jobId) || []);
+    const result = await P.action('showcaseLensSave', { jobId, ...(Object.keys(statuses).length ? { statuses } : {}) });
+    await loadLenses();
+    markDraftOption('');
+    if (lensSelect && result?.id) { lensSelect.value = result.id; lensSelect.dispatchEvent(new Event('change')); }
+    P.showNotice(result?.changed
+      ? `Lens “${str(lens?.lens?.title)}” saved with your rule choices. Its floor is now ${Math.round(num(result.floor))}. Search with it to see the photos it now selects.`
+      : `Lens “${str(lens?.lens?.title)}” saved. It is selected beside Local AI Search.`);
+    lensCardSignature = ''; renderAIResults(P.getPage());
+  }
+  async function searchWithLens(lensId) {
+    const requestId = crypto.randomUUID(); const scope = P.getScope();
+    const next = await enqueue('aiSearch', { ...scopedParams(), requestId, lensId, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'all' });
+    if (next?.id) await openAIJob(next.id, requestId);
+  }
+  function preparePreviews(jobId, count) {
+    const { dialog, body } = modal('Prepare missing previews?', `${fmt.format(count)} candidates have no local preview, so the lens could not look at them. PhotoFindry reads each original once (files kept only in cloud storage are downloaded first) and keeps a small preview in the library. Originals are never changed. When it finishes, search with the lens again.`);
+    const controls = el('div', 'button-row');
+    const start = (schedule) => async () => {
+      const queued = await P.action('showcaseLensPreparePreviews', { jobId, schedule });
+      dialog.close();
+      P.showNotice(`Preparing previews for ${fmt.format(num(queued?.photoCount || count))} photos${schedule.mode === 'overnight' ? ' overnight' : ''}. See Jobs for progress.`);
+    };
+    controls.append(button('Prepare now', start({ mode: 'now' }), true), button('Overnight', start({ mode: 'overnight', start: '22:00', end: '07:00' })), button('Cancel', () => dialog.close()));
+    body.append(controls);
+  }
+  function exportWebsite(jobId, lens) {
+    const { dialog, body } = modal('Export for website', 'Writes the photos in this lens, in result order, as one section of showcase-website.json (paths of the originals) with showcase-website-details.json beside it. Exporting another lens to the same folder adds its section and keeps the others.');
+    const name = input('text', slug(lens?.lens?.title), 'section-name'); name.maxLength = 64;
+    const limit = input('number', '', 'All photos in the lens'); limit.min = '1'; limit.max = '10000';
+    body.append(field('Section name', name), field('At most (optional)', limit));
+    body.append(button('Choose folder and export', async () => {
+      const section = name.value.trim();
+      if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(section)) { name.focus(); P.showNotice('Use lowercase letters, digits and hyphens for the section name.'); return; }
+      const cap = limit.value.trim() ? Number(limit.value) : null;
+      if (cap !== null && !(Number.isInteger(cap) && cap >= 1 && cap <= 10000)) { limit.focus(); P.showNotice('Limit the section to 1–10,000 photos, or leave it empty.'); return; }
+      const chosen = await P.pick('folder');
+      if (chosen.cancelled || !chosen.grantId) return;
+      const result = await P.action('showcaseWebsiteExport', { jobId, name: section, folderGrant: chosen.grantId, ...(cap ? { limit: cap } : {}) });
+      dialog.close();
+      P.showNotice(`Exported ${fmt.format(num(result?.photos))} photos as “${section}” to ${str(chosen.label) || 'the chosen folder'}. Sections there: ${list(result?.sections).join(', ')}.`);
+    }, true));
+  }
+  function deleteLens(id, title) {
+    confirmAction('Delete this lens?', `“${title}” is removed from your lenses. Searches already made with it keep their results; photos, tags and examples are not changed.`, 'Delete lens', async () => {
+      await P.action('showcaseLensDelete', { id });
+      await loadLenses();
+      if (lensSelect?.value === id) { lensSelect.value = ''; lensSelect.dispatchEvent(new Event('change')); }
+      P.showNotice(`Lens “${title}” deleted.`);
+      lensCardSignature = ''; renderAIResults(P.getPage());
+    });
+  }
+  function renderLensCard(page, job, jobId) {
+    if (!lensCard) return;
+    const ready = page?.aiJobId === jobId && page.lens && typeof page.lens === 'object';
+    const title = String(job?.title || '');
+    const lensJob = ready || /^(New )?Showcase lens: /.test(title);
+    if (!jobId || !lensJob) {
+      if (lensCardSignature) { lensCard.replaceChildren(); lensCard.hidden = true; lensCardSignature = ''; markDraftOption(''); }
+      return;
+    }
+    const lens = ready ? page.lens : null;
+    const lensId = str(lens?.lens?.id); const draft = ready ? lens.draft === true : title.startsWith('New ');
+    const savedId = ready ? savedLensFor(jobId, lensId) : '';
+    const choices = lensChoices.get(jobId) || new Map();
+    const finished = job ? terminal(job) : true;
+    const signature = JSON.stringify([jobId, ready, lensId, savedId, finished, ready ? '' : str(job?.message), lensIndex.length, [...choices]]);
+    if (signature === lensCardSignature) return;
+    lensCardSignature = signature;
+    lensCardController?.abort(); lensCardController = new AbortController();
+    for (const url of lensCardUrls) URL.revokeObjectURL(url); lensCardUrls = [];
+    const name = ready ? str(lens.lens?.title) : title.replace(/^(New )?Showcase lens: /, '');
+    if (draft && !savedId) markDraftOption(`${name} — new lens, not saved yet`);
+    else { markDraftOption(''); if (savedId && lensSelect && lensSelect.value !== savedId) { lensSelect.value = savedId; lensSelect.dispatchEvent(new Event('change')); } }
+    const heading = el('div', 'lens-card-heading');
+    // Only a saved lens starts a "Showcase lens:" search, so while its results
+    // are still being prepared the lens counts as saved.
+    const badge = savedId || (!draft && !ready) ? 'Saved' : draft ? 'Not saved yet' : 'No longer saved';
+    heading.append(el('h3', '', `${draft ? 'New lens' : 'Lens'} · ${name}`), el('span', badge === 'Saved' ? 'lens-badge saved' : 'lens-badge', badge));
+    const nodes = [heading];
+    if (!ready) {
+      nodes.push(el('p', 'lens-card-status', str(job?.message) || 'Making the lens from your words and examples…'));
+      lensCard.replaceChildren(...nodes); lensCard.hidden = false; return;
+    }
+    if (str(lens.lens?.statement)) nodes.push(el('p', 'lens-statement', `“${str(lens.lens.statement)}”`));
+    if (savedId && savedId !== lensId) nodes.push(el('p', 'lens-card-status', 'Saved with your rule choices. This search shows the lens as it was first made; search with the saved lens to see the photos it selects.'));
+    const counts = [[lens.members, 'in the lens'], [lens.near, 'near it'], [lens.rest, 'outside'], [lens.ineligible, 'not eligible'], [lens.duplicates, 'other burst frames'], [lens.unmeasured, 'without a preview']]
+      .filter(([value]) => num(value) > 0).map(([value, label]) => `${fmt.format(num(value))} ${label}`);
+    nodes.push(el('p', 'lens-counts', counts.join(' · ')));
+    const rules = list(lens.rules);
+    const ruleList = el('ul', 'lens-rules');
+    const editable = draft && !savedId;
+    for (const rule of rules) {
+      const chosen = choices.get(rule.id) || rule.status;
+      const item = el('li', chosen === 'accepted' ? 'lens-rule' : 'lens-rule set-aside');
+      const text = el('div', 'lens-rule-text');
+      text.append(el('strong', '', str(rule.reason)));
+      if (str(rule.meaning)) text.append(el('span', 'lens-rule-meaning', str(rule.meaning)));
+      const why = [str(rule.source) ? `From your words: “${str(rule.source)}”.` : '', chosen !== 'accepted' && str(rule.problem) ? `Set aside: ${str(rule.problem)}.` : chosen !== 'accepted' ? 'Set aside.' : '', chosen === 'accepted' && str(rule.note) ? `Note: ${str(rule.note)}.` : ''].filter(Boolean).join(' ');
+      if (why) text.append(el('span', 'lens-rule-why', why));
+      if (editable && rule.acceptable !== false) {
+        const box = input('checkbox'); box.checked = chosen === 'accepted'; box.setAttribute('aria-label', `Use rule: ${str(rule.reason)}`);
+        box.addEventListener('change', () => {
+          const next = new Map(lensChoices.get(jobId) || []);
+          if ((box.checked ? 'accepted' : 'rejected') === rule.status) next.delete(rule.id); else next.set(rule.id, box.checked ? 'accepted' : 'rejected');
+          lensChoices.set(jobId, next); renderLensCard(P.getPage(), list(snapshot.jobs?.jobs).find((item) => item.id === jobId), jobId);
+        });
+        const wrap = el('label', 'lens-rule-choice'); wrap.append(box, text); item.append(wrap);
+      } else item.append(text);
+      ruleList.append(item);
+    }
+    if (rules.length) nodes.push(el('h4', '', editable ? 'What the lens checks — untick a rule to leave it out' : 'What the lens checks'), ruleList);
+    const examples = list(lens.lens?.examples);
+    if (examples.length) {
+      const row = el('div', 'lens-card-examples');
+      for (const example of examples) {
+        const figure = el('button', example.belowThreshold ? 'lens-card-example below' : 'lens-card-example'); figure.type = 'button';
+        const image = el('img'); image.alt = ''; image.decoding = 'async';
+        figure.append(image, el('span', '', `${Math.round(num(example.score))}${example.belowThreshold ? ' · below floor' : ''}`));
+        figure.title = example.belowThreshold ? 'This example scores below the lens floor' : 'Example photo and its lens score';
+        figure.addEventListener('click', () => P.showPhoto?.(example.photoId));
+        const signal = lensCardController.signal;
+        P.previewBlob(example.photoId, signal).catch(() => P.previewBlob(example.photoId, signal, null, { prepare: true }))
+          .then((blob) => { if (signal.aborted) return; const url = URL.createObjectURL(blob); lensCardUrls.push(url); image.src = url; }).catch(() => {});
+        row.append(figure);
+      }
+      nodes.push(el('h4', '', `Your examples · floor ${Math.round(num(lens.lens?.threshold))}`), row);
+    }
+    const actions = el('div', 'lens-card-actions');
+    if (editable) {
+      const changed = choices.size > 0;
+      const keep = rules.filter((rule) => (choices.get(rule.id) || rule.status) === 'accepted').length;
+      actions.append(button(changed ? 'Save lens with my choices' : 'Save lens', () => { if (!keep) { P.showNotice('Keep at least one rule.'); return; } return saveLensFromJob(jobId, lens); }, true));
+    }
+    // A lens saved with other rule choices can be searched at once; the same
+    // lens again once this search has finished.
+    if (savedId && (finished || savedId !== lensId)) actions.append(button(savedId === lensId ? 'Search with lens again' : 'Search with saved lens', () => searchWithLens(savedId), !editable));
+    if (num(lens.unmeasured) > 0 && finished) actions.append(button(`Prepare ${fmt.format(num(lens.unmeasured))} missing previews`, () => preparePreviews(jobId, num(lens.unmeasured))));
+    if (num(lens.members) > 0) actions.append(button('Export for website', () => exportWebsite(jobId, lens)));
+    if (savedId) actions.append(button('Delete lens', () => deleteLens(savedId, name)));
+    nodes.push(actions);
+    lensCard.replaceChildren(...nodes); lensCard.hidden = false;
+  }
+  function lensOption(label, value) { const option = document.createElement('option'); option.textContent = label; option.value = value; return option; }
+  let lensesAvailable = null;
+  async function loadLenses() {
+    if (!lensSelect) return;
+    try {
+      const { lenses = [], shootTypes = [] } = await P.action('showcaseLenses', {});
+      lensIndex = list(lenses); lensShootTypes = list(shootTypes);
+      const current = lensSelect.value;
+      lensSelect.textContent = '';
+      lensSelect.append(lensOption('No lens', ''));
+      for (const lens of lenses) {
+        const option = lensOption(lens.title, lens.id); option.title = String(lens.statement || '');
+        lensSelect.append(option);
+      }
+      lensSelect.hidden = !lenses.length;
+      if ([...(lensSelect.options || [])].some(option => option.value === current)) lensSelect.value = current;
+      lensSelect.title = lenses.length ? 'Search with a saved Showcase lens' : '';
+      lensesAvailable = true;
+    } catch { lensSelect.hidden = true; lensesAvailable = false; }
+    if (lensNew) lensNew.hidden = !snapshot.libraryId || lensesAvailable !== true;
+    if (lensManage) lensManage.hidden = !snapshot.libraryId || lensesAvailable !== true || !lensIndex.length;
+  }
+  // Lenses are library data: (re)load them when a paired library state arrives.
+  let lensesLoadedFor = null;
+  // One button, Local AI Search: with a lens chosen it searches through that
+  // lens, otherwise it searches the typed words. Ordinary Search is unchanged.
+  lensSelect?.addEventListener('change', () => {
+    if (lensSelect.value !== '__job__') markDraftOption('');
+    const title = lensSelect.selectedOptions?.[0]?.textContent || '';
+    $('search-help').textContent = lensSelect.value && lensSelect.value !== '__job__' ? `Local AI Search will look through the lens “${title}”: the lens decides which photos belong, the reranker orders them, and every other candidate stays listed after them. Search still searches saved details as usual.` : 'Searches saved library evidence. No model is started.';
+  });
+  window.addEventListener('photofindry:lenses-changed', loadLenses);
   $('ai-search').addEventListener('click', () => run(async () => {
     const scope = P.getScope();
-    if (!scope.query.trim()) { $('search').focus(); P.showNotice('Enter a search before starting Local AI Search.'); return; }
-    if (!requireModel()) return;
+    const lensId = lensSelect && !lensSelect.hidden && !String(lensSelect.value).startsWith('__') ? (lensSelect.value || '') : '';
+    if (!lensId && !scope.query.trim()) { $('search').focus(); P.showNotice('Type what to look for, or choose a lens, before starting Local AI Search.'); return; }
+    if (!lensId && !requireModel()) return;
     if (!snapshot.settings?.rerankerModelConfigured) { openSettings(); P.showNotice('Choose a search reranker before starting Local AI Search. Your query is kept.'); return; }
     const requestId = crypto.randomUUID();
-    const job = await enqueue('aiSearch', { ...scopedParams(), requestId, query: scope.query, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'best' });
+    const params = lensId
+      ? { ...scopedParams(), requestId, lensId, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'all' }
+      : { ...scopedParams(), requestId, query: scope.query, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'best' };
+    const job = await enqueue('aiSearch', params);
     if (job?.id) await openAIJob(job.id, requestId);
   }));
 
@@ -722,6 +978,7 @@
     $('library-title').textContent = id ? 'AI search candidates' : 'Your photographs';
     $('search-help').textContent = id ? 'Local AI Search ranks saved evidence using your local models. Typing starts ordinary saved-evidence search.' : 'Searches saved library evidence. No model is started.';
     if (!id) {
+      renderLensCard(null, null, null);
       if (aiControlsSignature) target.replaceChildren();
       aiControlsSignature = ''; stopPendingProbe(); aiPendingProbeJobId = null;
       updateScopeChoices(); return;
@@ -743,7 +1000,10 @@
       ? str(job?.message || (ownsPage ? page.aiError : '')) || 'The local search is preparing its first saved candidate page.'
       : terminalWithoutResults ? str(page.aiError || job?.message) || (page.aiStopped ? 'Search stopped before candidates were saved.' : 'See Jobs for the search outcome.')
       : [page.aiStale ? 'Saved results are older than the current library evidence.' : '', page.aiStopped ? 'Stopped. Reviewed candidates are kept; this search cannot resume.' : '', page.aiPartial ? 'Results are partial.' : '', page.semanticLimited === true ? 'Related evidence indexing is incomplete; other photos may become searchable later. Every retrieved candidate is retained.' : '', page.aiRankingNotice || page.aiError || ''].filter(Boolean).join(' ');
-    const signature = JSON.stringify([id, pending, terminalWithoutResults, summary, status, view, jobState]);
+    // A lens search shows its lens in the card under the search box.
+    renderLensCard(page, job, id);
+    const lensSearch = ready && page.lens && typeof page.lens === 'object';
+    const signature = JSON.stringify([id, pending, terminalWithoutResults, summary, status, view, jobState, lensSearch]);
     if (signature === aiControlsSignature) return;
     aiControlsSignature = signature;
     if (pending && job?.aiResultsReady !== true && (!job || !terminal(job))) pendingProbe(id);
@@ -757,7 +1017,8 @@
     if (job && !terminal(job)) {
       tabs.append(button(job.state === 'paused' ? 'Resume search' : 'Pause search', () => jobAction(job.state === 'paused' ? 'resume' : 'pause', job.id)), button('Stop search', () => stopJob(job)));
     }
-    if (!pending && (!job || terminal(job))) tabs.append(button('Run AI Search again', async () => {
+    // A lens search runs again from its card; an ordinary one from here.
+    if (!pending && (!job || terminal(job)) && !lensSearch) tabs.append(button('Run AI Search again', async () => {
       if (!requireModel()) return;
       const requestId = crypto.randomUUID(); const scope = P.getScope();
       const next = await enqueue('aiSearch', { ...scopedParams(), requestId, query: scope.query, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'best' });
@@ -1508,10 +1769,14 @@
     if (panel === 'settings') return openSettings();
     if (panel === 'jobs') return openJobs();
     if (['sources', 'people', 'portability'].includes(panel)) return openAdvanced(panel);
+    if (panel === 'lenses') return openLensDraft();
     if (panel === 'library') { window.PhotoFindryPanels?.close?.(); $('library-title').scrollIntoView({ block: 'start' }); }
   });
   window.addEventListener('photofindry:state', (event) => {
     snapshot = event.detail || {};
+    if (snapshot.libraryId && snapshot.libraryId !== lensesLoadedFor) { lensesLoadedFor = snapshot.libraryId; loadLenses(); }
+    if (lensNew) lensNew.hidden = !snapshot.libraryId || !supports('showcaseLenses') || lensesAvailable !== true;
+    if (lensManage) lensManage.hidden = lensNew ? lensNew.hidden || !lensIndex.length : true;
     const jobs = list(snapshot.jobs?.jobs);
     const sourceKinds = new Set(['tagging', 'improve', 'metadata', 'cleanup', 'sourceRecovery', 'reviewScreen']);
     const committedJobEnded = jobs.some((job) => sourceKinds.has(job.kind) && terminal(job) && previousJobs.has(job.id) && !previousJobs.get(job.id).terminal);

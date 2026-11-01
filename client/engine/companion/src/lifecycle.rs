@@ -2626,6 +2626,16 @@ os.replace(target,root/'open-update-request.json')
         tokio::time::timeout(Duration::from_secs(3),open_switched_workspace(&root,&cfg)).await.unwrap().unwrap();
         let target:Value=serde_json::from_slice(&std::fs::read(&opened).unwrap()).unwrap();
         assert_eq!(target,json!({"port":4321,"ticket":"a".repeat(64)}));
+        // The requesting browser reaches a current opener; an older opener
+        // after rollback rejects the field and is retried without it.
+        let direct=launch::LaunchTarget{port:4321,ticket:"a".repeat(64),archive_id:None};
+        super::super::open_local_browser_in(&executable(&root,cfg.current),&direct,Some("com.google.Chrome".into())).await.unwrap();
+        let target:Value=serde_json::from_slice(&std::fs::read(&opened).unwrap()).unwrap();
+        assert_eq!(target,json!({"port":4321,"ticket":"a".repeat(64),"browser":"com.google.Chrome"}));
+        std::fs::write(&opener,format!("#!/bin/sh\n[ \"$1\" = --open-local ] || exit 3\n/bin/cat > '{0}'\n! /usr/bin/grep -q browser '{0}'\n",opened.display())).unwrap();
+        super::super::open_local_browser_in(&executable(&root,cfg.current),&direct,Some("com.google.Chrome".into())).await.unwrap();
+        let target:Value=serde_json::from_slice(&std::fs::read(&opened).unwrap()).unwrap();
+        assert_eq!(target,json!({"port":4321,"ticket":"a".repeat(64)}));
         // Even an older, non-runnable CLI is never recursively executed.
         assert_eq!(std::fs::read(&exe).unwrap(),b"not executed");
         assert!(launch::try_lock(&root,"operation.lock").unwrap().is_none());

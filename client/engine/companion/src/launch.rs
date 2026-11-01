@@ -49,6 +49,20 @@ pub fn desktop_command(executable: &Path) -> tokio::process::Command {
     command
 }
 
+/// The installed launcher names the browser that sent an Open link so the
+/// workspace opens there instead of the system default. It is a bundle
+/// identifier only; the opener accepts it solely for a registered web browser.
+pub const OPEN_BROWSER_ENV: &str = "PHOTORECALL_OPEN_BROWSER";
+pub fn requested_browser() -> Option<String> {
+    browser_identifier(&std::env::var(OPEN_BROWSER_ENV).ok()?)
+}
+pub fn browser_identifier(value: &str) -> Option<String> {
+    let labels: Vec<&str> = value.split('.').collect();
+    (value.len() <= 255 && labels.len() >= 2 && labels.iter().all(|label| !label.is_empty()
+        && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')))
+        .then(|| value.to_owned())
+}
+
 /// Resolve the OS account home rather than trusting a website/launch environment.
 pub fn default_directory() -> Result<PathBuf> {
     let mut record = std::mem::MaybeUninit::<libc::passwd>::uninit();
@@ -1134,6 +1148,16 @@ mod tests {
         fs::remove_file(&path).unwrap();
         assert!(recovery_registration(&fixture.state).unwrap().is_none());
     }
+    #[test]
+    fn browser_identifier_is_a_plain_bundle_identifier() {
+        assert_eq!(browser_identifier("com.google.Chrome").as_deref(), Some("com.google.Chrome"));
+        assert_eq!(browser_identifier("org.mozilla.firefox").as_deref(), Some("org.mozilla.firefox"));
+        for invalid in ["", "Chrome", "com..google", ".com.google", "com.google.", "/Applications/Safari.app", "com.google.Chrome\n", "com.google Chrome", "https://example.invalid"] {
+            assert_eq!(browser_identifier(invalid), None, "{invalid}");
+        }
+        assert_eq!(browser_identifier(&format!("com.{}", "a".repeat(252))), None);
+    }
+
     #[test]
     fn browser_opener_is_a_trusted_fixed_sibling() {
         let fixture = Fixture::new();

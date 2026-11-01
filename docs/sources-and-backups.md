@@ -12,7 +12,7 @@ PhotoFindry checks registered sources in the background while the companion is r
 
 ## Library backup
 
-Use **Backups & archives → Export library backup…** to export a portable library backup. New packages use `.photofindrybackup`; legacy `.photorecallbackup` packages remain readable. These packages preserve supported saved library evidence, not original photo files or model weights.
+Use **Backups & archives → Export library backup…** to export a portable library backup. New packages use `.photofindrybackup`; legacy `.photorecallbackup` packages remain readable. These packages preserve supported saved library evidence, including saved Showcase lenses, not original photo files or model weights.
 
 Keep independent backups of originals. Restore is a deliberate operation: review the selected archive and the recovery information shown by the app. Restore preserves the receiving computer's model file choices. It verifies and stages the selected package before replacing the library, keeps a recovery copy, and leaves imported work paused. Select the whole .photofindrybackup folder, not a file inside it.
 

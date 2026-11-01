@@ -32,6 +32,10 @@ People automatically checks eligible new and retagged photos for faces, even bef
 
 Name a clear reference face; confident qualified matches can inherit that user-confirmed name. Possible matches remain reviewable across gallery pages, and you can open the full photograph or inspect its exact face crop when naming. Correct mistakes and leave uncertain matches for review. A model appearance estimate is not a verified identity.
 
+## Make your own lens (Mac)
+
+On macOS 15 or later, open **Lenses** beside Local AI Search to make a Showcase lens from a few photos you are proud of and a sentence about why. Review its rules, save it, then choose it beside Local AI Search. See [Search](https://photofindry.com/docs/search.html).
+
 ## Find help again
 
 The sidebar offers Getting started and Help & feedback; About includes Privacy & distribution. [Search](https://photofindry.com/docs/search.html), [sources and backups](https://photofindry.com/docs/sources-and-backups.html), and [troubleshooting](https://photofindry.com/docs/troubleshooting.html) explain the next steps.

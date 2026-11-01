@@ -143,7 +143,7 @@
     const heading = el('header', 'pfp-header'); title = el('h2', '', 'Library management');
     heading.append(title, navigationButton('Back to photos', close));
     const nav = el('nav', 'pfp-nav'); nav.setAttribute('aria-label', 'Library management');
-    for (const [name, label] of [['sources', 'Files'], ['people', 'People'], ['cleanup', 'Library cleanup'], ['portability', 'Backups & archives'], ['improvement', 'Photo improvement']]) {
+    for (const [name, label] of [['sources', 'Files'], ['people', 'People'], ['lenses', 'Lenses'], ['cleanup', 'Library cleanup'], ['portability', 'Backups & archives'], ['improvement', 'Photo improvement']]) {
       const item = navigationButton(label, () => show(name)); item.dataset.panel = name; nav.append(item);
     }
     status = el('div', 'pfp-status'); status.setAttribute('aria-live', 'polite');
@@ -196,10 +196,241 @@
     for (const result of completedResults) status.append(row(el('span', 'pfp-muted', `Saved ${result.kind === 'library' ? 'backup' : 'source archive'} · ${text(result.label, 'Verified export')}`),
       button(result.kind === 'library' ? 'Show backup in Finder' : 'Show archive in Finder', () => command('revealTransferResult', { kind: result.kind, id: result.id }))));
   }
+  // Showcase lenses: the owner's own way of seeing the library. A lens is made
+  // from words and example photos, reviewed rule by rule, saved, then searched
+  // with from Local AI Search. The engine compiles, measures and calibrates;
+  // this panel only shows and asks.
+  const lensState = { chosen: new Map(), relatedOffset: 0, draftId: '', poll: null, prefill: null };
+  const statementOf = (lens) => text(lens?.statement, '');
+  const typeLabel = (id) => String(id || '').replace(/[-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  function lensTile(photo, ticked, onToggle) {
+    const node = el('label', 'pfp-lens-tile'); const box = el('input'); box.type = 'checkbox'; box.checked = ticked; box.setAttribute('aria-label', `Use as example: ${text(photo.caption, text(photo.name, 'photo'))}`);
+    const frame = el('div', 'pfp-lens-tile-image');
+    node.append(box, frame, el('span', 'pfp-lens-tile-caption', text(photo.caption, text(photo.name, photo.filename || '')).slice(0, 80)));
+    const signal = view.controller.signal;
+    bridge().previewBlob(photo.id, signal, null, { prepare: photo.hasPreview !== true })
+      .then((blob) => { if (signal.aborted || !frame.isConnected) return; const url = URL.createObjectURL(blob); view.urls.add(url); const image = el('img'); image.alt = ''; image.src = url; image.decoding = 'async'; frame.append(image); })
+      .catch(() => { if (!signal.aborted && frame.isConnected) frame.append(el('span', 'pfp-muted', 'No preview')); });
+    box.addEventListener('change', () => onToggle(photo, box.checked, node));
+    return node;
+  }
+  function lensRuleRow(rule, editable, choices, onChange) {
+    const chosen = choices.get(rule.id) || rule.status;
+    const item = el('li', chosen === 'accepted' ? 'pfp-lens-rule' : 'pfp-lens-rule set-aside');
+    const content = el('div', 'pfp-lens-rule-text');
+    content.append(el('strong', '', text(rule.reason)));
+    if (text(rule.meaning)) content.append(el('span', 'pfp-muted', text(rule.meaning)));
+    const why = [text(rule.source) ? `From your words: “${text(rule.source)}”.` : '', chosen !== 'accepted' ? `Set aside: ${text(rule.problem, 'not supported by your examples')}.` : '', chosen === 'accepted' && text(rule.note) ? `Note: ${text(rule.note)}.` : ''].filter(Boolean).join(' ');
+    if (why) content.append(el('span', 'pfp-muted', why));
+    if (editable && rule.acceptable !== false) {
+      const box = el('input'); box.type = 'checkbox'; box.checked = chosen === 'accepted'; box.setAttribute('aria-label', `Use rule: ${text(rule.reason)}`);
+      box.addEventListener('change', () => { if ((box.checked ? 'accepted' : 'rejected') === rule.status) choices.delete(rule.id); else choices.set(rule.id, box.checked ? 'accepted' : 'rejected'); onChange(); });
+      const wrap = el('label', 'pfp-lens-rule-choice'); wrap.append(box, content); item.append(wrap);
+    } else item.append(content);
+    return item;
+  }
+  function lensExamples(lens) {
+    const strip = el('div', 'pfp-lens-examples');
+    for (const example of list(lens?.examples)) {
+      const figure = el('button', example.belowThreshold ? 'pfp-lens-example below' : 'pfp-lens-example'); figure.type = 'button';
+      const frame = el('div', 'pfp-lens-tile-image'); figure.append(frame, el('span', '', `${Math.round(Number(example.score) || 0)}${example.belowThreshold ? ' · below floor' : ''}`));
+      figure.title = example.belowThreshold ? 'This example scores below the lens floor' : 'Example photo and its lens score';
+      figure.addEventListener('click', () => bridge().showPhoto(example.photoId));
+      const signal = view.controller.signal;
+      bridge().previewBlob(example.photoId, signal, null, { prepare: true }).then((blob) => { if (signal.aborted || !frame.isConnected) return; const url = URL.createObjectURL(blob); view.urls.add(url); const image = el('img'); image.alt = ''; image.src = url; frame.append(image); }).catch(() => {});
+      strip.append(figure);
+    }
+    return strip;
+  }
+  async function searchWithLens(lensId) {
+    const requestId = crypto.randomUUID(); const scope = bridge().getScope?.() || {};
+    const params = { requestId, lensId, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'all', ...(scope.sourceId ? { sourceId: scope.sourceId } : {}), ...(scope.scopeId ? { scopeId: scope.scopeId } : {}) };
+    const job = await bridge().action('enqueueJob', { kind: 'aiSearch', params });
+    close();
+    if (job?.id) await bridge().openAIResults(job.id, requestId);
+  }
+  const prefillFrom = (input) => ({ title: input?.title, statement: input?.statement, exemplars: list(input?.exemplars), shootTypes: list(input?.shootTypes) });
+  async function renderLenses(context = {}) {
+    const generation = view.generation;
+    const current = () => generation === view.generation;
+    const index = await read('showcaseLenses', {});
+    if (!current()) return;
+    const lenses = list(index.lenses); const drafts = list(index.drafts); const types = list(index.shootTypes);
+    if (context.draftId) lensState.draftId = context.draftId;
+    const intro = card('', '');
+    intro.append(el('p', '', 'A lens is your own way of seeing the library: you write what makes certain photos your best work, pick examples, and PhotoFindry turns the words into rules it can check against measured previews and saved descriptions. Searching with a lens puts the photos that pass first, ordered by how well their descriptions fit your words.'));
+    intro.append(row(button('New lens', () => { lensState.prefill = null; lensState.chosen = new Map(); lensState.draftId = ''; return renderLensBuilder(types, lenses); }, 'primary')));
+    body.append(intro);
+    if (context.new) { await renderLensBuilder(types, lenses); return; }
+    if (lensState.draftId) {
+      const draft = drafts.find((item) => item.id === lensState.draftId) || await read('showcaseLensDraft', { id: lensState.draftId }).catch(() => null);
+      if (!current()) return;
+      if (draft) { await renderLensReview(draft, types, lenses); return; }
+      lensState.draftId = '';
+    }
+    const mine = card('Your lenses', lenses.length ? '' : 'No lenses yet. Make one from a few photos you are proud of and a sentence about why.');
+    for (const lens of lenses) {
+      const item = el('div', 'pfp-lens-item');
+      item.append(el('h4', '', text(lens.title)), el('p', 'pfp-muted', `“${statementOf(lens).slice(0, 200)}${statementOf(lens).length > 200 ? '…' : ''}”`));
+      const kept = list(lens.rules).map((rule) => text(rule.reason)).filter(Boolean);
+      item.append(el('p', 'pfp-muted', `${count(kept.length)} rules · ${count(lens.exemplars)} examples · floor ${Math.round(Number(lens.threshold) || 0)}${list(lens.shootTypes).length ? ` · ${list(lens.shootTypes).map(typeLabel).join(', ')}` : ''} · ${date(lens.createdAt)}`));
+      if (kept.length) item.append(el('p', '', kept.join(' · ')));
+      item.append(row(
+        button('Search with lens', () => searchWithLens(lens.id), 'primary'),
+        button('New version…', () => { lensState.prefill = { title: lens.title, statement: lens.statement, exemplars: [], shootTypes: list(lens.shootTypes), lensId: lens.id }; lensState.chosen = new Map(); lensState.draftId = ''; return renderLensBuilder(types, lenses); }),
+        button('Delete', async () => {
+          const ok = await confirmation('Delete this lens?', [`“${text(lens.title)}” is removed from your lenses. Searches already made with it keep their results; photos, tags and examples are not changed.`], 'Delete lens', { destructive: true });
+          if (!ok) return;
+          await command('showcaseLensDelete', { id: lens.id }, `Lens “${text(lens.title)}” deleted.`);
+          window.dispatchEvent(new CustomEvent('photofindry:lenses-changed'));
+          view.generation += 1; clearContent(); await renderLenses();
+        }, 'danger')));
+      mine.append(item);
+    }
+    body.append(mine);
+    if (drafts.length) {
+      const pending = card('Lenses being made', 'A lens waits here until you review and save it, or make it again.');
+      for (const draft of drafts) {
+        const item = el('div', 'pfp-lens-item');
+        const label = draft.status === 'building' ? 'Being made…' : draft.status === 'ready' ? 'Ready to review and save' : `Could not be made: ${text(draft.error, 'unknown reason')}`;
+        item.append(el('h4', '', text(draft.words?.title, 'Untitled lens')), el('p', 'pfp-muted', `“${text(draft.words?.statement).slice(0, 160)}” · ${label}`));
+        const actions = row();
+        if (draft.status === 'ready') actions.append(button('Review & save', () => { lensState.draftId = draft.id; return renderLensReview(draft, types, lenses); }, 'primary'));
+        if (draft.status === 'building') actions.append(button('Follow progress', () => { lensState.draftId = draft.id; return renderLensReview(draft, types, lenses); }));
+        if (draft.status === 'failed') actions.append(button('Make it again', () => { lensState.prefill = prefillFrom(draft.words); lensState.chosen = new Map(); lensState.draftId = ''; return renderLensBuilder(types, lenses); }));
+        actions.append(button('Discard', async () => { await command('showcaseLensDraftDelete', { id: draft.id }); view.generation += 1; clearContent(); await renderLenses(); }));
+        item.append(actions); pending.append(item);
+      }
+      body.append(pending);
+    }
+  }
+  async function renderLensBuilder(types, lenses) {
+    view.generation += 1; clearContent();
+    const generation = view.generation;
+    const current = () => generation === view.generation;
+    const prefill = lensState.prefill;
+    const chosen = lensState.chosen;
+    const builder = card(prefill?.lensId ? `New version of “${text(prefill.title)}”` : 'New lens', '');
+    const name = input(text(prefill?.title, ''), 120); name.placeholder = 'Lens name, e.g. Kids birthday photography';
+    builder.append(field('Name', name));
+    // 1. Related photos: an ordinary saved-evidence search (no model), or random.
+    const find = card('Find photos like…', 'Search your saved descriptions for the kind of photo this lens is about, then tick the ones you are proud of. No model starts.');
+    const query = input(text(prefill?.title, ''), 200); query.placeholder = 'children birthday cake, wedding kiss, portrait window light…';
+    const chosenRow = el('div', 'pfp-lens-grid pfp-lens-chosen'); const grid = el('div', 'pfp-lens-grid'); const summary = el('p', 'pfp-muted', '');
+    const updateSummary = () => { summary.textContent = chosen.size ? `${count(chosen.size)} examples chosen (3 to 24).` : 'No examples chosen yet. Tick at least 3.'; };
+    const toggle = (photo, on, node) => { if (on) { chosen.set(photo.id, photo); chosenRow.append(node); } else { chosen.delete(photo.id); node.remove(); } updateSummary(); };
+    const addTiles = (photos) => { for (const photo of photos) if (photo?.id && !chosen.has(photo.id)) grid.append(lensTile(photo, false, toggle)); };
+    const more = button('Show other photos', () => showResults(false));
+    async function showResults(reset) {
+      if (reset) { lensState.relatedOffset = 0; grid.replaceChildren(); }
+      const q = query.value.trim();
+      if (!q) {
+        const { photos = [] } = await read('showcaseLensExamples', { count: 24, servable: true });
+        if (!current()) return;
+        if (!list(photos).length) { grid.append(el('p', 'pfp-muted', 'No tagged photos with previews yet.')); return; }
+        addTiles(list(photos)); more.textContent = 'Show other photos'; more.disabled = false; return;
+      }
+      const page = await bridge().api('/api/library', { query: q, offset: lensState.relatedOffset, sort: 'relevance', status: 'tagged', includeRelated: true }, { signal: view.controller.signal });
+      if (!current()) return;
+      const photos = list(page?.photos);
+      if (!photos.length && lensState.relatedOffset === 0) { grid.append(el('p', 'pfp-muted', 'No saved descriptions match these words. Try other words, or leave the box empty for random photos.')); more.disabled = true; return; }
+      addTiles(photos); lensState.relatedOffset += 60;
+      more.textContent = photos.length < 60 ? 'No more matches' : `More matches (${count(Number(page?.totalCount) || 0)} in all)`; more.disabled = photos.length < 60;
+    }
+    const search = button('Find photos', () => showResults(true), 'primary');
+    query.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); search.click(); } });
+    find.append(row(query, search, more), el('h4', '', 'Your examples'), summary, chosenRow, el('h4', '', 'Photos found'), grid);
+    builder.append(find);
+    // 2. Words and scope.
+    const statement = el('textarea', 'pfp-input'); statement.rows = 5; statement.maxLength = 4000; statement.value = text(prefill?.statement, '');
+    statement.placeholder = 'What makes these your best work? e.g. the photos focus on smiling kids, the birthday cake, kids playing in a closed space and in open space…';
+    const typeSelect = select([['', 'Every kind of photo'], ...types.map((id) => [id, typeLabel(id)])], text(list(prefill?.shootTypes)[0], ''));
+    builder.append(field('Why these photos', statement), field('Applies to', typeSelect, 'Limit the lens to one kind of photo, or leave it for all.'));
+    // 3. Generate.
+    const generate = button('Generate rules', async () => {
+      const ids = [...chosen.keys()];
+      if (ids.length < 3 || ids.length > 24) throw Error('Tick 3 to 24 example photos first.');
+      if (!name.value.trim()) { name.focus(); throw Error('Give the lens a name.'); }
+      if (statement.value.trim().length < 20) { statement.focus(); throw Error('Write at least a sentence (20 characters) about why these are your best photos.'); }
+      const settings = snapshot().settings || {};
+      if (!(settings.modelConfigured && settings.projectorConfigured)) throw Error('Choose your tagging model and vision projector in Settings first; the lens compiler uses it once.');
+      const params = { title: name.value.trim(), statement: statement.value.trim(), exemplars: ids, ...(typeSelect.value ? { shootTypes: [typeSelect.value] } : {}) };
+      const job = await bridge().action('enqueueJob', { kind: 'lensBuild', params });
+      if (!job?.draftId) throw Error('The lens could not be started.');
+      lensState.draftId = job.draftId; lensState.prefill = null;
+      const draft = await read('showcaseLensDraft', { id: job.draftId });
+      if (!current()) return;
+      await renderLensReview(draft, types, lenses);
+    }, 'primary');
+    builder.append(el('p', 'pfp-muted', 'Generating uses your selected tagging model once (only the saved descriptions of your examples are sent to it), then measures your examples and a sample of the library to calibrate the rules. About one to two minutes.'), row(generate));
+    body.append(builder);
+    if (prefill) {
+      // A new version or a retry starts from the earlier examples, fetched by id.
+      const ids = prefill.lensId ? list(lenses.find((lens) => lens.id === prefill.lensId)?.exemplarIds) : list(prefill.exemplars);
+      for (const id of ids) {
+        bridge().api('/api/photo', { photoId: id }, { signal: view.controller.signal }).then((photo) => { if (!current() || !photo?.id || chosen.has(photo.id)) return; chosen.set(photo.id, photo); chosenRow.append(lensTile(photo, true, toggle)); updateSummary(); }).catch(() => {});
+      }
+    }
+    updateSummary();
+    await showResults(true).catch((error) => { if (current()) grid.append(el('p', 'pfp-warning', text(error?.message, 'The photos could not be loaded.'))); });
+  }
+  async function renderLensReview(draft, types, lenses) {
+    view.generation += 1; clearContent();
+    const generation = view.generation;
+    const current = () => generation === view.generation;
+    clearInterval(lensState.poll); lensState.poll = null;
+    body.append(row(button('All lenses', async () => { lensState.draftId = ''; view.generation += 1; clearContent(); await renderLenses(); })));
+    const title = text(draft.words?.title, text(draft.lens?.title, 'New lens'));
+    if (draft.status === 'building') {
+      const making = card(`Making lens “${title}”`, '');
+      const line = el('p', '', 'Starting…'); making.append(line);
+      making.append(row(button('Stop', async () => { if (draft.jobId) await command('jobAction', { id: draft.jobId, action: 'cancel' }); })));
+      body.append(making);
+      lensState.poll = setInterval(async () => {
+        if (!current()) { clearInterval(lensState.poll); return; }
+        const job = jobs().find((item) => item.id === draft.jobId);
+        if (job && !terminal(job)) { line.textContent = text(job.message, 'Working…'); return; }
+        try {
+          const fresh = await read('showcaseLensDraft', { id: draft.id });
+          if (!current()) return;
+          if (fresh.status !== 'building') { clearInterval(lensState.poll); lensState.poll = null; await renderLensReview(fresh, types, lenses); }
+          else if (job) line.textContent = text(job.message, 'Working…');
+        } catch { /* The next tick retries; a vanished draft shows in the list. */ }
+      }, 1500);
+      return;
+    }
+    if (draft.status === 'failed') {
+      const failed = card(`“${title}” could not be made`, text(draft.error, 'Unknown reason.'));
+      failed.append(row(button('Make it again', () => { lensState.prefill = prefillFrom(draft.words); lensState.chosen = new Map(); lensState.draftId = ''; return renderLensBuilder(types, lenses); }, 'primary'),
+        button('Discard', async () => { await command('showcaseLensDraftDelete', { id: draft.id }); lensState.draftId = ''; view.generation += 1; clearContent(); await renderLenses(); })));
+      body.append(failed); return;
+    }
+    // Ready: the generated rules, the owner's choices, the examples, Save.
+    const choices = new Map();
+    const review = card(`Review “${title}”`, `“${text(draft.words?.statement)}”`);
+    const rules = list(draft.rules);
+    const kept = () => rules.filter((rule) => (choices.get(rule.id) || rule.status) === 'accepted').length;
+    const ruleList = el('ul', 'pfp-lens-rules');
+    const save = button('Save lens', async () => {
+      if (!kept()) throw Error('Keep at least one rule.');
+      const saved = await bridge().action('showcaseLensSave', { draftId: draft.id, ...(choices.size ? { statuses: Object.fromEntries(choices) } : {}) });
+      window.dispatchEvent(new CustomEvent('photofindry:lenses-changed'));
+      lensState.draftId = '';
+      bridge().showNotice(saved?.changed ? `Lens “${title}” saved with your rule choices (floor ${Math.round(Number(saved.floor) || 0)}). Search with it from the list or beside Local AI Search.` : `Lens “${title}” saved. Search with it from the list or beside Local AI Search.`);
+      view.generation += 1; clearContent(); await renderLenses();
+    }, 'primary');
+    const renderRules = () => { ruleList.replaceChildren(...rules.map((rule) => lensRuleRow(rule, true, choices, renderRules))); save.textContent = choices.size ? 'Save lens with my choices' : 'Save lens'; };
+    review.append(el('h4', '', 'What the lens checks — untick a rule to leave it out'), ruleList);
+    renderRules();
+    if (list(draft.lens?.examples).length) review.append(el('h4', '', `Your examples · floor ${Math.round(Number(draft.lens?.threshold) || 0)}`), lensExamples(draft.lens), el('p', 'pfp-muted', `Calibrated against ${count(Number(draft.calibrationPhotos) || 0)} measured library photos. The floor is set so about three quarters of your examples pass; examples below it are marked.`));
+    review.append(row(save, button('Change words or examples', () => { lensState.prefill = prefillFrom(draft.words); lensState.chosen = new Map(); lensState.draftId = ''; return renderLensBuilder(types, lenses); }),
+      button('Discard', async () => { await command('showcaseLensDraftDelete', { id: draft.id }); lensState.draftId = ''; view.generation += 1; clearContent(); await renderLenses(); })));
+    body.append(review);
+  }
   async function show(name = 'sources', context = {}) {
     ensureRoot();
     const normalized = ({ removed: 'cleanup', backup: 'portability', archives: 'portability', reviews: 'improvement' })[name] || name;
-    if (!['sources', 'people', 'cleanup', 'portability', 'improvement'].includes(normalized)) return;
+    if (!['sources', 'people', 'cleanup', 'portability', 'improvement', 'lenses'].includes(normalized)) return;
     if (view.name === 'cleanup' && normalized !== 'cleanup') releaseCleanup();
     if (root.hidden) previousFocus = document.activeElement;
     view.name = normalized; view.generation += 1; root.hidden = false; isolatePanel(); clearContent();
@@ -211,7 +442,7 @@
     if (normalized === 'sources') view.recoveryJobId = typeof context.jobId === 'string' ? context.jobId : null;
     if (normalized === 'cleanup' && context.sourceId !== undefined) view.cleanupSource = context.sourceId;
     if (name === 'removed') view.cleanupTab = 'removed';
-    title.textContent = ({ sources: 'Files', people: 'People', cleanup: 'Library cleanup', portability: 'Backups & source archives', improvement: 'Photo improvement' })[normalized];
+    title.textContent = ({ sources: 'Files', people: 'People', cleanup: 'Library cleanup', portability: 'Backups & source archives', improvement: 'Photo improvement', lenses: 'Showcase lenses' })[normalized];
     for (const item of root.querySelectorAll('[data-panel]')) item.setAttribute('aria-current', item.dataset.panel === normalized ? 'page' : 'false');
     renderStatus(); title.tabIndex = -1; title.focus({ preventScroll: true });
     const generation = view.generation;
@@ -221,6 +452,7 @@
       if (normalized === 'cleanup') await renderCleanup();
       if (normalized === 'portability') renderPortability();
       if (normalized === 'improvement') await renderImprovement();
+      if (normalized === 'lenses') await renderLenses(context);
     } catch (error) { if (generation === view.generation && error?.name !== 'AbortError') showProblem(error.message); }
   }
   async function recoverSource(context) {
