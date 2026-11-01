@@ -57,3 +57,28 @@
   .pfp-status { padding: 0 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .pfp-shell, .pfp-shell * { scroll-behavior: auto !important; } }
+/* Showcase lenses */
+.pfp-lens-item { padding: 12px 0; border-top: 1px solid var(--pf-line, #dbe2de); }
+.pfp-lens-item:first-of-type { border-top: 0; }
+.pfp-lens-item h4 { margin: 0 0 4px; font-size: 15px; }
+.pfp-lens-item p { margin: 4px 0; line-height: 1.5; }
+.pfp-lens-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 10px; margin: 6px 0 12px; }
+.pfp-lens-grid:empty::before { content: 'None yet.'; color: var(--pf-muted, #637365); font-size: 13px; }
+.pfp-lens-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; font-size: 12px; line-height: 1.3; }
+.pfp-lens-tile input { align-self: flex-start; }
+.pfp-lens-tile-image { width: 100%; aspect-ratio: 1; border-radius: 6px; background: var(--pf-lcd, #e8eddf); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.pfp-lens-tile-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pfp-lens-tile:has(input:checked) .pfp-lens-tile-image { outline: 3px solid var(--pf-accent, #2a6fdb); outline-offset: -3px; }
+.pfp-lens-tile-caption { color: var(--pf-muted, #637365); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.pfp-lens-rules { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.pfp-lens-rule { padding: 8px 10px; border-radius: 7px; background: var(--pf-paper, #fafbf7); border: 1px solid var(--pf-line, #dbe2de); font-size: 13px; line-height: 1.5; }
+.pfp-lens-rule.set-aside { opacity: .62; }
+.pfp-lens-rule-choice { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.pfp-lens-rule-choice input { margin-top: 3px; flex-shrink: 0; }
+.pfp-lens-rule-text { display: flex; flex-direction: column; min-width: 0; }
+.pfp-lens-rule-text span { font-size: 12px; overflow-wrap: anywhere; }
+.pfp-lens-examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 8px; }
+.pfp-lens-example { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 92px; padding: 0; border: 0; background: none; color: var(--pf-muted, #637365); font: inherit; font-size: 12px; cursor: pointer; }
+.pfp-lens-example .pfp-lens-tile-image { width: 92px; height: 92px; }
+.pfp-lens-example.below .pfp-lens-tile-image { outline: 2px dashed var(--pf-error, #954439); outline-offset: -2px; }
+textarea.pfp-input { min-height: 110px; resize: vertical; }

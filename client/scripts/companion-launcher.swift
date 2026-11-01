@@ -175,6 +175,7 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
     private var recoveryAttempted = false
     private var progress: NSPanel?
     private var progressWork: DispatchWorkItem?
+    private var requestingBrowser: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -186,6 +187,20 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         }
         scheduled = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Receive links as Apple Events to learn which browser sent them.
+        NSAppleEventManager.shared().setEventHandler(self, andSelector:#selector(handleURLEvent(_:reply:)),
+            forEventClass:AEEventClass(kInternetEventClass), andEventID:AEEventID(kAEGetURL))
+    }
+
+    @objc func handleURLEvent(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        let sender=event.attributeDescriptor(forKeyword:AEKeyword(keySenderPIDAttr))?.int32Value
+        requestingBrowser=sender.flatMap { NSRunningApplication(processIdentifier:$0)?.bundleIdentifier }
+            .flatMap { webBrowserApplication($0,handlers:loopbackBrowsers()) != nil ? $0 : nil }
+        let urls=event.paramDescriptor(forKeyword:keyDirectObject)?.stringValue.flatMap { URL(string:$0) }
+        application(NSApp, open: urls.map { [$0] } ?? [])
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -236,6 +251,10 @@ final class PhotoFindryLauncher: NSObject, NSApplicationDelegate {
         case .workspace: process.arguments=["open"]
         case .archive(let id): process.arguments=["open-archive",id]
         }}
+        // Open the workspace in the browser that sent the link, not only the default.
+        var environment=ProcessInfo.processInfo.environment
+        environment["PHOTORECALL_OPEN_BROWSER"]=requestingBrowser
+        process.environment=environment
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         // The CLI reports bounded human-readable errors, never a bootstrap URL.
@@ -350,20 +369,24 @@ final class BoundedError: @unchecked Sendable {
 // The companion passes the short-lived launch capability over a private pipe,
 // never through process arguments, environment variables or an on-disk file.
 // This internal mode has no URL-handler entry point and accepts no destination.
-func localWorkspaceURL(_ input: Data) -> URL? {
+// An optional browser bundle identifier only chooses which registered web
+// browser opens the fixed loopback address.
+struct LocalWorkspaceRequest { let url: URL; let browser: String? }
+func localWorkspaceRequest(_ input: Data) -> LocalWorkspaceRequest? {
     guard !input.isEmpty, input.count <= 1024, let text = String(data: input, encoding: .utf8) else { return nil }
     // Narrow JSON excludes duplicate/unknown keys, booleans, fractional ports,
     // escapes, callback URLs and extra documents. Order is immaterial.
     let whitespace = #"[ \t\r\n]*"#
-    let field = #""(?:port|ticket|archiveId)""# + whitespace + ":" + whitespace + #"(?:[1-9][0-9]{0,4}|"[0-9A-Fa-f-]{1,64}")"#
+    let field = #""(?:port|ticket|archiveId|browser)""# + whitespace + ":" + whitespace + #"(?:[1-9][0-9]{0,4}|"[0-9A-Za-z.-]{1,255}")"#
     let pattern = #"\A"# + whitespace + #"\{"# + whitespace + field
-        + "(?:" + whitespace + "," + whitespace + field + "){1,2}" + whitespace + #"\}"# + whitespace + #"\z"#
+        + "(?:" + whitespace + "," + whitespace + field + "){1,3}" + whitespace + #"\}"# + whitespace + #"\z"#
     let fullRange=NSRange(location:0,length:(text as NSString).length)
     guard let expression=try? NSRegularExpression(pattern:pattern), expression.firstMatch(in:text,range:fullRange) != nil,
           let object=(try? JSONSerialization.jsonObject(with:input)) as? [String:Any],
-          let keyExpression=try? NSRegularExpression(pattern:#""(?:port|ticket|archiveId)"[ \t\r\n]*:"#),
+          let keyExpression=try? NSRegularExpression(pattern:#""(?:port|ticket|archiveId|browser)"[ \t\r\n]*:"#),
           keyExpression.numberOfMatches(in:text,range:fullRange)==object.count,
-          Set(object.keys)==Set(["port","ticket"]) || Set(object.keys)==Set(["port","ticket","archiveId"]),
+          Set(["port","ticket"]).isSubset(of:object.keys),
+          Set(object.keys).isSubset(of:["port","ticket","archiveId","browser"]),
           let port=object["port"] as? NSNumber, (1...65535).contains(port.intValue),
           let ticket=object["ticket"] as? String, ticket.utf8.count==64,
           ticket.utf8.allSatisfy({(48...57).contains($0)||(97...102).contains($0)}) else { return nil }
@@ -372,7 +395,28 @@ func localWorkspaceURL(_ input: Data) -> URL? {
         guard let text=archive as? String, let id=archiveIdentity(text) else {return nil}
         suffix="&archive=\(id)"
     }
-    return URL(string:"http://127.0.0.1:\(port.intValue)/#bootstrap=\(ticket)\(suffix)")
+    var browser:String?
+    if let value=object["browser"] {
+        guard let text=value as? String, browserIdentifier(text) else {return nil}
+        browser=text
+    }
+    guard let url=URL(string:"http://127.0.0.1:\(port.intValue)/#bootstrap=\(ticket)\(suffix)") else {return nil}
+    return LocalWorkspaceRequest(url:url,browser:browser)
+}
+func localWorkspaceURL(_ input: Data) -> URL? { localWorkspaceRequest(input)?.url }
+func browserIdentifier(_ value: String) -> Bool {
+    let labels=value.split(separator:".",omittingEmptySubsequences:false)
+    return value.utf8.count <= 255 && labels.count >= 2 && labels.allSatisfy { label in
+        !label.isEmpty && label.utf8.allSatisfy { (48...57).contains($0)||(65...90).contains($0)||(97...122).contains($0)||$0==45 }
+    }
+}
+// Only an application LaunchServices lists for loopback http may be chosen.
+func webBrowserApplication(_ identifier: String, handlers: [URL]) -> URL? {
+    guard browserIdentifier(identifier) else { return nil }
+    return handlers.first { Bundle(url:$0)?.bundleIdentifier == identifier }
+}
+func loopbackBrowsers() -> [URL] {
+    NSWorkspace.shared.urlsForApplications(toOpen: URL(string:"http://127.0.0.1/")!)
 }
 func openLocalWorkspaceFromInput() -> Bool {
     var input = Data()
@@ -382,8 +426,25 @@ func openLocalWorkspaceFromInput() -> Bool {
             input.append(part)
         }
     } catch { return false }
-    guard let url=localWorkspaceURL(input) else {return false}
-    return NSWorkspace.shared.open(url)
+    guard let request=localWorkspaceRequest(input) else {return false}
+    if let browser=request.browser {
+        // The caller retries without the field if this opener is too old to
+        // accept it; here an unavailable browser falls back to the default.
+        if let application=webBrowserApplication(browser,handlers:loopbackBrowsers()) {
+            let finished=LinkRegistrationResult()
+            NSWorkspace.shared.open([request.url],withApplicationAt:application,configuration:NSWorkspace.OpenConfiguration()) {_,error in
+                finished.finish(error==nil)
+            }
+            let deadline=ProcessInfo.processInfo.systemUptime+3
+            while finished.value()==nil && ProcessInfo.processInfo.systemUptime<deadline {
+                if !RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.025)) {Thread.sleep(forTimeInterval:0.005)}
+            }
+            // Still pending means LaunchServices accepted it; a second opening
+            // would only spend the one-use ticket in another browser.
+            if finished.value() != false {return true}
+        }
+    }
+    return NSWorkspace.shared.open(request.url)
 }
 
 final class LinkRegistrationResult: @unchecked Sendable {

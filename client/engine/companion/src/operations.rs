@@ -26,10 +26,10 @@ fn object(value: &Value, fields: &[&str]) -> Result<()> {
             | "broad" | "reject" | "undo" | "all" | "stop" | "keepResults"
             | "progressArtEnabled" | "interleave" | "location" | "camera" | "lens" | "focal"
             | "date" | "exposure" | "keepOnBrowse" | "clearTemplate" | "clearReranker"
-            | "includeRelated" | "broaden" | "resume" | "applied" | "lowMemoryTrial" | "background" => {
+            | "includeRelated" | "broaden" | "resume" | "applied" | "lowMemoryTrial" | "background" | "servable" => {
                 value.is_boolean()
             }
-            "offset" | "limit" | "expectedCount" | "dimension" | "budgetBytes" => {
+            "offset" | "limit" | "expectedCount" | "dimension" | "budgetBytes" | "count" => {
                 value.as_u64().is_some_and(|n| n <= 9_007_199_254_740_991)
             }
             "photoIds" | "faceIds" => value.as_array().is_some_and(|a| {
@@ -45,9 +45,15 @@ fn object(value: &Value, fields: &[&str]) -> Result<()> {
             "locationOptions" => locations(value).is_ok(),
             "schedule" => schedule(value).is_ok(),
             "params" => value.is_object(),
+            // Showcase lenses: a draft to compile, or a complete saved cassette.
+            "lensDraft" => lens_draft(value).is_ok(),
+            "statuses" => value.as_object().is_some_and(|m| m.len() <= 16 && m.iter().all(|(k, v)| k.len() <= 8 && k.starts_with('C') && k[1..].bytes().all(|b| b.is_ascii_digit()) && (v == "accepted" || v == "rejected"))),
+            "cassette" => value.is_object(),
+            "exemplars" => value.as_array().is_some_and(|a| (3..=24).contains(&a.len()) && a.iter().all(|v| valid_text(v, 128))),
+            "shootTypes" => value.as_array().is_some_and(|a| a.len() <= 8 && a.iter().all(|v| valid_text(v, 64))),
             _ => valid_text(
                 value,
-                if ["query", "name", "label"].contains(&key.as_str()) {
+                if ["query", "name", "label", "statement"].contains(&key.as_str()) {
                     4096
                 } else {
                     256
@@ -64,6 +70,19 @@ fn valid_text(value: &Value, max: usize) -> bool {
     value
         .as_str()
         .is_some_and(|v| v.len() <= max && !v.contains('\0'))
+}
+/// A new lens draft for `enqueueJob`: a name, a sentence about the examples
+/// and 3–24 example photo ids; the worker compiles and calibrates it.
+fn lens_draft(draft: &Value) -> Result<()> {
+    object(draft, &["title", "statement", "exemplars", "shootTypes"])?;
+    required(draft, &["title", "statement", "exemplars"])?;
+    let text = |key: &str, min: usize, max: usize| draft[key].as_str().is_some_and(|s| s.trim().chars().count() >= min && s.len() <= max);
+    let ids = draft["exemplars"].as_array().is_some_and(|ids| (3..=24).contains(&ids.len()) && ids.iter().all(|id| id.as_str().is_some_and(|s| !s.is_empty() && s.len() <= 128)));
+    let types = draft.get("shootTypes").is_none_or(|t| t.is_null() || t.as_array().is_some_and(|a| a.len() <= 8 && a.iter().all(|s| s.as_str().is_some_and(|s| !s.is_empty() && s.len() <= 64))));
+    if !text("title", 1, 120) || !text("statement", 20, 4000) || !ids || !types {
+        return Err("A new lens needs a name, a sentence about the photos and 3 to 24 example photos.".into());
+    }
+    Ok(())
 }
 fn required(value: &Value, keys: &[&str]) -> Result<()> {
     if keys
@@ -331,6 +350,7 @@ pub fn prepare(
                     "faces",
                     "aiSearch",
                     "semantic",
+                    "lensBuild",
                 ],
             )?;
             let mut inner = params.get("params").cloned().unwrap_or(json!({}));
@@ -347,13 +367,28 @@ pub fn prepare(
                     "sort",
                     "candidateView",
                     "includeRelated",
+                    "lensId",
+                    "lensDraft",
                 ]
             } else {
                 &["photoIds", "sourceId", "scopeId", "force", "automatic"]
             };
-            object(&inner, fields)?;
+            if kind == "lensBuild" {
+                // Making a lens: the owner's words and examples, built by its own job.
+                lens_draft(&inner)?;
+            } else {
+                object(&inner, fields)?;
+            }
             if kind == "aiSearch" {
-                required(&inner, &["query"])?;
+                // A saved lens searches with its own statement; otherwise a query.
+                match inner["lensId"].as_str() {
+                    Some(id) if id.starts_with("cassette-") && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') => {
+                        if inner.get("lensDraft").is_some() { return Err("Choose either a saved lens or a new lens draft.".into()); }
+                    }
+                    Some(_) => return Err("Choose a saved lens.".into()),
+                    None if inner.get("lensDraft").is_some() => lens_draft(&inner["lensDraft"])?,
+                    None => required(&inner, &["query"])?,
+                }
             }
             scope(&mut inner, scopes)?;
             params["params"] = inner;
@@ -451,6 +486,76 @@ pub fn prepare(
             required(&params, &["scopeId"])?;
             scope(&mut params, scopes)?;
             "folderChildren"
+        }
+        "showcaseLenses" => {
+            object(&params, &[])?;
+            "showcaseLenses"
+        }
+        "showcaseLensExamples" => {
+            // Random example photos for a new lens, inside the browsed scope.
+            object(&params, &["count", "servable", "sourceId", "scopeId"])?;
+            if params["count"].as_u64().is_some_and(|n| n == 0 || n > 24) {
+                return Err("Ask for 1 to 24 example photos.".into());
+            }
+            scope(&mut params, scopes)?;
+            "showcaseLensExamples"
+        }
+        "showcaseLensDraft" | "showcaseLensDraftDelete" => {
+            object(&params, &["id"])?;
+            required(&params, &["id"])?;
+            if !params["id"].as_str().is_some_and(|id| id.starts_with("draft-") && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')) {
+                return Err("Choose a lens draft.".into());
+            }
+            if action == "showcaseLensDraft" { "showcaseLensDraft" } else { "showcaseLensDraftDelete" }
+        }
+        "showcaseLensSave" => {
+            // A lens is saved from the draft a build job made or the search job
+            // that compiled it (with the owner's rule choices), or as a complete
+            // cassette object; exactly one source.
+            object(&params, &["cassette", "jobId", "draftId", "statuses"])?;
+            if params.get("statuses").is_some() && params.get("jobId").is_none() && params.get("draftId").is_none() {
+                return Err("Rule choices apply to a lens saved from its build or search.".into());
+            }
+            if params.get("draftId").is_some() && !params["draftId"].as_str().is_some_and(|id| id.starts_with("draft-") && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')) {
+                return Err("Choose a lens draft.".into());
+            }
+            let by_job = params.get("jobId").is_some();
+            let by_draft = params.get("draftId").is_some();
+            let by_cassette = params.get("cassette").is_some();
+            if usize::from(by_job) + usize::from(by_draft) + usize::from(by_cassette) != 1 {
+                return Err("Save a lens from its build or search job, or as a saved cassette object.".into());
+            }
+            if by_job && !params["jobId"].as_str().is_some_and(|id| !id.is_empty() && id.len() <= 128 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')) {
+                return Err("Invalid saved AI job identity.".into());
+            }
+            if by_cassette && (!params["cassette"].is_object() || params["cassette"].to_string().len() > 256 * 1024) {
+                return Err("The lens must be a saved cassette object.".into());
+            }
+            "showcaseLensSave"
+        }
+        "showcaseLensPreparePreviews" => {
+            object(&params, &["jobId", "schedule"])?;
+            required(&params, &["jobId"])?;
+            "showcaseLensPreparePreviews"
+        }
+        "showcaseWebsiteExport" => {
+            // The destination is a folder the owner chose in the native picker.
+            object(&params, &["jobId", "name", "limit", "folderGrant"])?;
+            required(&params, &["jobId", "name", "folderGrant"])?;
+            if params["limit"].as_u64().is_some_and(|n| n == 0 || n > 10_000) {
+                return Err("Limit the section to 1–10,000 photos.".into());
+            }
+            let grant = params.as_object_mut().unwrap().remove("folderGrant").unwrap();
+            params["destination"] = json!(picker.resolve(grant.as_str().unwrap(), "folder")?);
+            "showcaseWebsiteExport"
+        }
+        "showcaseLensDelete" => {
+            object(&params, &["id"])?;
+            required(&params, &["id"])?;
+            if !params["id"].as_str().is_some_and(|id| id.starts_with("cassette-") && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')) {
+                return Err("Choose a saved lens.".into());
+            }
+            "showcaseLensDelete"
         }
         "sourceDetails" => {
             object(&params, &["sourceId", "offset", "limit"])?;
@@ -809,6 +914,55 @@ mod tests {
             json!({"action":"finishDeletion","deletionId":"plan","id":"job"}),json!({"action":"finishDeletion","deletionId":"plan","schedule":{"mode":"now"}}),
             json!({"action":"resume","deletionId":"plan"})] {
             assert!(prepare("jobAction",input,&scopes,&picker).is_err());
+        }
+    }
+    #[test]
+    fn lens_searches_take_a_saved_lens_or_a_bounded_draft_and_save_from_their_job() {
+        let scopes = Scopes::default();
+        let picker = Picker::new(std::path::Path::new("/unavailable"));
+        let draft = json!({"title":"Gaze","statement":"They look straight into the lens, calm and close.","exemplars":["a","b","c"]});
+        let (method, params) = prepare("enqueueJob", json!({"kind":"aiSearch","params":{"lensDraft":draft.clone()}}), &scopes, &picker).unwrap();
+        assert_eq!(method, "enqueueJob");
+        assert_eq!(params["params"]["lensDraft"], draft);
+        assert!(prepare("enqueueJob", json!({"kind":"aiSearch","params":{"lensId":"cassette-0123abcd"}}), &scopes, &picker).is_ok());
+        for bad in [
+            json!({"lensDraft":{"title":"Gaze","statement":"short","exemplars":["a","b","c"]}}),
+            json!({"lensDraft":{"title":"","statement":"They look straight into the lens, calm.","exemplars":["a","b","c"]}}),
+            json!({"lensDraft":{"title":"Gaze","statement":"They look straight into the lens, calm.","exemplars":["a","b"]}}),
+            json!({"lensDraft":{"title":"Gaze","statement":"They look straight into the lens, calm.","exemplars":["a","b","c"],"extra":1}}),
+            json!({"lensDraft":{"title":"Gaze","statement":"They look straight into the lens, calm.","exemplars":["a","b","c"],"shootTypes":"portrait"}}),
+            json!({"lensDraft":draft.clone(),"lensId":"cassette-0123abcd"}),
+            json!({"lensDraft":"text"}),
+            json!({"lensId":"../etc"}),
+            json!({}),
+        ] {
+            assert!(prepare("enqueueJob", json!({"kind":"aiSearch","params":bad}), &scopes, &picker).is_err(), "{bad}");
+        }
+        assert_eq!(prepare("showcaseLensExamples", json!({"count":12}), &scopes, &picker).unwrap().1, json!({"count":12}));
+        assert!(prepare("showcaseLensExamples", json!({"count":24,"servable":true}), &scopes, &picker).is_ok());
+        assert!(prepare("showcaseLensExamples", json!({"count":24,"servable":"yes"}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseLensExamples", json!({"count":0}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseLensExamples", json!({"count":12,"folder":"/etc"}), &scopes, &picker).is_err());
+        assert_eq!(prepare("showcaseLensSave", json!({"jobId":"job-1"}), &scopes, &picker).unwrap().0, "showcaseLensSave");
+        assert!(prepare("showcaseLensSave", json!({"draftId":"draft-abc","statuses":{"C1":"rejected"}}), &scopes, &picker).is_ok());
+        assert!(prepare("showcaseLensSave", json!({"draftId":"../x"}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseLensSave", json!({"draftId":"draft-abc","jobId":"job-1"}), &scopes, &picker).is_err());
+        assert_eq!(prepare("showcaseLensDraft", json!({"id":"draft-abc"}), &scopes, &picker).unwrap().0, "showcaseLensDraft");
+        assert!(prepare("showcaseLensDraftDelete", json!({"id":"cassette-abc"}), &scopes, &picker).is_err());
+        assert_eq!(prepare("enqueueJob", json!({"kind":"lensBuild","params":draft.clone()}), &scopes, &picker).unwrap().1["params"], draft);
+        assert!(prepare("enqueueJob", json!({"kind":"lensBuild","params":{"title":"x","statement":"short","exemplars":["a","b","c"]}}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseLensSave", json!({"jobId":"job-1","statuses":{"C1":"accepted","C2":"rejected"}}), &scopes, &picker).is_ok());
+        for bad in [json!({"jobId":"job-1","statuses":{"C1":"maybe"}}), json!({"jobId":"job-1","statuses":{"x":"accepted"}}), json!({"cassette":{},"statuses":{"C1":"accepted"}})] {
+            assert!(prepare("showcaseLensSave", bad.clone(), &scopes, &picker).is_err(), "{bad}");
+        }
+        assert!(prepare("showcaseLensPreparePreviews", json!({"jobId":"job-1","schedule":{"mode":"now"}}), &scopes, &picker).is_ok());
+        assert!(prepare("showcaseLensPreparePreviews", json!({}), &scopes, &picker).is_err());
+        // A website export needs a folder chosen in the native picker; raw paths are refused.
+        assert!(prepare("showcaseWebsiteExport", json!({"jobId":"job-1","name":"portraits","folderGrant":"unknown"}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseWebsiteExport", json!({"jobId":"job-1","name":"portraits","destination":"/tmp"}), &scopes, &picker).is_err());
+        assert_eq!(prepare("showcaseLensSave", json!({"cassette":{"schema":"x"}}), &scopes, &picker).unwrap().0, "showcaseLensSave");
+        for bad in [json!({}), json!({"jobId":"job-1","cassette":{}}), json!({"jobId":"../x"}), json!({"cassette":"text"})] {
+            assert!(prepare("showcaseLensSave", bad.clone(), &scopes, &picker).is_err(), "{bad}");
         }
     }
     #[test]

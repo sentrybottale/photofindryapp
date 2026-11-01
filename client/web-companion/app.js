@@ -364,7 +364,7 @@
     },
     setCandidateView: (view) => { if (!['best', 'refined', 'all'].includes(view)) return; state.candidateView = view; return loadLibrary(0); },
     returnToLibrary: () => { state.aiJobId = null; return loadLibrary(0); },
-    previewBlob: (photoId, signal, faceId) => fetchPreview(photoId, signal, { params: { photoId, ...(faceId ? { faceId } : {}) } }),
+    previewBlob: (photoId, signal, faceId, { prepare = false } = {}) => fetchPreview(photoId, signal, { params: { photoId, ...(faceId ? { faceId } : {}) }, prepare: prepare === true && !faceId }),
     activityPreviewBlob: (jobId, photoId, signal, kind = 'tagging') => fetchPreview(photoId, signal, { path: '/api/activity-preview', params: { jobId, photoId, kind } }),
     isConnected: () => Boolean(state.token) && !connection.lost,
     expectCompanionRestart: (operation) => { if (['update', 'rollback', 'recover'].includes(operation)) connection.expected = operation; },
@@ -1046,7 +1046,26 @@
     region.hidden = !region.children.length;
   }
 
+  function appendLensContext(fragment, photo) {
+    const lens = photo.showcase;
+    if (!lens || typeof lens !== 'object') return;
+    const box = element('div');
+    const group = lensGroupLabels[lens.group] || text(lens.group);
+    const score = typeof lens.score === 'number' ? ` · lens score ${lens.score.toFixed(0)} (floor ${Number(lens.threshold ?? 0).toFixed(0)})` : '';
+    const reason = { ineligible: { 'other-shoot-type': 'This lens is for other shoot types.', 'not-publishable': 'Not publishable.', 'hard-fail': 'Fails a hard rule (focus, blur, clipping, closed eyes, tilt or resolution).', 'below-pro-floor': 'Below the rulebook floor.' }[lens.reason],
+      duplicate: 'Another frame of the same burst represents this moment.', unmeasured: lens.reason === 'no-preview' ? 'No local preview to measure yet.' : 'The preview could not be read.' }[lens.group];
+    box.append(element('p', '', `${group}${score}`));
+    if (reason) box.append(element('p', 'inspector-context', reason));
+    if (Array.isArray(lens.rules) && lens.rules.length) {
+      const list = element('ul');
+      for (const rule of lens.rules) list.append(element('li', '', `${Math.round((rule.score ?? 0) * 100)} · ${text(rule.reason)}`));
+      box.append(list);
+    }
+    fragment.append(detailSection(lens.title ? `Lens: ${lens.title}` : 'Showcase lens', box));
+  }
+
   function appendPhotoContext(fragment, photo) {
+    appendLensContext(fragment, photo);
     if (photo.archiveImport === true) fragment.append(element('p', 'inspector-context', 'Previously saved descriptions. Original pixels have not been reverified by PhotoFindry.'));
     if (photo.detailsError) fragment.append(detailSection('Saved details need attention', element('p', '', text(photo.detailsError))));
     if (photo.matchText) {
@@ -1172,7 +1191,11 @@
     fragment.append(detailSection('People in this photograph', people));
   }
 
+  const lensGroupLabels = { member: 'In the lens', near: 'Near the lens', rest: 'Outside the lens', ineligible: 'Not eligible', duplicate: 'Burst frame', unmeasured: 'No preview yet' };
   function matchLabel(kind, photo = {}) {
+    if (photo.showcase?.group && Object.hasOwn(lensGroupLabels, photo.showcase.group)) {
+      return photo.showcase.group === 'member' && photo.aiRankingState !== 'refined' ? 'In the lens, ordering…' : lensGroupLabels[photo.showcase.group];
+    }
     if (photo.aiRankingState === 'unscored') return 'Waiting for preview';
     if (!['ai', 'ai-preview', 'ai-ranked', 'related', 'review-suggestion'].includes(kind)) {
       if (photo.matchSection === 'filename' || photo.filenameMatch) return 'Filename match';
@@ -1439,7 +1462,7 @@
     // Scores and ordinal positions change during ranking but are not inspector
     // evidence. Use displayed fields, and refetch omitted details on corpus change.
     return Object.fromEntries(['id', 'name', 'status', 'hasPreview', 'caption', 'tags', 'personNames', 'personIds',
-      'matchKind', 'matchText', 'matchSection', 'matchEvidence', 'matchConfidence', 'aiRankingState', 'filenameMatch', 'locationEvidence',
+      'matchKind', 'matchText', 'matchSection', 'matchEvidence', 'matchConfidence', 'aiRankingState', 'filenameMatch', 'locationEvidence', 'showcase',
       'detailSections', 'metadataFields', 'metadataStatus', 'error', 'detailsError', 'archiveImport', 'observationCount',
       'improvement', 'improvementIssue', 'faces', 'faceScanLimited', 'source'].map(key => [key, photo[key]]));
   }

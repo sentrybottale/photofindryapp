@@ -1946,14 +1946,31 @@ async fn run(mut config: Config) -> Result<(), String> {
 }
 
 async fn open_local_browser(executable:&Path,target:&launch::LaunchTarget)->Result<(),String> {
+    open_local_browser_in(executable,target,launch::requested_browser()).await
+}
+
+async fn open_local_browser_in(executable:&Path,target:&launch::LaunchTarget,browser:Option<String>)->Result<(),String> {
     let helper=launch::browser_opener(executable)?;
     target.url()?;
+    let mut request=serde_json::to_value(target).map_err(|_| "Cannot prepare local browser opening.")?;
+    // The launcher names the browser that sent the link. An older opener
+    // (after a rollback) rejects the extra field, so retry without it.
+    if let Some(browser)=browser {
+        request["browser"]=serde_json::Value::String(browser);
+        if run_browser_opener(&helper,&request).await? {return Ok(());}
+        request.as_object_mut().map(|fields|fields.remove("browser"));
+    }
+    if !run_browser_opener(&helper,&request).await? {return Err("The browser did not open. Try the installed launcher again.".into());}
+    Ok(())
+}
+
+async fn run_browser_opener(helper:&Path,request:&serde_json::Value)->Result<bool,String> {
     // Transfer the one-use capability only over the trusted helper's stdin.
-    let mut browser=launch::desktop_command(&helper).arg("--open-local")
+    let mut browser=launch::desktop_command(helper).arg("--open-local")
         .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null()).kill_on_drop(true).spawn()
         .map_err(|_| "The installed PhotoFindry browser opener is unavailable.")?;
-    let bytes=serde_json::to_vec(target).map_err(|_| "Cannot prepare local browser opening.")?;
+    let bytes=serde_json::to_vec(request).map_err(|_| "Cannot prepare local browser opening.")?;
     let status=tokio::time::timeout(Duration::from_secs(5),async {
         use tokio::io::AsyncWriteExt;
         let mut input=browser.stdin.take().ok_or("Cannot contact the local browser opener.")?;
@@ -1962,8 +1979,7 @@ async fn open_local_browser(executable:&Path,target:&launch::LaunchTarget)->Resu
         drop(input);
         browser.wait().await.map_err(|_| "Cannot open the local workspace in your browser.")
     }).await.map_err(|_| "The local browser opener did not respond.")??;
-    if !status.success() {return Err("The browser did not open. Try the installed launcher again.".into());}
-    Ok(())
+    Ok(status.success())
 }
 
 async fn launch_command(args: &[String]) -> Result<(), String> {

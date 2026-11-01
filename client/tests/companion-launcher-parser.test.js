@@ -138,6 +138,16 @@ assert(localWorkspaceURL(plain)?.fragment=="bootstrap="+ticket)
 let navigation=try! JSONSerialization.data(withJSONObject:["port":23456,"ticket":ticket,"archiveId":id])
 assert(localWorkspaceURL(navigation)?.fragment=="bootstrap="+ticket+"&archive="+id.lowercased())
 for invalid in ["{\"port\":23456,\"ticket\":\""+ticket+"\",\"archiveId\":\"/private/path\"}","{\"port\":true,\"ticket\":\""+ticket+"\"}","{\"port\":\"23456\",\"ticket\":\""+ticket+"\"}","{\"port\":23456.0,\"ticket\":\""+ticket+"\"}","{\"port\":23456,\"ticket\":\""+ticket+"\",\"ticket\":\""+ticket+"\"}"] {assert(localWorkspaceURL(Data(invalid.utf8))==nil)}
+let chosen=try! JSONSerialization.data(withJSONObject:["port":23456,"ticket":ticket,"archiveId":id,"browser":"com.google.Chrome"])
+assert(localWorkspaceRequest(chosen)?.browser=="com.google.Chrome")
+assert(localWorkspaceRequest(chosen)?.url.fragment=="bootstrap="+ticket+"&archive="+id.lowercased())
+assert(localWorkspaceRequest(plain)?.browser==nil)
+for invalid in ["{\"port\":23456,\"ticket\":\""+ticket+"\",\"browser\":\"/Applications/Safari.app\"}","{\"port\":23456,\"ticket\":\""+ticket+"\",\"browser\":\"Chrome\"}","{\"port\":23456,\"ticket\":\""+ticket+"\",\"browser\":\"com..google\"}","{\"port\":23456,\"ticket\":\""+ticket+"\",\"browser\":true}","{\"port\":23456,\"ticket\":\""+ticket+"\",\"browser\":\"com.google.Chrome\",\"browser\":\"com.apple.Safari\"}","{\"port\":23456,\"ticket\":\"com.google.Chrome\",\"browser\":\""+ticket+"\"}","{\"port\":23456,\"browser\":\"com.google.Chrome\"}"] {assert(localWorkspaceRequest(Data(invalid.utf8))==nil)}
+let chrome=URL(fileURLWithPath:"/Applications/Google Chrome.app"),safari=URL(fileURLWithPath:"/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app")
+let handlers=[safari,chrome].filter{FileManager.default.fileExists(atPath:$0.path)}
+if handlers.contains(chrome) {assert(webBrowserApplication("com.google.Chrome",handlers:handlers)==chrome)}
+assert(webBrowserApplication("com.apple.finder",handlers:handlers)==nil)
+assert(webBrowserApplication("com.google.Chrome",handlers:[])==nil)
 let appRoot="/private/tmp/PhotoFindry.app"
 let nested=appRoot+"/Contents/Resources/companion/bin/CompanionLauncher.app"
 assert(localLauncherApplication(appRoot+"/Contents/Resources/companion/bin/CompanionLauncher")?.path==nested)

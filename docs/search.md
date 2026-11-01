@@ -20,6 +20,19 @@ Choose Local AI Search explicitly for a closer review of saved photo evidence. T
 
 Ranked candidates are leads, not confirmed matches or probabilities. Best so far is a limited view; Refined and All candidates let you inspect more of the retained candidate pool. Review the supporting photo details before relying on a result. Incomplete tagging or semantic indexing means incomplete evidence coverage.
 
+## Showcase lenses (Mac, macOS 15+)
+
+A Showcase lens is your own way of seeing the library. Open **Lenses** beside Local AI Search and choose **New lens**:
+
+1. Name the lens, then use **Find photos like…** to search your saved descriptions for the kind of photo it is about (for example *children birthday cake*). No model starts for this search. Tick 3 to 24 examples you are proud of.
+2. Write what makes them your best work, for example *smiling kids, the birthday cake, kids playing in a closed space and in open space*. Optionally limit the lens to one kind of photo.
+3. Choose **Generate rules**. A job uses your selected tagging model once, with only the saved descriptions of your examples, then measures the examples and a sample of your library to calibrate the rules. It takes about a minute or two and appears in Jobs.
+4. Review the rules: each shows what it measures or which words it looks for, the words it came from, and whether it is kept or set aside and why. Tick or untick rules, then **Save lens**.
+
+To use a lens, choose it in the menu beside Local AI Search and select Local AI Search. The lens decides which photos belong; the reranker orders them by how well their saved descriptions fit your words. Photos in the lens come first, then photos near it, then every other candidate. The lens card above the results shows its rules and lets you search again, prepare previews for candidates that have none, export the photos for a website section, or delete the lens.
+
+A lens judges previews and saved descriptions. Photos without a local preview are listed last; preparing their previews may download originals that are kept only in cloud storage. Lenses are saved in your library, travel in library backups and never change your originals or tags.
+
 ## Pause and Stop
 
 Pause retains continuation. Stop cancels the remaining AI work and drains its owned model while keeping reviewed matches. A stopped search is not resumable; start a new search when ready. Results saved earlier can become stale after library facts change.
