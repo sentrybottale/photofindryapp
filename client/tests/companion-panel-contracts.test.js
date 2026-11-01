@@ -527,6 +527,28 @@ test('a new automatic source needs one native folder choice and never a routine 
   } finally {await ui.close();}
 });
 
+test('opened source sections stay open when background checks refresh the Files panel', async () => {
+  const source=automaticSource({needsReview:58});
+  const ui=harness({sources:[source],jobs:{jobs:[]}});
+  const section=label=>ui.all().find(n=>n.tagName==='DETAILS'&&n.children[0]?.textContent===label);
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+    const options=section('Source options');assert.equal(options.open,false);
+    options.open=true;await options.fire('toggle');
+    for (const available of [31876,31877,31878]) {
+      source.available=available;ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));
+      await new Promise(resolve=>setTimeout(resolve,240));
+    }
+    assert.notEqual(section('Source options'),options,'the background update rebuilt the panel');
+    assert.equal(section('Source options').open,true);
+    assert.equal(section('Add or import photos').open,false);
+    section('Source options').open=false;await section('Source options').fire('toggle');
+    source.available=31879;ui.window.PhotoFindryPanels.onState(structuredClone(ui.state));await new Promise(resolve=>setTimeout(resolve,240));
+    assert.equal(section('Source options').open,false);
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
 test('automatic multi-root selection uses the exact unselected root and ignores processing Jobs', async () => {
   const source=automaticSource({originalsFolderSelected:false,roots:[{id:'root-a',selected:true,locationLabel:'/Volumes/A'},
     {id:'root-b',selected:false,locationLabel:'/Users/other/B'}]});

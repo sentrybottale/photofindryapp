@@ -26,7 +26,7 @@
   const view = { name: null, generation: 0, controller: null, urls: new Set(), snapshot: {}, sourceId: '', personId: '', photoId: '', peopleOffset: 0,
     cleanupSource: '', cleanupTab: 'review', cleanupPlan: null, cleanupPage: null, cleanupSelected: new Set(), cleanupAnchor: null,
     cleanupReady: false, cleanupLife: Promise.resolve(), cleanupLastJob: null, cleanupLastCount: 0, confirmation: null,
-    requestVersion: 0, sourceOffset: 0, recoveryJobId: null, sourceDrafts: new Map(), sourceRoots: new Map(), sourceChecks: new Map(), pending: 0, refreshTimer: null, sourceRefreshNeeded: false };
+    requestVersion: 0, sourceOffset: 0, recoveryJobId: null, sourceDrafts: new Map(), sourceRoots: new Map(), sourceChecks: new Map(), pending: 0, refreshTimer: null, sourceRefreshNeeded: false, openDisclosures: new Set() };
   let root, body, status, title, previousFocus;
   let transferStatusSignature = '', previousTransfers = new Map();
   const underlayInert = new Map();
@@ -79,8 +79,13 @@
     if (detail) node.append(el('p', 'pfp-muted', detail));
     return node;
   }
+  // Background updates rebuild a panel; sections the owner opened stay open.
   function disclosure(label, ...nodes) {
-    const node = el('details', 'pfp-card'); node.append(el('summary', '', label), ...nodes.filter(Boolean)); return node;
+    const node = el('details', 'pfp-card'); node.append(el('summary', '', label), ...nodes.filter(Boolean));
+    const key = `${view.name}:${label}`;
+    node.open = view.openDisclosures.has(key);
+    node.addEventListener('toggle', () => { if (node.open) view.openDisclosures.add(key); else view.openDisclosures.delete(key); });
+    return node;
   }
   function sourceLocation(rootInfo) { return text(rootInfo?.locationLabel, text(rootInfo?.path, text(rootInfo?.pathLabel, text(rootInfo?.label, 'No saved folder')))); }
   function notice(message, warning = false) { return el('p', warning ? 'pfp-warning' : 'pfp-note', message); }
@@ -825,7 +830,9 @@
     if (view.name !== 'sources') return;
     const input = preserveName ? body.querySelector('.pfp-source-name') : null;
     const name = input ? {input, sourceId: input.dataset.sourceName, focused: document.activeElement === input} : null;
-    view.generation += 1; clearContent(); await renderSources(name);
+    const scroll = body.scrollTop, generation = view.generation + 1;
+    view.generation = generation; clearContent(); await renderSources(name);
+    if (generation === view.generation && scroll) body.scrollTop = scroll;
   }
   async function previewSourceCandidate(sourceId, photoId, candidateId, parent) {
     const generation = view.generation;

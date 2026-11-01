@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "0d0333668f3848c2ad541c82602a29a5a19f128dae268b9518aaa76dce303de6",
+  "exportManifestSHA256": "3860f7f68a65b9ff3f231349d621bdd4c3f54890e53578b1cc78740e548226dd",
   "files": [
     {
       "bytes": 1182,
@@ -562,9 +562,9 @@
       "sha256": "243f2fce2595879bbcc9213b4f4891e337f35a31795b498e52b2b609b4ec4ed2"
     },
     {
-      "bytes": 101220,
+      "bytes": 102572,
       "path": "tests/companion-panel-contracts.test.js",
-      "sha256": "53a2a4f9bfdc4dd69dfa7d81d7046afb1742045bfa5984295643a10d88b73f64"
+      "sha256": "d43667ffed221a244b47801cb8563d63579489104234c18eeb8c1733d71f7738"
     },
     {
       "bytes": 3594,
@@ -782,9 +782,9 @@
       "sha256": "5a6d638da933b855508d5d8ce31b9fdb064abc0907016caebd82f270e1a70d76"
     },
     {
-      "bytes": 164821,
+      "bytes": 165304,
       "path": "web-companion/panels.js",
-      "sha256": "7743d95a722c9eb603e9c7c7f3df61b9e6bbd13b54f1d04443dc452c85bc960d"
+      "sha256": "4df22482880946bc1626259e54afec4c61181c3e93094e7c22f1c55dd3a19fc2"
     },
     {
       "bytes": 9682,
@@ -832,13 +832,13 @@
       "sha256": "0c76414f38e948071721183d617d1c7217261cd53887e7000d13064ace4520f8"
     },
     {
-      "bytes": 166312,
+      "bytes": 166442,
       "path": "web-companion/workspace.js",
-      "sha256": "a699ef276f227367d627134393c18487816e788b895fee0f96c8ccd7b7af39c0"
+      "sha256": "bcf5f400cec089ade5e677ef469f7e2270104fd2685c3781731e8d0f345a5e1c"
     }
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "d2805b27fa08c6cdeb04dc770a5bbcd13f86e3ce",
+  "privateBuildRevision": "f49fa77170c5b42bebe9b030f13c4c72507a5753",
   "schema": 1
 }

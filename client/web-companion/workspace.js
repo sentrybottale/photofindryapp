@@ -234,7 +234,7 @@
   }
   async function searchWithLens(lensId) {
     const requestId = crypto.randomUUID(); const scope = P.getScope();
-    const next = await enqueue('aiSearch', { ...scopedParams(), requestId, lensId, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'all' });
+    const next = await enqueue('aiSearch', { ...scopedParams(), requestId, lensId, query: scope.query.trim(), metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'all' });
     if (next?.id) await openAIJob(next.id, requestId);
   }
   function preparePreviews(jobId, count) {
@@ -389,12 +389,13 @@
   }
   // Lenses are library data: (re)load them when a paired library state arrives.
   let lensesLoadedFor = null;
-  // One button, Local AI Search: with a lens chosen it searches through that
-  // lens, otherwise it searches the typed words. Ordinary Search is unchanged.
+  // One button, Local AI Search: with a lens chosen it searches the typed words
+  // (if any) through that lens, otherwise the typed words alone. Ordinary
+  // Search is unchanged.
   lensSelect?.addEventListener('change', () => {
     if (lensSelect.value !== '__job__') markDraftOption('');
     const title = lensSelect.selectedOptions?.[0]?.textContent || '';
-    $('search-help').textContent = lensSelect.value && lensSelect.value !== '__job__' ? `Local AI Search will look through the lens “${title}”: the lens decides which photos belong, the reranker orders them, and every other candidate stays listed after them. Search still searches saved details as usual.` : 'Searches saved library evidence. No model is started.';
+    $('search-help').textContent = lensSelect.value && lensSelect.value !== '__job__' ? `Local AI Search will look for your typed words through the lens “${title}” (with no words, the lens searches on its own): the lens decides which photos belong, the reranker orders them, and every other candidate stays listed after them. Your words are never replaced.` : 'Searches saved library evidence. No model is started.';
   });
   window.addEventListener('photofindry:lenses-changed', loadLenses);
   $('ai-search').addEventListener('click', () => run(async () => {
@@ -405,7 +406,7 @@
     if (!snapshot.settings?.rerankerModelConfigured) { openSettings(); P.showNotice('Choose a search reranker before starting Local AI Search. Your query is kept.'); return; }
     const requestId = crypto.randomUUID();
     const params = lensId
-      ? { ...scopedParams(), requestId, lensId, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'all' }
+      ? { ...scopedParams(), requestId, lensId, query: scope.query.trim(), metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'all' }
       : { ...scopedParams(), requestId, query: scope.query, metadataFilters: scope.metadataFilters, locationOptions: scope.locationOptions, broaden: false, sort: 'relevance', candidateView: 'best' };
     const job = await enqueue('aiSearch', params);
     if (job?.id) await openAIJob(job.id, requestId);
