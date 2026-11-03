@@ -68,7 +68,7 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal
           cargo +1.98.1 build --locked --manifest-path client/engine/Cargo.toml
       - if: matrix.language != 'rust' && matrix.language != 'javascript-typescript' || matrix.language == 'rust' && hashFiles('client/engine/companion/Cargo.toml') != '' || matrix.language == 'javascript-typescript' && hashFiles('client/web-companion/frontend/package-lock.json') != ''
-        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370
         with:
           category: /language:${{ matrix.language }}
   client:
