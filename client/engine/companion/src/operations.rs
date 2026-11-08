@@ -500,6 +500,15 @@ pub fn prepare(
             scope(&mut params, scopes)?;
             "showcaseLensExamples"
         }
+        "showcaseLensMeasurable" => {
+            // Which builder search results a lens build can measure (photo ids only).
+            object(&params, &["photoIds"])?;
+            required(&params, &["photoIds"])?;
+            if params["photoIds"].as_array().is_some_and(|ids| ids.len() > 120) {
+                return Err("Ask about 1 to 120 photos.".into());
+            }
+            "showcaseLensMeasurable"
+        }
         "showcaseLensDraft" | "showcaseLensDraftDelete" => {
             object(&params, &["id"])?;
             required(&params, &["id"])?;
@@ -862,6 +871,7 @@ pub fn library(mut value: Value, scopes: &Scopes) -> Result<Value> {
             "metadataFilters",
             "locationOptions",
             "includeRelated",
+            "searchLane",
         ],
     )?;
     choice(
@@ -869,6 +879,7 @@ pub fn library(mut value: Value, scopes: &Scopes) -> Result<Value> {
         "status",
         &["all", "tagged", "pending", "needsAttention"],
     )?;
+    choice(&value, "searchLane", super::worker::SEARCH_LANES)?;
     choice(
         &value,
         "sort",
@@ -917,6 +928,17 @@ mod tests {
         }
     }
     #[test]
+    fn library_searches_accept_only_known_consumer_lanes() {
+        let scopes = Scopes::default();
+        for lane in ["gallery", "panel"] {
+            assert_eq!(library(json!({"query":"sea","searchLane":lane}), &scopes).unwrap()["searchLane"], lane);
+        }
+        assert!(library(json!({"query":"sea"}), &scopes).is_ok());
+        for lane in [json!("worker"), json!(1), json!({"path":"/private"})] {
+            assert!(library(json!({"query":"sea","searchLane":lane}), &scopes).is_err());
+        }
+    }
+    #[test]
     fn lens_searches_take_a_saved_lens_or_a_bounded_draft_and_save_from_their_job() {
         let scopes = Scopes::default();
         let picker = Picker::new(std::path::Path::new("/unavailable"));
@@ -943,6 +965,11 @@ mod tests {
         assert!(prepare("showcaseLensExamples", json!({"count":24,"servable":"yes"}), &scopes, &picker).is_err());
         assert!(prepare("showcaseLensExamples", json!({"count":0}), &scopes, &picker).is_err());
         assert!(prepare("showcaseLensExamples", json!({"count":12,"folder":"/etc"}), &scopes, &picker).is_err());
+        assert_eq!(prepare("showcaseLensMeasurable", json!({"photoIds":["a","b"]}), &scopes, &picker).unwrap(), ("showcaseLensMeasurable", json!({"photoIds":["a","b"]})));
+        assert!(prepare("showcaseLensMeasurable", json!({"photoIds":[]}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseLensMeasurable", json!({}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseLensMeasurable", json!({"photoIds":(0..121).map(|i| i.to_string()).collect::<Vec<_>>()}), &scopes, &picker).is_err());
+        assert!(prepare("showcaseLensMeasurable", json!({"photoIds":["a"],"path":"/etc"}), &scopes, &picker).is_err());
         assert_eq!(prepare("showcaseLensSave", json!({"jobId":"job-1"}), &scopes, &picker).unwrap().0, "showcaseLensSave");
         assert!(prepare("showcaseLensSave", json!({"draftId":"draft-abc","statuses":{"C1":"rejected"}}), &scopes, &picker).is_ok());
         assert!(prepare("showcaseLensSave", json!({"draftId":"../x"}), &scopes, &picker).is_err());

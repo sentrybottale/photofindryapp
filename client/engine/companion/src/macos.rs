@@ -57,6 +57,14 @@ mod support;
 mod source_preview;
 #[path = "worker.rs"]
 mod worker;
+#[cfg(feature = "private-extensions")]
+#[path = "../../private-extensions/companion/household.rs"]
+mod household;
+/// Optional private extensions add their own page assets; public builds none.
+#[cfg(feature = "private-extensions")]
+fn extend_page(html: String) -> String { household::page(html) }
+#[cfg(not(feature = "private-extensions"))]
+fn extend_page(html: String) -> String { html }
 #[path = "transfer_results.rs"]
 mod transfer_results;
 #[path = "uninstall.rs"]
@@ -539,6 +547,11 @@ async fn api(path: &str, bytes: &[u8], state: &State, library_guard:Option<Libra
         return error(StatusCode::CONFLICT,"The restored library is opening. Wait for it to finish before continuing.");
     }
     match path {
+        #[cfg(feature = "private-extensions")]
+        "/api/household" => match household::api(bytes, &state.data, &state.worker).await {
+            Ok(value) => json_response(value),
+            Err(message) => operation_error(&message),
+        },
         "/api/lifecycle/status" => {
             if serde_json::from_slice::<Empty>(bytes).is_err(){return invalid();}
             let exe=match std::env::current_exe(){Ok(v)=>v,Err(_)=>return operation_error("Cannot locate installed companion")};
@@ -1249,9 +1262,13 @@ async fn handle(request: Request<Incoming>, state: Arc<State>) -> Result<Reply, 
             "/" => response(
                 StatusCode::OK,
                 "text/html; charset=utf-8",
-                appearance::html(include_str!("../../../web-companion/index.html"),
-                    state.appearance.lock().unwrap().mode().unwrap_or_default()),
+                extend_page(appearance::html(include_str!("../../../web-companion/index.html"),
+                    state.appearance.lock().unwrap().mode().unwrap_or_default())),
             ),
+            #[cfg(feature = "private-extensions")]
+            "/household.js" => response(StatusCode::OK, "text/javascript; charset=utf-8", Bytes::from_static(household::SCRIPT)),
+            #[cfg(feature = "private-extensions")]
+            "/household.css" => response(StatusCode::OK, "text/css; charset=utf-8", Bytes::from_static(household::STYLE)),
             "/ui-framework.js" => response(
                 StatusCode::OK, "text/javascript; charset=utf-8",
                 Bytes::from_static(include_bytes!("../../../web-companion/ui-framework.js")),
@@ -1795,6 +1812,8 @@ async fn run(mut config: Config) -> Result<(), String> {
         uninstall_error: Arc::new(Mutex::new(None)),
         uninstall_shutdown: AtomicBool::new(false),
     });
+    #[cfg(feature = "private-extensions")]
+    household::supervise(state.data.clone(), config.runtime.clone(), state.worker.clone());
     // Issue manual recovery pairing before making native bootstrap available.
     println!("PhotoFindry local companion — macOS browser migration preview");
     println!("Library: {}", config.data.display());

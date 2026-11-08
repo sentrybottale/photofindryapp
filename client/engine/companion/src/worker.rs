@@ -35,6 +35,13 @@ struct Pending {
     created: Instant,
     reply: oneshot::Sender<Result<Value, String>>,
 }
+/// Interactive searches supersede only earlier searches from the same consumer.
+/// The gallery refreshes its query on state ticks; a management panel search
+/// (for example the lens builder) must not be cancelled by those refreshes.
+pub(crate) const SEARCH_LANES: &[&str] = &["gallery", "panel"];
+fn search_lane(params: &Value) -> &str {
+    params["searchLane"].as_str().filter(|lane| SEARCH_LANES.contains(lane)).unwrap_or("gallery")
+}
 fn startup_stage_message(line: &[u8]) -> Option<&'static str> {
     Some(match line {
         b"PF_STARTUP:recovery" => "recovering interrupted library work",
@@ -360,7 +367,8 @@ impl NativeWorker {
         let driver_sequence = sequence.clone();
         let task = tokio::spawn(async move {
             let mut tick = tokio::time::interval(Duration::from_millis(100));
-            let mut latest_search = 0;
+            // Each search consumer (gallery, management panels) owns its own lane.
+            let mut latest_search: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
             loop {
                 let next = tokio::select! {
                  _=stopped.changed()=>break,
@@ -368,9 +376,9 @@ impl NativeWorker {
                  _=&mut reader=>break,
                  request=queue.recv()=>match request{Some(v)=>Some(v),None=>break},
                  _=tick.tick()=>{
-                  let mut cancelled_search=false;
-                  {let mut pending=driver_pending.lock().unwrap();let stale:Vec<u64>=pending.iter().filter_map(|(id,p)|(p.reply.is_closed()||(p.created.elapsed()>Duration::from_secs(1800)&&!["restoreLibrary","attachSourceArchive","exportSourceArchive"].contains(&p.method))).then_some(*id)).collect();for id in stale{if let Some(p)=pending.remove(&id){if id==latest_search&&p.method=="searchInteractive"{cancelled_search=true;}let _=p.reply.send(Err("The local request expired.".into()));}}}
-                  if cancelled_search{Some(Request{id:driver_sequence.fetch_add(1,Ordering::Relaxed),method:"cancelSearch",params:json!({})})}else{None}
+                  let mut cancelled_search=None;
+                  {let mut pending=driver_pending.lock().unwrap();let stale:Vec<u64>=pending.iter().filter_map(|(id,p)|(p.reply.is_closed()||(p.created.elapsed()>Duration::from_secs(1800)&&!["restoreLibrary","attachSourceArchive","exportSourceArchive"].contains(&p.method))).then_some(*id)).collect();for id in stale{if let Some(p)=pending.remove(&id){if p.method=="searchInteractive"{if let Some(lane)=latest_search.iter().find(|(_,latest)|**latest==id).map(|(lane,_)|lane.clone()){latest_search.remove(&lane);cancelled_search=Some(lane);}}let _=p.reply.send(Err("The local request expired.".into()));}}}
+                  cancelled_search.map(|lane|Request{id:driver_sequence.fetch_add(1,Ordering::Relaxed),method:"cancelSearch",params:json!({"searchLane":lane})})
                  }
                 };
                 let Some(request) = next else {
@@ -382,7 +390,7 @@ impl NativeWorker {
                     continue;
                 }
                 if request.method == "searchInteractive" {
-                    latest_search = request.id;
+                    latest_search.insert(search_lane(&request.params).to_owned(), request.id);
                 }
                 let mut encoded = serde_json::to_vec(
                     &json!({"id":request.id,"method":request.method,"params":request.params}),

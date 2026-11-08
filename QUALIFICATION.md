@@ -1,49 +1,59 @@
-# PhotoFindry 0.3.0-beta.7 / build 141 qualification
+# PhotoFindry 0.3.0-beta.8 / build 142 qualification
 
-This Mac hotfix updates the Mac companion. Linux retains its signed 0.3.0-beta.3 / build 136 release and Windows retains 0.3.0-beta.2 / build 132. The existing beta 16 Mac-app migration channel is unchanged.
+This release updates the Mac companion. Linux retains its signed 0.3.0-beta.3 / build 136 release and Windows retains 0.3.0-beta.2 / build 132. The existing beta 16 Mac-app migration channel is unchanged.
 
-## Change
+## Changes
 
-**Lens searches keep the typed words.** Local AI Search with a chosen Showcase lens used to search with the lens statement and write it into the search box in place of the owner's words. The workspace now sends the typed words with the lens. Retrieval uses those words, the lens grades the retrieved photos, and the reranker refines lens members against the words followed by the lens statement. The search box shows only the typed words. Without typed words a lens searches as in build 140, including every previewed photo in scope.
+- **Household tagging (members).** Paired computers on the home network tag a library's reduced previews over a pinned, encrypted connection; originals, tags and the library stay on the library computer. Every computer taking part needs an active membership key. The key is checked when helping starts and again on each pairing and each lent batch, so a removed or lapsed key stops helping at the next batch.
+- **Parallel tagging.** Check performance measures parallel slots on this Mac. New tagging jobs use more than one slot only when that was clearly faster with every sample accepted.
+- **Exact vector counts.** The search index keeps per-photo vector counts in the writer's own transaction, so coverage no longer scans the vector table. An existing index is counted once in bounded, cancellable steps by the queued semantic job; coverage uses the old scan until then.
+- **Lens builder.** Only measurable examples are offered, with a count of the others and an explicit Prepare previews action; builder searches have their own search lane so gallery refreshes do not cancel them.
+- **Removed photos.** Finder metadata files no longer block emptying Removed.
 
-**Opened panel sections stay open.** Background source updates rebuild the Files panel; its collapsible sections were recreated closed. Panels now keep the sections the owner opened and the scroll position of a source refresh.
-
-No library migration, retagging or folder review is required. The package file set is unchanged from build 140; `ShowcaseVision` is byte-identical.
+No library migration, retagging or folder review is required.
 
 ## Exact candidate checks
 
-The signed lifecycle passed all 17 checks from the published build 140 to candidate 141: upgrade, rollback, anti-replay, signature rejection, interrupted switch recovery, serving policy and preserved-data uninstall/reinstall. The final source revision rebuilt byte-identical signed archive and release envelope bytes, and the complete Mac source matrix passed against that exact package: 1,617 JavaScript tests with 1,589 passes, zero failures and 28 optional skips; 249 Python tests (two opt-in skips); 894 Rust tests with zero failures (15 ignored); and the Swift build.
+The candidate was built and signed once. A rebuild from the final source revision produced byte-identical signed archive and release-envelope bytes, and the owner's Mac was updated from published build 141 to these exact bytes before release.
 
-The installed candidate passed the real-core checks on a 93,807-photo isolated library on an Apple M5 MacBook Pro with 32 GiB RAM and macOS 27.0.1, using Qwen3.5 4B Q4_K_M with its matching BF16 projector and Qwen3 reranker 0.6B Q8:
+- **Signed lifecycle:** 17 of 17 checks from the published build 141 to candidate 142: upgrade, rollback, anti-replay, signature rejection, interrupted switch recovery, serving policy and preserved-data uninstall/reinstall.
+- **Source matrix (final revision, against the exact package):** 1,619 JavaScript tests with 1,587 passes, zero failures and 32 optional skips; 249 Python tests (two opt-in skips); 925 Rust tests with zero failures (18 ignored); and the Swift build. Earlier attempts are kept on record: a client boundary test that did not yet allow the private extension module (fixed), one write-count failure in the private JavaScript comparison model that passed 6 of 6 times when re-run alone, a macOS disk-image creation that hung inside `hdiutil`, and a work-queue test whose two threads could deadlock in the test itself (made deterministic; 200 of 200 passes).
+- **Real removable-volume churn:** 7 of 7, no skips (eject, flapping, forced eject, bulk deletion, stale mount point, same-named drive).
+
+The installed candidate ran the real-core checks on a 93,807-photo isolated library on an Apple M5 MacBook Pro with 32 GiB RAM and macOS 27.2, using Qwen3.5 4B Q4_K_M with its matching BF16 projector and Qwen3 reranker 0.6B Q8:
 
 | Check | Result |
 | --- | --- |
-| Ordinary search | 6,883 matches; 2.95 s |
-| Completed scoped AI | 1 candidate; 40.97 s |
-| Real tagging | 1 copied photograph; 32 observations; 34.27 s |
-| Whole-pool retrieval to saved scores | 22,192 candidates; 44.42 s |
-| Active Stop | 1.39 s; saved results retained |
+| Ordinary search | 6,883 matches; 2.72 s |
+| Completed scoped AI | 1 candidate; 35.2 s |
+| Real tagging | 1 copied photograph; 32 observations; 26.17 s |
+| Whole-pool retrieval to saved scores | 22,192 candidates; 34.32 s |
+| Active Stop | 1.22 s; saved results retained |
 | Recovery, retained folder-access owner, uninstall | Completed results reopened; 93,807 photos and all unfinished jobs preserved |
 
-A separate run of the signed candidate worker on a copy of the same library searched through a saved Portrait lens with *portrait* typed beside it. The job kept *portrait* as its query and search-box text; the words retrieved 9,501 candidates (the lens-only whole-library search below has 30,807), 242 lens members came first and all 242 were refined, followed by 62 near and 1,057 other photos, in 89.3 s.
+The first core run passed every check up to recovery, then its `lifecycle recover` call exceeded the runner's 180-second limit (the product allows 390 seconds). The cause was not identified. Two further complete runs passed, including one on a copy of the library with the new vector-count tables removed, which reproduces a library opened by build 141.
 
-The Karate user-journey suite ran against the exact signed package on separate copies of the same library and passed all 7 scenarios with no skips:
+The Karate user-journey suite ran against the exact signed package on separate copies of the same library and passed all 7 scenarios with no skips (3,360 s):
 
 | Journey | Result |
 | --- | --- |
-| Source remount (2 scenarios) | A cloud folder and a USB drive folder return by attributes after remount/replug with zero content reads; an original replaced elsewhere is compared and flagged |
-| Job control | Individual pause, queue pause, Quit/reopen, Resume and Stop of real tagging jobs |
-| Install lifecycle | Prior release, signed update to the candidate in 13.21 s, uninstall and reinstall with library, jobs and model settings kept |
-| Library from another Mac | 3,000 photos reconnected by relative location in 4.13 s reading 1.4 MB of 224.6 MB; a later remount returned in 3.55 s |
-| Tagging, search and AI | After a "man in suit" search, semantic coverage stayed at 65,189 photos and whole-library AI kept 22,083 candidates (floor 22,000); Stop 1.22 s |
-| Showcase lens (no typed words) | Lens built from examples and words in 66.9 s; saved with one rule changed; Local AI Search through it kept 30,807 candidates with 2,002 lens members first and refined (331 s); deleted; uninstall left the library unchanged |
+| Source remount (2 scenarios) | A cloud folder and a USB drive folder return by attributes after remount and replug; 3,000 photos returned in 4.10 s reading 1.35 MB |
+| Job control | Individual pause, queue pause, Quit and reopen, Resume and Stop of real tagging jobs |
+| Install lifecycle | Prior release, signed update to the candidate in 12.5 s, uninstall and reinstall with library, jobs and model settings kept |
+| Library from another Mac | 3,000 photos reconnected by relative location in 4.15 s reading 1.4 MB of 224.6 MB |
+| Tagging, search and AI | After a "man in suit" search, semantic coverage stayed at 65,189 photos and whole-library AI kept 22,083 candidates (floor 22,000); Stop 1.16 s |
+| Showcase lens | Lens built and saved; Local AI Search through it kept 30,807 candidates with the lens members first and refined; deleted; uninstall left the library unchanged |
 
-These timings were taken on one Mac while the owner's normal PhotoFindry installation and other qualification work shared it; they are not throughput claims.
+These timings were taken on one Mac shared with the owner's normal PhotoFindry installation and other qualification work; they are not throughput claims.
+
+## Household tagging scope
+
+Pairing, membership gates and helper refusal are covered by engine and companion tests. Two isolated companions on one Mac were driven in a browser: neither could pair or lend without a key, the helper refused even with the Settings switch bypassed, both paired with keys, removing the helper's key stopped its helper process, and re-entering it resumed helping. Earlier private trials ran a helper on a separate Windows PC over the home network; the public Windows release does not include household tagging yet. Two physical Macs helping each other on build 142 were not tested. The online membership confirmation list is not yet published; installed keys keep working through their 45-day offline grace.
 
 ## Limits
 
-The opened-section fix was checked by a panel contract test that rebuilds the Files panel through background updates, and in a browser against a copy of the library; that browser session did not happen to receive a rebuilding update during the observation. Typed words beside a lens were checked on one lens and one query. Lens searches list photos without a local preview after lens results; preparing missing previews may download originals kept only in cloud storage. Lenses were not tested on macOS 15 or 26, on another Mac or with other tagging models. Linux and Windows are not covered by these build 141 receipts.
+Parallel tagging and exact vector counts were not measured on an 8 GB Mac. Lenses were not tested on macOS 15 or 26, on another Mac or with other tagging models. Linux and Windows are not covered by these build 142 receipts.
 
 ## Public delivery
 
-Candidate results do not qualify public downloads. Publication requires fresh anonymous asset/signature verification, the live feed, installed public update/core/Stop/recovery, required source/churn tests, the exact served installer command and both websites. Completion is recorded only after those delivered-byte checks pass.
+Candidate results do not qualify public downloads. Publication requires fresh anonymous asset and signature verification, the live feed, installed public update/core/Stop/recovery, required source and churn tests, the exact served installer command and both websites. Completion is recorded only after those delivered-byte checks pass.
