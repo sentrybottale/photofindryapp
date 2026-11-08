@@ -322,29 +322,67 @@
     const find = card('Find photos like…', 'Search your saved descriptions for the kind of photo this lens is about, then tick the ones you are proud of. No model starts.');
     const query = input(text(prefill?.title, ''), 200); query.placeholder = 'children birthday cake, wedding kiss, portrait window light…';
     const chosenRow = el('div', 'pfp-lens-grid pfp-lens-chosen'); const grid = el('div', 'pfp-lens-grid'); const summary = el('p', 'pfp-muted', '');
-    const updateSummary = () => { summary.textContent = chosen.size ? `${count(chosen.size)} examples chosen (3 to 24).` : 'No examples chosen yet. Tick at least 3.'; };
+    const updateSummary = () => { summary.textContent = chosen.size ? `${count(chosen.size)} examples chosen (3 to 24).` : 'No examples chosen yet. Tick at least 3.'; generate.disabled = chosen.size < 3 || chosen.size > 24; };
+    // A lens measures only a saved local preview (managed thumbnail or current
+    // offline preview); a preview the gallery prepares on demand is not kept.
+    // Matches without one are left out here and counted, so every offered tile
+    // can be measured when the rules are generated.
+    const measurable = async (photos) => {
+      const ids = photos.map((photo) => photo?.id).filter(Boolean);
+      if (!ids.length) return [];
+      const { measurable: ok = [] } = await read('showcaseLensMeasurable', { photoIds: ids });
+      const keep = new Set(list(ok));
+      return photos.filter((photo) => keep.has(photo?.id));
+    };
+    const hiddenIds = new Set(); const hiddenNote = el('div', 'pfp-lens-hidden'); hiddenNote.hidden = true;
+    const hiddenText = el('p', 'pfp-muted', '');
+    const prepareHidden = button('Prepare their previews', () => command('enqueueJob', { kind: 'previews', params: { photoIds: [...hiddenIds] } },
+      'Added to Jobs. Search again when the previews are ready to tick these photos.'));
+    hiddenNote.append(hiddenText, row(prepareHidden));
+    const noteHidden = (ids) => {
+      for (const id of ids) hiddenIds.add(id);
+      const n = hiddenIds.size; hiddenNote.hidden = n === 0;
+      hiddenText.textContent = `${count(n)} ${n === 1 ? 'match is' : 'matches are'} not shown: a lens learns only from photos with a saved preview, and ${n === 1 ? 'this one has' : 'these have'} none yet. Prepare their previews (a Jobs task that makes reduced copies, never changing originals), or try other words.`;
+    };
     const toggle = (photo, on, node) => { if (on) { chosen.set(photo.id, photo); chosenRow.append(node); } else { chosen.delete(photo.id); node.remove(); } updateSummary(); };
     const addTiles = (photos) => { for (const photo of photos) if (photo?.id && !chosen.has(photo.id)) grid.append(lensTile(photo, false, toggle)); };
     const more = button('Show other photos', () => showResults(false));
+    let searchTicket = 0;
     async function showResults(reset) {
-      if (reset) { lensState.relatedOffset = 0; grid.replaceChildren(); }
+      const ticket = ++searchTicket;
+      const latest = () => current() && ticket === searchTicket;
+      if (reset) { lensState.relatedOffset = 0; grid.replaceChildren(); hiddenIds.clear(); noteHidden([]); }
+      // A superseded builder search (or its measurability check) ends silently.
+      const guarded = async (work) => { try { return await work(); } catch (error) { if (!latest()) return null; throw error; } };
       const q = query.value.trim();
       if (!q) {
-        const { photos = [] } = await read('showcaseLensExamples', { count: 24, servable: true });
-        if (!current()) return;
-        if (!list(photos).length) { grid.append(el('p', 'pfp-muted', 'No tagged photos with previews yet.')); return; }
-        addTiles(list(photos)); more.textContent = 'Show other photos'; more.disabled = false; return;
+        const drawn = await guarded(() => read('showcaseLensExamples', { count: 24, servable: true }));
+        if (!latest()) return;
+        // The random draw already asks for saved previews; the check also drops
+        // one whose preview file has gone since it was recorded.
+        const usable = await guarded(() => measurable(list(drawn?.photos)));
+        if (!latest()) return;
+        if (!usable.length) { grid.append(el('p', 'pfp-muted', 'No tagged photos with previews yet.')); return; }
+        addTiles(usable); more.textContent = 'Show other photos'; more.disabled = false; return;
       }
-      const page = await bridge().api('/api/library', { query: q, offset: lensState.relatedOffset, sort: 'relevance', status: 'tagged', includeRelated: true }, { signal: view.controller.signal });
-      if (!current()) return;
+      // The panel lane keeps gallery refreshes of the main search from cancelling this search.
+      let page;
+      try { page = await bridge().api('/api/library', { query: q, offset: lensState.relatedOffset, sort: 'relevance', status: 'tagged', includeRelated: true, searchLane: 'panel' }, { signal: view.controller.signal }); }
+      catch (error) { if (!latest()) return; throw error; }
+      if (!latest()) return;
       const photos = list(page?.photos);
       if (!photos.length && lensState.relatedOffset === 0) { grid.append(el('p', 'pfp-muted', 'No saved descriptions match these words. Try other words, or leave the box empty for random photos.')); more.disabled = true; return; }
-      addTiles(photos); lensState.relatedOffset += 60;
+      const usable = await guarded(() => measurable(photos));
+      if (!latest()) return;
+      const kept = new Set(usable.map((photo) => photo.id));
+      noteHidden(photos.map((photo) => photo?.id).filter((id) => id && !kept.has(id)));
+      addTiles(usable); lensState.relatedOffset += 60;
       more.textContent = photos.length < 60 ? 'No more matches' : `More matches (${count(Number(page?.totalCount) || 0)} in all)`; more.disabled = photos.length < 60;
     }
     const search = button('Find photos', () => showResults(true), 'primary');
     query.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); search.click(); } });
-    find.append(row(query, search, more), el('h4', '', 'Your examples'), summary, chosenRow, el('h4', '', 'Photos found'), grid);
+    const droppedNote = el('p', 'pfp-muted', ''); droppedNote.hidden = true;
+    find.append(row(query, search, more), el('h4', '', 'Your examples'), summary, droppedNote, chosenRow, el('h4', '', 'Photos found'), hiddenNote, grid);
     builder.append(find);
     // 2. Words and scope.
     const statement = el('textarea', 'pfp-input'); statement.rows = 5; statement.maxLength = 4000; statement.value = text(prefill?.statement, '');
@@ -371,10 +409,18 @@
     body.append(builder);
     if (prefill) {
       // A new version or a retry starts from the earlier examples, fetched by id.
-      const ids = prefill.lensId ? list(lenses.find((lens) => lens.id === prefill.lensId)?.exemplarIds) : list(prefill.exemplars);
-      for (const id of ids) {
-        bridge().api('/api/photo', { photoId: id }, { signal: view.controller.signal }).then((photo) => { if (!current() || !photo?.id || chosen.has(photo.id)) return; chosen.set(photo.id, photo); chosenRow.append(lensTile(photo, true, toggle)); updateSummary(); }).catch(() => {});
-      }
+      // Only examples the lens can still measure come back (a failed build's
+      // unmeasurable examples would fail again); the rest are counted.
+      const ids = (prefill.lensId ? list(lenses.find((lens) => lens.id === prefill.lensId)?.exemplarIds) : list(prefill.exemplars)).filter((id) => typeof id === 'string' && id).slice(0, 24);
+      if (ids.length) read('showcaseLensMeasurable', { photoIds: ids }).then(({ measurable: ok = [] } = {}) => {
+        if (!current()) return;
+        const keep = new Set(list(ok));
+        const dropped = ids.filter((id) => !keep.has(id));
+        if (dropped.length) { droppedNote.hidden = false; droppedNote.textContent = `${count(dropped.length)} of the earlier examples ${dropped.length === 1 ? 'has' : 'have'} no saved preview the lens can measure, so ${dropped.length === 1 ? 'it was' : 'they were'} left out. Choose others below.`; }
+        for (const id of ids.filter((id) => keep.has(id))) {
+          bridge().api('/api/photo', { photoId: id }, { signal: view.controller.signal }).then((photo) => { if (!current() || !photo?.id || chosen.has(photo.id)) return; chosen.set(photo.id, photo); chosenRow.append(lensTile(photo, true, toggle)); updateSummary(); }).catch(() => {});
+        }
+      }).catch(() => {});
     }
     updateSummary();
     await showResults(true).catch((error) => { if (current()) grid.append(el('p', 'pfp-warning', text(error?.message, 'The photos could not be loaded.'))); });

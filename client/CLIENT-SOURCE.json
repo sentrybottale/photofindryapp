@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "3860f7f68a65b9ff3f231349d621bdd4c3f54890e53578b1cc78740e548226dd",
+  "exportManifestSHA256": "bc3a19805a5de77c11cabb844ce41d1dccbe80fe19bee57c84de88ec0985e45e",
   "files": [
     {
       "bytes": 1182,
@@ -147,9 +147,9 @@
       "sha256": "1d6c60df103be788199e0d0cb618ea2ec5af7e263a0f0c00d020a3fc5f9fce0c"
     },
     {
-      "bytes": 1222,
+      "bytes": 1334,
       "path": "engine/companion/Cargo.toml",
-      "sha256": "dc7540da37cea7ea2443845e4f9042193598726ea295f9d823adef66c88ff867"
+      "sha256": "89d71b6de3153c88ab7f4fa6efe630f7fd30da55b9586645c5f93e623d27ad7b"
     },
     {
       "bytes": 13481,
@@ -227,9 +227,9 @@
       "sha256": "14ffd5d30bd048dc8fed0f5960335db931040f8370c02ed95f6ae762a5f6e65c"
     },
     {
-      "bytes": 76110,
+      "bytes": 77238,
       "path": "engine/companion/src/linux.rs",
-      "sha256": "5c10f3537b63f6eb860bb52e5cd74bbea189e073ed5202f789b1a0504ea00f6b"
+      "sha256": "c845fcd26182e859f57294fc3ae7378a91e1ee9d524ef2e6deeedd4b516e115f"
     },
     {
       "bytes": 19332,
@@ -242,9 +242,9 @@
       "sha256": "15e26fad50a5dca0440efe4afe7b95e7a5b12d4b823c81080f2a5f7e3df69bd5"
     },
     {
-      "bytes": 114775,
+      "bytes": 115919,
       "path": "engine/companion/src/macos.rs",
-      "sha256": "957e7e5a9745d7449ff94bae236feb4f1548085aba7b372b434e86a1c1781c80"
+      "sha256": "9e8fa7ab3d8bfb66f217f9c5066717fe63744caef7dcd294c88cae1602d4fec9"
     },
     {
       "bytes": 558,
@@ -277,9 +277,9 @@
       "sha256": "2abf2724d3730b739476a95c036fe7ead4bff7c9b3cbe372fcee337480905b23"
     },
     {
-      "bytes": 45316,
+      "bytes": 46998,
       "path": "engine/companion/src/operations.rs",
-      "sha256": "9dd076484f74d5a3884853d79508eb9887d8850a37be1d072527f1a183e458ff"
+      "sha256": "939fb1fb6bc6a759922d0ed9cbc41e28031f80874e062a1d32ee79b91ff98cfd"
     },
     {
       "bytes": 64570,
@@ -357,9 +357,9 @@
       "sha256": "f8f25622e9bbc4dc710b3defa1db0374e23ea77bb0cd87f01f436ff891e94494"
     },
     {
-      "bytes": 74388,
+      "bytes": 75516,
       "path": "engine/companion/src/windows.rs",
-      "sha256": "240e7c6a2fd22eea7c9d2937345216f500a6f13d7fc13c3ee17ce9188ec41792"
+      "sha256": "45433609b8d1c548cd883b317c5f97f807f82899f5dfcbfb4e7cae4aae9ad124"
     },
     {
       "bytes": 3738,
@@ -397,9 +397,9 @@
       "sha256": "930d5cb921fc7b22653fa6e96b6bdd87427bc7575b2966bfaaf78ddf9a070d47"
     },
     {
-      "bytes": 24516,
+      "bytes": 25280,
       "path": "engine/companion/src/worker.rs",
-      "sha256": "43b3bf2eebc7b8d8ff2584519745a403606ae5d7e34f7a77f6b5896243ae6c71"
+      "sha256": "9591ede525fdcf044f65ac34783dfc0f7050033a10742557d7558694e0d12b81"
     },
     {
       "bytes": 202,
@@ -562,9 +562,9 @@
       "sha256": "243f2fce2595879bbcc9213b4f4891e337f35a31795b498e52b2b609b4ec4ed2"
     },
     {
-      "bytes": 102572,
+      "bytes": 108316,
       "path": "tests/companion-panel-contracts.test.js",
-      "sha256": "d43667ffed221a244b47801cb8563d63579489104234c18eeb8c1733d71f7738"
+      "sha256": "51db0144ad2a40819512a2376bda21cd7415f3264579a2ced3ecfb06733d7334"
     },
     {
       "bytes": 3594,
@@ -782,9 +782,9 @@
       "sha256": "5a6d638da933b855508d5d8ce31b9fdb064abc0907016caebd82f270e1a70d76"
     },
     {
-      "bytes": 165304,
+      "bytes": 168886,
       "path": "web-companion/panels.js",
-      "sha256": "4df22482880946bc1626259e54afec4c61181c3e93094e7c22f1c55dd3a19fc2"
+      "sha256": "cc6cc105b932b907fe660153b34fc2850b844b6246378c4ec687cd3fab898184"
     },
     {
       "bytes": 9682,
@@ -832,13 +832,13 @@
       "sha256": "0c76414f38e948071721183d617d1c7217261cd53887e7000d13064ace4520f8"
     },
     {
-      "bytes": 166442,
+      "bytes": 168090,
       "path": "web-companion/workspace.js",
-      "sha256": "bcf5f400cec089ade5e677ef469f7e2270104fd2685c3781731e8d0f345a5e1c"
+      "sha256": "a3e17de9793ba78798c8f13cc2bda52e64faaeaadb1ae8743cbd4d81af6e39bc"
     }
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "f49fa77170c5b42bebe9b030f13c4c72507a5753",
+  "privateBuildRevision": "ff64eb29677ba245b23cce5a91f3b4e5097f9693",
   "schema": 1
 }

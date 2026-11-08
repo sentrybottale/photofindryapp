@@ -1,10 +1,16 @@
-# PhotoFindry 0.3.0-beta.7 · build 141
+# PhotoFindry 0.3.0-beta.8 · build 142
 
-This Mac hotfix keeps your typed words when you search through a Showcase lens, and keeps opened panel sections open. Linux keeps 0.3.0-beta.3 / build 136 and Windows keeps 0.3.0-beta.2 / build 132.
+This Mac release adds household tagging for members, measured parallel tagging, faster related-search coverage and lens-builder fixes. Linux keeps 0.3.0-beta.3 / build 136 and Windows keeps 0.3.0-beta.2 / build 132.
 
-**Lens searches keep your words.** Choosing a lens beside Local AI Search used to replace the words in the search box with the lens's own description and search with that instead. Your words are now the search: they decide which photos to look at, the lens grades those photos, and the reranker orders the photos in the lens by your words and the lens together. The search box keeps showing what you typed. With an empty search box a lens behaves as before and looks at every photo with a preview.
+**Household tagging (members).** Your other computers can tag this library with you. Pair a computer once under Settings → Household tagging; only reduced previews travel, only to computers you paired, over an encrypted connection on your home network. Originals, tags and the library stay on the library computer. Household tagging is part of the optional PhotoFindry membership: it needs an active membership key on every computer taking part, and it is the only members-only feature. Everything else stays free, and tags made with household tagging stay yours to search and export after a membership ends. In this release the helper computers must also be Apple-silicon Macs on build 142.
 
-**Opened sections stay open.** While a source was being checked in the background, the Files panel rebuilt itself on every update and closed sections such as Source options a moment after they were opened. Panels now remember the sections you open and keep your scroll position when they refresh.
+**Parallel tagging where it is faster.** Check performance now also measures how many photos this Mac can tag at a time. New tagging jobs use more than one only when it was clearly faster with every sample accepted; otherwise tagging stays one photo at a time.
+
+**Faster related searches on large libraries.** The search index now keeps exact per-photo vector counts, so related searches and background search indexing no longer recount the whole vector table. Existing indexes are counted once in the background by the queued Build semantic search job; until it finishes, coverage is measured the old way.
+
+**Lens builder.** Find photos like… offers only photos a lens build can measure, counts the ones without a saved preview and offers to prepare their previews. Searches in the lens builder are no longer cancelled by gallery refreshes while the main search box holds a query.
+
+**Removed photos.** Finder metadata files no longer block emptying Removed.
 
 Updates preserve the library, originals, model paths, saved lenses and saved work. All inference remains local. The MIT client excludes proprietary engine source and private development history. The beta 16 Mac-app migration channel is unchanged.
 

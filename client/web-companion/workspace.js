@@ -1500,7 +1500,12 @@
     const awake = select([['off', 'Off'], ['processing', 'While processing'], ['queue', 'Until queue finishes']], snapshot.powerPreferences?.mode || 'processing'); awake.addEventListener('change', () => { draft.dirty = true; }); power.append(field('Prevent idle system sleep', awake));
     const uninstall = section('Uninstall companion', 'Remove this companion through a macOS confirmation. Your saved library, original photographs, model files and saved settings are kept.');
     uninstall.append(button('Review uninstall…', openUninstall));
-    body.append(models, ...(supports('modelDownloads') ? [downloads] : []), recommendations, ...(supports('metadata') ? [metadata] : []), storage, search, ...(supports('powerInhibition') ? [power] : []), lifecycleControls(), ...(supports('nativeUninstall') ? [uninstall] : []));
+    // Optional locally bundled extensions add their own Settings sections.
+    // Public builds register none; a failing extension never blocks Settings.
+    const extensionSections = (window.PhotoFindryExtensions?.settings ?? []).flatMap(mount => {
+      try { const node = mount({ api: P.api, signal: reviewerController.signal, isOpen: () => opened.dialog.open }); return node instanceof Node ? [node] : []; } catch { return []; }
+    });
+    body.append(models, ...extensionSections, ...(supports('modelDownloads') ? [downloads] : []), recommendations, ...(supports('metadata') ? [metadata] : []), storage, search, ...(supports('powerInhibition') ? [power] : []), lifecycleControls(), ...(supports('nativeUninstall') ? [uninstall] : []));
     const footer = el('div', 'settings-footer'); footer.append(button('Close', () => settingsDialog?.close()), button('Save settings', async () => {
       const budgetValue = Number(budget.value); if (!Number.isFinite(budgetValue) || budgetValue < 0.0625 || budgetValue > 1024) throw new Error('Choose a preview budget from 0.0625 to 1024 GiB.');
       await saveModels();
@@ -1548,7 +1553,8 @@
           result.memoryMeasured === true ? `Peak ${bytes(result.peakMemoryBytes)}` : 'Peak memory not measured',
         ].filter(Boolean).join(' · ') : 'No completed performance comparison yet.';
       const reports = Array.isArray(result.reports) ? result.reports.slice(0, 8) : [];
-      const reportKey = JSON.stringify([reports, result.note, result.checkedAt]);
+      const parallel = result.parallelTagging && typeof result.parallelTagging === 'object' ? result.parallelTagging : null;
+      const reportKey = JSON.stringify([reports, result.note, result.checkedAt, parallel]);
       if (reportKey !== optimizationReportKey) {
         optimizationReportKey = reportKey;
         const rows = reports.map((trial) => {
@@ -1561,6 +1567,18 @@
             str(trial.reason).slice(0, 240)].filter(Boolean).join(' · ');
           return line;
         });
+        if (parallel) {
+          // Measured on this machine only; tagging stays one at a time unless a
+          // larger count was clearly faster with every sample accepted.
+          const chosen = Number.isSafeInteger(parallel.slots) && parallel.slots >= 1 ? parallel.slots : 1;
+          const measured = (Array.isArray(parallel.candidates) ? parallel.candidates.slice(0, 4) : []).map((trial) => [
+            Number.isSafeInteger(trial.slots) ? `${trial.slots} at a time` : '',
+            Number.isFinite(trial.photosPerSecond) && trial.photosPerSecond > 0 ? `${(trial.photosPerSecond * 60).toFixed(1)} photos/min` : '',
+            trial.usable === false && trial.reason ? str(trial.reason).slice(0, 160) : '',
+          ].filter(Boolean).join(' ')).filter(Boolean);
+          rows.push(el('p', 'settings-live', [chosen > 1 ? `Parallel tagging: ${chosen} photos at a time for new tagging jobs` : 'Parallel tagging: one photo at a time',
+            ...measured, str(parallel.error).slice(0, 240)].filter(Boolean).join(' · ')));
+        }
         if (result.note) rows.push(el('p', 'settings-live', str(result.note).slice(0, 300)));
         optimizationReports.replaceChildren(...rows);
       }

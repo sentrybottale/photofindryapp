@@ -1318,3 +1318,83 @@ test('reopening an existing folder review polls its receipt without starting ano
     assert.deepEqual(ui.errors, []);
   } finally { await ui.close(); }
 });
+
+test('lens builder searches use their own search lane and ignore superseded failures', async () => {
+  const settles = [];
+  const ui = harness({}, {
+    showcaseLenses: { lenses: [], drafts: [], shootTypes: [] },
+    showcaseLensExamples: { photos: [] },
+    showcaseLensMeasurable: (params) => ({ measurable: params.photoIds }),
+    '/api/library': () => new Promise((resolve, reject) => settles.push({ resolve, reject })),
+  });
+  try {
+    await ui.window.PhotoFindryPanels.show('lenses');
+    await ui.findButton('New lens').click();
+    const query = ui.all().find((node) => node.tagName === 'INPUT' && /birthday cake/.test(node.placeholder || ''));
+    assert(query, 'Missing lens example search field');
+    query.value = 'sea';
+    const first = ui.findButton('Find photos').click();
+    query.value = 'aerial view of snow';
+    const second = ui.findButton('Show other photos').click();
+    const searches = ui.calls.filter((call) => call.action === '/api/library');
+    assert.equal(searches.length, 2);
+    for (const call of searches) assert.equal(call.params.searchLane, 'panel', 'gallery refreshes must not supersede the builder search');
+    assert.deepEqual(searches.map((call) => call.params.query), ['sea', 'aerial view of snow']);
+    settles[0].reject(new Error('The operation was cancelled.'));
+    settles[1].resolve({ photos: [{ id: 'snow-1', caption: 'Aerial view of a snowy town' }], totalCount: 1 });
+    await Promise.all([first, second]);
+    assert.deepEqual(ui.errors, [], 'a superseded builder search is not an error');
+    const tiles = ui.all().filter((node) => node.className.split(' ').includes('pfp-lens-tile'));
+    assert.equal(tiles.length, 1); assert.match(tiles[0].textContent, /Aerial view of a snowy town$/);
+  } finally { await ui.close(); }
+});
+
+test('the lens builder offers only examples a lens build can measure and keeps Generate disabled until three are ticked', async () => {
+  // Matches whose preview the gallery would prepare on demand are not kept on
+  // the record, so a lens build cannot measure them (the 0-of-6 drone failure).
+  const measurable = new Set(['r1', 'a1', 'a2', 'a3', 'a4']);
+  const photo = (id) => ({ id, caption: `Aerial view ${id}`, status: 'tagged' });
+  const failed = { id: 'draft-1', status: 'failed', error: 'Only 0 of your example photos could be measured.', words: { title: 'Drone', statement: 'High aerial views over snowy fields and roads.', exemplars: ['a1', 'n9', 'a2'] } };
+  const ui = harness({ settings: { modelConfigured: true, projectorConfigured: true } }, {
+    showcaseLenses: { lenses: [], drafts: [failed], shootTypes: [] },
+    showcaseLensExamples: { photos: [photo('r1'), photo('r2')], count: 24 },
+    showcaseLensMeasurable: (params) => ({ measurable: params.photoIds.filter((id) => measurable.has(id)) }),
+    '/api/library': () => ({ photos: ['a1', 'n1', 'a2', 'n2', 'a3', 'a4', 'n3'].map(photo), totalCount: 7 }),
+    '/api/photo': (params) => photo(params.photoId),
+    enqueueJob: { id: 'job-previews' },
+  });
+  const tiles = () => ui.all().filter((node) => node.className.split(' ').includes('pfp-lens-tile'));
+  const tileIds = () => tiles().map((node) => node.children.at(-1).textContent.replace('Aerial view ', ''));
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
+  try {
+    await ui.window.PhotoFindryPanels.show('lenses');
+    await ui.findButton('Make it again').click();
+    await settle();
+    // The failed draft's unmeasurable example is left out with a reason.
+    assert.deepEqual(ui.calls.find((call) => call.action === 'showcaseLensMeasurable').params, { photoIds: ['a1', 'n9', 'a2'] });
+    assert.match(ui.all().map((node) => node._text).join(' '), /1 of the earlier examples has no saved preview the lens can measure/);
+    assert.equal(ui.calls.some((call) => call.action === '/api/photo' && call.params.photoId === 'n9'), false);
+    // Related search: only measurable matches become tiles; the rest are counted.
+    assert.deepEqual(tileIds().sort(), ['a1', 'a2', 'a3', 'a4']);
+    const chosenOnly = tiles().filter((node) => node.children[0].checked).map((node) => node.children.at(-1).textContent);
+    assert.deepEqual(chosenOnly.sort(), ['Aerial view a1', 'Aerial view a2']);
+    assert.match(ui.all().map((node) => node._text).join(' '), /3 matches are not shown: a lens learns only from photos with a saved preview/);
+    const generate = ui.findButton('Generate rules');
+    assert.equal(generate.disabled, true, 'two examples cannot start a build');
+    const a3 = tiles().find((node) => node.children.at(-1).textContent === 'Aerial view a3');
+    a3.children[0].checked = true; await a3.children[0].fire('change');
+    assert.equal(generate.disabled, false, 'three measurable examples can start a build');
+    a3.children[0].checked = false; await a3.children[0].fire('change');
+    assert.equal(generate.disabled, true);
+    // The hidden matches have a direct next action: an ordinary previews job.
+    await ui.findButton('Prepare their previews').click();
+    assert.deepEqual(ui.calls.find((call) => call.action === 'enqueueJob').params, { kind: 'previews', params: { photoIds: ['n1', 'n2', 'n3'] } });
+    // Random examples are checked the same way.
+    const query = ui.all().find((node) => node.tagName === 'INPUT' && String(node.placeholder || '').startsWith('children birthday'));
+    query.value = '';
+    await ui.findButton('Find photos').click();
+    assert.deepEqual(tileIds().filter((id) => id.startsWith('r')), ['r1']);
+    assert.equal(ui.all().some((node) => node.className.split(' ').includes('pfp-lens-hidden') && !node.hidden), false, 'a new search clears the hidden count');
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});

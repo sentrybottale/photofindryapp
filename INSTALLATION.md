@@ -1,6 +1,6 @@
 # Install PhotoFindry
 
-**Mac: 0.3.0-beta.7 · build 141. Linux: 0.3.0-beta.3 · build 136. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 1 November 2026.
+**Mac: 0.3.0-beta.8 · build 142. Linux: 0.3.0-beta.3 · build 136. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 8 November 2026.
 
 PhotoFindry installs a local background companion and opens a browser workspace. The public website does not receive your photos or library session. You do not need a PhotoFindry account, a subscription, a compiler, or a checkout of this repository.
 
@@ -130,7 +130,7 @@ Linux core installation and real-model checks were performed on an x86-64 Ubuntu
 3. **Add a small source folder in Files.** Choose the existing originals folder with the platform picker. Original photographs stay in place. Cloud-backed originals need to be available locally when processing reads them.
 4. **Start tagging.** Adding a folder alone does not establish that it has accepted tags. Follow progress in Jobs. Saved jobs may reopen paused; choose Resume when you want them to continue.
 5. **Try ordinary search, then Local AI Search.** Ordinary search uses saved information. Local AI Search is an explicit model-assisted action.
-6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.7 / build 141** on Mac, **0.3.0-beta.3 / build 136** on Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
+6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.8 / build 142** on Mac, **0.3.0-beta.3 / build 136** on Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
 
 See [Getting started](https://github.com/sentrybottale/photofindryapp/blob/main/docs/getting-started.md) and [Search](https://github.com/sentrybottale/photofindryapp/blob/main/docs/search.md) for the full workflow.
 
@@ -142,7 +142,7 @@ The current program archives are:
 
 | Platform | Program archive | Download size, excluding your vision model |
 | --- | --- | --- |
-| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.7-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.7) | 399,163,823 bytes (about 399 MB) |
+| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.8-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8) | 399,608,642 bytes (about 400 MB) |
 | Linux x86-64 | [`PhotoFindry-0.3.0-beta.3-linux-x86_64-companion.tar.gz`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.3) | 364,454,429 bytes (about 364 MB) |
 | Windows x64 | [`PhotoFindry-0.3.0-beta.2-windows-x86_64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2) | 87,222,087 bytes (about 87 MB) |
 

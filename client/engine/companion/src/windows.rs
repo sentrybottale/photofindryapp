@@ -31,6 +31,14 @@ mod preview_features;
 mod projection;
 #[path = "worker.rs"]
 mod worker;
+#[cfg(feature = "private-extensions")]
+#[path = "../../private-extensions/companion/household.rs"]
+mod household;
+/// Optional private extensions add their own page assets; public builds none.
+#[cfg(feature = "private-extensions")]
+fn extend_page(html: String) -> String { household::page(html) }
+#[cfg(not(feature = "private-extensions"))]
+fn extend_page(html: String) -> String { html }
 use auth::Authority;
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full, Limited};
@@ -408,6 +416,11 @@ async fn api(path: &str, bytes: &[u8], state: &Arc<State>) -> Reply {
             }
             json_response(capabilities())
         }
+        #[cfg(feature = "private-extensions")]
+        "/api/household" => match household::api(bytes, &state.data, &state.worker).await {
+            Ok(value) => json_response(value),
+            Err(message) => operation_error(&message),
+        },
         "/api/lifecycle/status" => {
             if serde_json::from_slice::<Empty>(bytes).is_err() {
                 return invalid();
@@ -919,8 +932,12 @@ fn asset(path: &str, state: &State) -> Reply {
         "/" => response(
             StatusCode::OK,
             "text/html; charset=utf-8",
-            host_html(state.appearance.lock().unwrap().mode().unwrap_or_default()),
+            extend_page(host_html(state.appearance.lock().unwrap().mode().unwrap_or_default())),
         ),
+        #[cfg(feature = "private-extensions")]
+        "/household.js" => response(StatusCode::OK, "text/javascript; charset=utf-8", Bytes::from_static(household::SCRIPT)),
+        #[cfg(feature = "private-extensions")]
+        "/household.css" => response(StatusCode::OK, "text/css; charset=utf-8", Bytes::from_static(household::STYLE)),
         "/ui-framework.js" => response(
             StatusCode::OK,
             "text/javascript; charset=utf-8",
@@ -1490,6 +1507,8 @@ async fn run(config: Config) -> Result<(), String> {
         model_checks: Arc::new(Semaphore::new(1)),
         replacement: library_restore::Replacement::default(),
     });
+    #[cfg(feature = "private-extensions")]
+    household::supervise(state.data.clone(), config.runtime.clone(), state.worker.clone());
     let code = state
         .authority
         .lock()
