@@ -1,6 +1,6 @@
 # PhotoFindry 0.3.0-beta.8 / build 142 qualification
 
-This release updates the Mac companion. Linux retains its signed 0.3.0-beta.3 / build 136 release and Windows retains 0.3.0-beta.2 / build 132. The existing beta 16 Mac-app migration channel is unchanged.
+Mac build 142 was published on 8 November 2026 and Linux x86-64 build 142 on 9 November 2026. Windows retains 0.3.0-beta.2 / build 132 (see Windows below). The existing beta 16 Mac-app migration channel is unchanged.
 
 ## Changes
 
@@ -48,11 +48,30 @@ These timings were taken on one Mac shared with the owner's normal PhotoFindry i
 
 ## Household tagging scope
 
-Pairing, membership gates and helper refusal are covered by engine and companion tests. Two isolated companions on one Mac were driven in a browser: neither could pair or lend without a key, the helper refused even with the Settings switch bypassed, both paired with keys, removing the helper's key stopped its helper process, and re-entering it resumed helping. Earlier private trials ran a helper on a separate Windows PC over the home network; the public Windows release does not include household tagging yet. Two physical Macs helping each other on build 142 were not tested. The online membership confirmation list is not yet published; installed keys keep working through their 45-day offline grace.
+Pairing, membership gates and helper refusal are covered by engine and companion tests. Two isolated companions on one Mac were driven in a browser: neither could pair or lend without a key, the helper refused even with the Settings switch bypassed, both paired with keys, removing the helper's key stopped its helper process, and re-entering it resumed helping. Earlier private trials ran a helper on a separate Windows PC over the home network; the public Windows release does not include household tagging yet. Two physical Macs helping each other on build 142 were not tested. The online membership confirmation list at app.photofindry.com was published after the Mac release on 8 November 2026, and an installed build 142 confirmed its key against it.
 
 ## Limits
 
-Parallel tagging and exact vector counts were not measured on an 8 GB Mac. Lenses were not tested on macOS 15 or 26, on another Mac or with other tagging models. Linux and Windows are not covered by these build 142 receipts.
+Parallel tagging and exact vector counts were not measured on an 8 GB Mac. Lenses were not tested on macOS 15 or 26, on another Mac or with other tagging models. The Mac receipts above do not cover Linux or Windows; see their sections.
+
+## Linux x86-64
+
+The Linux companion was built once from the same household revision on an Intel N100 PC with 8 GB RAM running Linux Mint 21.3 (Ubuntu 22.04 base, kernel 6.8), then signed with the same publisher key. The first package carried third-party notices that predated nine newly added Rust crates; the notices were regenerated and the package rebuilt from the identical binaries before any test below.
+
+- **Signed lifecycle:** 13 of 13 from published build 136 to candidate 142: install, autostart, signature and checksum rejection, interrupted-update recovery, update in 12.1 s, rollback, older-build refusal and preserved-data uninstall/reinstall.
+- **Unit tests on the same machine:** companion 107 passed (1 ignored); worker household, membership, search-index and tagging tests 30 passed (2 ignored); zero failures.
+- **Installed real core** on a 19-photo isolated library with Qwen3.5 4B Q4_K_M on CPU: ordinary search 6 matches in 0.06 s; scoped AI 32.2 s; tagging 61 observations in 370.2 s; whole-library AI 19 candidates in 46.5 s, Stop 3.15 s; cancel all, recovery and uninstall kept the library and all 42 prior jobs.
+
+Household helping between a Mac and a Linux computer was not tested. GPU acceleration, other distributions and desktop environments are not covered.
+
+## Windows
+
+Windows build 142 was built and signed, passed its native tests and passed the signed 132 → 142 lifecycle (13 of 13) on 8 November 2026 on a Ryzen 5 5600G PC with an RX 9060 XT and 16 GB RAM. It was not published:
+
+- The first real-model run paused for memory safety while a game was running; that pause message wrongly says "this Mac".
+- On 9 November, Windows 11 Smart App Control on that PC blocked fresh copies of the unsigned build 142 signature verifier and of the bundled llama.cpp runtime library (the same bytes as build 132). A repeat lifecycle run failed at interrupted-update recovery ("The installed signature verifier is unavailable"), and the real-model run failed at Local AI Search. The previously approved copies of the same bytes still ran.
+
+Existing build 132 installations that Windows already approved keep working. New Windows installations on PCs with Smart App Control turned on can be blocked by the same check. Windows stays on build 132 until its program files are code-signed and these checks pass.
 
 ## Public delivery
 
