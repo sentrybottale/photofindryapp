@@ -66,12 +66,13 @@ Household helping between a Mac and a Linux computer was not tested. GPU acceler
 
 ## Windows
 
-Windows build 142 was built and signed, passed its native tests and passed the signed 132 → 142 lifecycle (13 of 13) on 8 November 2026 on a Ryzen 5 5600G PC with an RX 9060 XT and 16 GB RAM. It was not published:
+Windows stays on 0.3.0-beta.2 / build 132. Windows build 142 was built twice on a Ryzen 5 5600G PC with an RX 9060 XT and 16 GB RAM, and neither build was published:
 
-- The first real-model run paused for memory safety while a game was running; that pause message wrongly says "this Mac".
-- On 9 November, Windows 11 Smart App Control on that PC blocked fresh copies of the unsigned build 142 signature verifier and of the bundled llama.cpp runtime library (the same bytes as build 132). A repeat lifecycle run failed at interrupted-update recovery ("The installed signature verifier is unavailable"), and the real-model run failed at Local AI Search. The previously approved copies of the same bytes still ran.
+- The first build passed its native tests and the signed 132 → 142 lifecycle (13 of 13) on 8 November 2026. Its first real-model run paused for memory safety while a game was running; that pause message wrongly says "this Mac".
+- On 9 November, Windows 11 Smart App Control on that PC blocked fresh copies of the unsigned build 142 signature verifier and of the bundled llama.cpp runtime library (the same bytes as build 132). A repeat lifecycle run failed at interrupted-update recovery, and the real-model run failed at Local AI Search.
+- A second build 142 starts each new program once before switching versions, so a refused update keeps the working version. It passed its native tests (11, 13 and 51 passed, 1 ignored) with Smart App Control off. Its lifecycle failed at interrupted-update recovery: Microsoft Defender reported Behavior:Win32/Persistence.A!ml when recovery re-registered the per-user logon task for the prior version, quarantined that program file and removed the test task. A repeat run was refused before it started because Defender then blocked a fresh copy of the build 132 program inside the test harness. The owner's existing build 132 installation kept running.
 
-Existing build 132 installations that Windows already approved keep working. New Windows installations on PCs with Smart App Control turned on can be blocked by the same check. Windows stays on build 132 until its program files are code-signed and these checks pass.
+Existing build 132 installations keep working on that PC. Unsigned Windows program files can be blocked by Smart App Control or flagged by Defender's behaviour monitoring. Windows will move only after a build whose updates no longer rewrite the logon task passes these checks.
 
 ## Public delivery
 

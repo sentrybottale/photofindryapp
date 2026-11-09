@@ -237,6 +237,7 @@ This section is only for users of the older native Mac application. Fresh Mac us
 | Windows reports a missing Microsoft runtime DLL | Install or repair Microsoft's Visual C++ v14 **x64** runtime, then rerun the complete setup block. Do not download individual DLLs from third-party sites. |
 | Windows setup says to use a normal user | Close the elevated PowerShell window and reopen Windows PowerShell normally. |
 | Windows says the signature verifier is unavailable, or Local AI reports that the native command failed | PhotoFindry's Windows program files are not yet code-signed. With Windows 11 **Smart App Control** turned on, Windows can block them (**Event Viewer → Applications and Services Logs → Microsoft → Windows → CodeIntegrity → Operational** lists the blocked files). Your library is not changed. Signed Windows builds are not yet available. |
+| Microsoft Defender reports **Behavior:Win32/Persistence.A!ml** for `photofindry.exe` | PhotoFindry starts its companion through a per-user logon task in Task Scheduler. Defender can treat an unsigned program that registers such a task as suspicious and quarantine it; your library and originals are not changed. In testing this happened when a build re-registered the task during update recovery. You can report the file to Microsoft as an incorrect detection at microsoft.com/wdsi/filesubmission. PhotoFindry does not change Defender settings. |
 | Linux reports a missing tool or user manager | Install the named dependency, or log in to a session where `systemctl --user show-environment` works. Rerun as your normal user. |
 | Linux has no folder chooser | Install `zenity` and use a desktop session. |
 | Browser opens an old address or fails to connect | Use the Mac Open link, Windows Start menu, or Linux installed entry again instead of a saved localhost port. If necessary, rerun the verified setup. |
@@ -257,7 +258,7 @@ macOS 14 is the declared minimum; Showcase lenses need macOS 15 or later. macOS 
 
 # PhotoFindry 0.3.0-beta.8 · build 142
 
-This release adds household tagging for members, measured parallel tagging, faster related-search coverage and lens-builder fixes. Mac build 142 was published on 8 November 2026; Linux x86-64 build 142 followed on 9 November 2026. Windows keeps 0.3.0-beta.2 / build 132: Windows 11 Smart App Control blocked parts of the unsigned build 142 after an update in testing, so it was not published.
+This release adds household tagging for members, measured parallel tagging, faster related-search coverage and lens-builder fixes. Mac build 142 was published on 8 November 2026; Linux x86-64 build 142 followed on 9 November 2026. Windows keeps 0.3.0-beta.2 / build 132: in testing, Windows 11 Smart App Control blocked parts of the unsigned build 142, and Microsoft Defender flagged its update recovery, so it was not published.
 
 **Household tagging (members).** Your other computers can tag this library with you. Pair a computer once under Settings → Household tagging; only reduced previews travel, only to computers you paired, over an encrypted connection on your home network. Originals, tags and the library stay on the library computer. Household tagging is part of the optional PhotoFindry membership: it needs an active membership key on every computer taking part, and it is the only members-only feature. Everything else stays free, and tags made with household tagging stay yours to search and export after a membership ends. Helping was tested between Apple-silicon Macs on build 142; the Linux build includes the same household code, but helping between a Mac and a Linux computer was not tested.
 
@@ -346,12 +347,13 @@ Household helping between a Mac and a Linux computer was not tested. GPU acceler
 
 ## Windows
 
-Windows build 142 was built and signed, passed its native tests and passed the signed 132 → 142 lifecycle (13 of 13) on 8 November 2026 on a Ryzen 5 5600G PC with an RX 9060 XT and 16 GB RAM. It was not published:
+Windows stays on 0.3.0-beta.2 / build 132. Windows build 142 was built twice on a Ryzen 5 5600G PC with an RX 9060 XT and 16 GB RAM, and neither build was published:
 
-- The first real-model run paused for memory safety while a game was running; that pause message wrongly says "this Mac".
-- On 9 November, Windows 11 Smart App Control on that PC blocked fresh copies of the unsigned build 142 signature verifier and of the bundled llama.cpp runtime library (the same bytes as build 132). A repeat lifecycle run failed at interrupted-update recovery ("The installed signature verifier is unavailable"), and the real-model run failed at Local AI Search. The previously approved copies of the same bytes still ran.
+- The first build passed its native tests and the signed 132 → 142 lifecycle (13 of 13) on 8 November 2026. Its first real-model run paused for memory safety while a game was running; that pause message wrongly says "this Mac".
+- On 9 November, Windows 11 Smart App Control on that PC blocked fresh copies of the unsigned build 142 signature verifier and of the bundled llama.cpp runtime library (the same bytes as build 132). A repeat lifecycle run failed at interrupted-update recovery, and the real-model run failed at Local AI Search.
+- A second build 142 starts each new program once before switching versions, so a refused update keeps the working version. It passed its native tests (11, 13 and 51 passed, 1 ignored) with Smart App Control off. Its lifecycle failed at interrupted-update recovery: Microsoft Defender reported Behavior:Win32/Persistence.A!ml when recovery re-registered the per-user logon task for the prior version, quarantined that program file and removed the test task. A repeat run was refused before it started because Defender then blocked a fresh copy of the build 132 program inside the test harness. The owner's existing build 132 installation kept running.
 
-Existing build 132 installations that Windows already approved keep working. New Windows installations on PCs with Smart App Control turned on can be blocked by the same check. Windows stays on build 132 until its program files are code-signed and these checks pass.
+Existing build 132 installations keep working on that PC. Unsigned Windows program files can be blocked by Smart App Control or flagged by Defender's behaviour monitoring. Windows will move only after a build whose updates no longer rewrite the logon task passes these checks.
 
 ## Public delivery
 
