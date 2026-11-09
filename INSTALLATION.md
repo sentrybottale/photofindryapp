@@ -1,6 +1,6 @@
 # Install PhotoFindry
 
-**Mac: 0.3.0-beta.8 · build 142. Linux: 0.3.0-beta.3 · build 136. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 8 November 2026.
+**Mac and Linux: 0.3.0-beta.8 · build 142. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 9 November 2026.
 
 PhotoFindry installs a local background companion and opens a browser workspace. The public website does not receive your photos or library session. You do not need a PhotoFindry account, a subscription, a compiler, or a checkout of this repository.
 
@@ -121,7 +121,7 @@ photofindry open
 
 If the browser did not open automatically, use that installed entry again. If your shell cannot find `photofindry`, use the applications menu and check your user PATH configuration. The installer also prints the full installed executable path for status checks.
 
-Linux core installation and real-model checks were performed on an x86-64 Ubuntu system. Those headless tests do not establish a fully qualified Linux desktop GUI or performance on every GPU and distribution.
+Linux build 142 installation, update and real-model checks were performed on an Intel N100 PC with 8 GB RAM running Linux Mint 21.3 (Ubuntu 22.04 base). Those headless tests do not establish a fully qualified Linux desktop GUI or performance on every GPU and distribution.
 
 ## After installation
 
@@ -130,7 +130,7 @@ Linux core installation and real-model checks were performed on an x86-64 Ubuntu
 3. **Add a small source folder in Files.** Choose the existing originals folder with the platform picker. Original photographs stay in place. Cloud-backed originals need to be available locally when processing reads them.
 4. **Start tagging.** Adding a folder alone does not establish that it has accepted tags. Follow progress in Jobs. Saved jobs may reopen paused; choose Resume when you want them to continue.
 5. **Try ordinary search, then Local AI Search.** Ordinary search uses saved information. Local AI Search is an explicit model-assisted action.
-6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.8 / build 142** on Mac, **0.3.0-beta.3 / build 136** on Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
+6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.8 / build 142** on Mac and Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
 
 See [Getting started](https://github.com/sentrybottale/photofindryapp/blob/main/docs/getting-started.md) and [Search](https://github.com/sentrybottale/photofindryapp/blob/main/docs/search.md) for the full workflow.
 
@@ -143,7 +143,7 @@ The current program archives are:
 | Platform | Program archive | Download size, excluding your vision model |
 | --- | --- | --- |
 | Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.8-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8) | 399,608,642 bytes (about 400 MB) |
-| Linux x86-64 | [`PhotoFindry-0.3.0-beta.3-linux-x86_64-companion.tar.gz`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.3) | 364,454,429 bytes (about 364 MB) |
+| Linux x86-64 | [`PhotoFindry-0.3.0-beta.8-linux-x86_64-companion.tar.gz`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8) | 365,548,972 bytes (about 366 MB) |
 | Windows x64 | [`PhotoFindry-0.3.0-beta.2-windows-x86_64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2) | 87,222,087 bytes (about 87 MB) |
 
 Other assets have different purposes:
@@ -189,6 +189,8 @@ This section is only for users of the older native Mac application. Fresh Mac us
 | Publisher/signature verification failed | Keep the installed library and software. Check your connection and the official instructions; do not accept a different key to get past the error. |
 | Windows reports a missing Microsoft runtime DLL | Install or repair Microsoft's Visual C++ v14 **x64** runtime, then rerun the complete setup block. Do not download individual DLLs from third-party sites. |
 | Windows setup says to use a normal user | Close the elevated PowerShell window and reopen Windows PowerShell normally. |
+| Windows says the signature verifier is unavailable, or Local AI reports that the native command failed | PhotoFindry's Windows program files are not yet code-signed. With Windows 11 **Smart App Control** turned on, Windows can block them (**Event Viewer → Applications and Services Logs → Microsoft → Windows → CodeIntegrity → Operational** lists the blocked files). Your library is not changed. Signed Windows builds are not yet available. |
+| Microsoft Defender reports **Behavior:Win32/Persistence.A!ml** for `photofindry.exe` | PhotoFindry starts its companion through a per-user logon task in Task Scheduler. Defender can treat an unsigned program that registers such a task as suspicious and quarantine it; your library and originals are not changed. In testing this happened when a build re-registered the task during update recovery. You can report the file to Microsoft as an incorrect detection at microsoft.com/wdsi/filesubmission. PhotoFindry does not change Defender settings. |
 | Linux reports a missing tool or user manager | Install the named dependency, or log in to a session where `systemctl --user show-environment` works. Rerun as your normal user. |
 | Linux has no folder chooser | Install `zenity` and use a desktop session. |
 | Browser opens an old address or fails to connect | Use the Mac Open link, Windows Start menu, or Linux installed entry again instead of a saved localhost port. If necessary, rerun the verified setup. |
@@ -202,4 +204,4 @@ Further help: [Troubleshooting guide](https://github.com/sentrybottale/photofind
 
 People is included on Mac and Linux; Windows has no face provider. Whole-library backup and restore work across Mac, Linux and Windows. Source archives and dedicated CLEF/Intern review runtimes remain Mac-only. Keep independent backups of originals on every platform; previews are reduced cached copies, not original-photo backups.
 
-macOS 14 is the declared minimum; Showcase lenses need macOS 15 or later. macOS 27.0 was used for the published qualification. Linux/Windows core trials used small real-evidence libraries; they do not establish every desktop, codec, GPU or full-library performance combination. Read each release's QUALIFICATION.md ([Mac 0.3.0-beta.7](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.7/QUALIFICATION.md), [Linux 0.3.0-beta.3](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.3/QUALIFICATION.md), [Windows 0.3.0-beta.2](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.2/QUALIFICATION.md)) for the actual tested scope.
+macOS 14 is the declared minimum; Showcase lenses need macOS 15 or later. macOS 27.0 was used for the published qualification. Linux/Windows core trials used small real-evidence libraries; they do not establish every desktop, codec, GPU or full-library performance combination. Read each release's QUALIFICATION.md ([Mac and Linux 0.3.0-beta.8](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.8/QUALIFICATION.md), [Windows 0.3.0-beta.2](https://github.com/sentrybottale/photofindryapp/releases/download/v0.3.0-beta.2/QUALIFICATION.md)) for the actual tested scope.
