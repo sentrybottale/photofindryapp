@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - run: python3 -m unittest discover -s ci -p 'test_*.py' -v
@@ -48,7 +48,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - if: matrix.language != 'rust' && matrix.language != 'javascript-typescript' || matrix.language == 'rust' && hashFiles('client/engine/companion/Cargo.toml') != '' || matrix.language == 'javascript-typescript' && hashFiles('client/web-companion/frontend/package-lock.json') != ''
@@ -78,7 +78,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - if: hashFiles('client/web-companion/frontend/package-lock.json') != ''
