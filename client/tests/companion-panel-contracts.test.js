@@ -1398,3 +1398,57 @@ test('the lens builder offers only examples a lens build can measure and keeps G
     assert.deepEqual(ui.errors, []);
   } finally { await ui.close(); }
 });
+
+test('location history compaction is confirmed, runs in resumable slices and offers reclaiming freed catalog space', async () => {
+  const slices = [
+    { cursor: 512, lastEntry: 1024, checked: 512, removed: 500, done: false },
+    { cursor: 1024, lastEntry: 1024, checked: 512, removed: 400, done: true },
+  ];
+  const ui = harness({}, {
+    sourceDetails: { candidates: [], canUndo: true, totalCount: 0, compactHistory: true, catalogFreeBytes: 3 * 1024 ** 3 },
+    compactSourceHistory: () => slices.shift(),
+    reclaimCatalogSpace: { reclaimed: 3 * 1024 ** 3, before: 4 * 1024 ** 3, after: 1024 ** 3, freeBytes: 0 },
+  });
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const sourceId = ui.state.sources[0].id;
+    const pending = ui.findButton('Compact location history…').click(); await tick();
+    const dialog = ui.all().find((node) => node.tagName === 'DIALOG');
+    assert.match(dialog.textContent, /Undo last source relocation are kept/);
+    assert(!ui.calls.some((call) => call.action === 'compactSourceHistory'), 'nothing runs before confirmation');
+    await ui.findButton('Compact history').click(); await pending;
+    assert.deepEqual(ui.calls.filter((call) => call.action === 'compactSourceHistory').map((call) => call.params), [
+      { sourceId, offset: 0, confirmed: true }, { sourceId, offset: 512, confirmed: true },
+    ]);
+    assert(ui.notices.includes('Location history compacted: 900 repeated history entries removed.'));
+    const reclaim = ui.findButton('Reclaim 3.0 GB of catalog space…').click(); await tick();
+    assert(!ui.calls.some((call) => call.action === 'reclaimCatalogSpace'));
+    await ui.findButton('Reclaim space').click(); await reclaim;
+    assert.deepEqual(ui.calls.find((call) => call.action === 'reclaimCatalogSpace').params, { confirmed: true });
+    assert(ui.notices.includes('Catalog space reclaimed: 3.0 GB returned to the disk.'));
+  } finally { await ui.close(); }
+});
+
+test('a refused compaction slice keeps completed removals, explains the next step and restores the action', async () => {
+  let calls = 0;
+  const ui = harness({}, {
+    sourceDetails: { candidates: [], canUndo: true, totalCount: 0, compactHistory: true, catalogFreeBytes: 0 },
+    compactSourceHistory: () => {
+      calls += 1;
+      if (calls === 1) return { cursor: 512, lastEntry: 4096, checked: 512, removed: 12, done: false };
+      throw Error('Pause processing and let current library work finish in Jobs, then try again. Completed history cleanup is kept.');
+    },
+  });
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const pending = ui.findButton('Compact location history…').click(); await tick();
+    await ui.findButton('Compact history').click(); await pending;
+    assert.equal(calls, 2);
+    assert(ui.notices.includes('Compaction stopped: 12 repeated history entries removed. Run it again to continue.'));
+    assert(ui.errors.some((message) => /Pause processing/.test(message)));
+    assert(ui.findButton('Compact location history…'), 'the action is offered again');
+    assert(!ui.all().some((node) => node.tagName === 'BUTTON' && /Reclaim/.test(node.textContent)), 'no reclaim offer below the threshold');
+  } finally { await ui.close(); }
+});

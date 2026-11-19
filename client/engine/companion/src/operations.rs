@@ -26,7 +26,8 @@ fn object(value: &Value, fields: &[&str]) -> Result<()> {
             | "broad" | "reject" | "undo" | "all" | "stop" | "keepResults"
             | "progressArtEnabled" | "interleave" | "location" | "camera" | "lens" | "focal"
             | "date" | "exposure" | "keepOnBrowse" | "clearTemplate" | "clearReranker"
-            | "includeRelated" | "broaden" | "resume" | "applied" | "lowMemoryTrial" | "background" | "servable" => {
+            | "includeRelated" | "broaden" | "resume" | "applied" | "lowMemoryTrial" | "background" | "servable"
+            | "retryFailed" => {
                 value.is_boolean()
             }
             "offset" | "limit" | "expectedCount" | "dimension" | "budgetBytes" | "count" => {
@@ -371,13 +372,17 @@ pub fn prepare(
                     "lensDraft",
                 ]
             } else {
-                &["photoIds", "sourceId", "scopeId", "force", "automatic"]
+                &["photoIds", "sourceId", "scopeId", "force", "automatic", "retryFailed"]
             };
             if kind == "lensBuild" {
                 // Making a lens: the owner's words and examples, built by its own job.
                 lens_draft(&inner)?;
             } else {
                 object(&inner, fields)?;
+            }
+            // Retrying tagging failures is a tagging-only scope refinement.
+            if inner.get("retryFailed").is_some() && kind != "tagging" {
+                return Err("Retry of failed photographs applies only to tagging.".into());
             }
             if kind == "aiSearch" {
                 // A saved lens searches with its own statement; otherwise a query.
@@ -650,6 +655,21 @@ pub fn prepare(
             object(&params, &["sourceId"])?;
             required(&params, &["sourceId"])?;
             "undoSourceRelink"
+        }
+        "compactSourceHistory" => {
+            object(&params, &["sourceId", "offset", "confirmed"])?;
+            required(&params, &["sourceId"])?;
+            if params["confirmed"] != true {
+                return Err("Confirm compacting this source's location history.".into());
+            }
+            "compactSourceHistory"
+        }
+        "reclaimCatalogSpace" => {
+            object(&params, &["confirmed"])?;
+            if params["confirmed"] != true {
+                return Err("Confirm reclaiming catalog space.".into());
+            }
+            "reclaimCatalogSpace"
         }
         "recoverJobOriginals" => {
             object(&params, &["jobId"])?;
@@ -1017,6 +1037,16 @@ mod tests {
             )
             .is_err()
         );
+        assert_eq!(
+            prepare("enqueueJob", json!({"kind":"tagging","params":{"retryFailed":true}}), &scopes, &picker).unwrap().1["params"]["retryFailed"],
+            true
+        );
+        for bad in [
+            json!({"kind":"improve","params":{"retryFailed":true}}),
+            json!({"kind":"tagging","params":{"retryFailed":"yes"}}),
+        ] {
+            assert!(prepare("enqueueJob", bad.clone(), &scopes, &picker).is_err(), "{bad}");
+        }
         assert!(
             prepare(
                 "deleteRemovedEntries",

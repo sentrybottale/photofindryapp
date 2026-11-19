@@ -123,3 +123,5 @@ progress { accent-color: #536e39; height: 6px; width: 100%; display: block; marg
 .job-model { font-size: 10px; color: var(--muted); }
 .support-dialog { width: min(360px, 94vw); }
 .support-dialog img { display: block; margin: 16px auto; image-rendering: pixelated; }
+.attention-retry { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; white-space: normal; }
+.attention-retry[hidden] { display: none; }

@@ -291,6 +291,21 @@ pub fn read(path: &Path, limit: u64) -> Result<Vec<u8>> {
     }
     Ok(bytes)
 }
+/// Windows application control (Smart App Control or a WDAC policy) refused an
+/// unsigned PhotoFindry program file. The official Windows files are not
+/// code-signed, so this is reported plainly instead of as a damaged install.
+pub const APP_CONTROL_BLOCK: &str = "Windows blocked PhotoFindry's program files (Smart App Control or another application-control policy). PhotoFindry's Windows files are not code-signed. Current software is kept and your library is unchanged.";
+/// Process-creation errors Windows returns when policy refuses an executable:
+/// ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION, ERROR_ACCESS_DISABLED_BY_POLICY and
+/// ERROR_VIRUS_INFECTED.
+pub fn app_control_refusal(code: Option<i32>) -> bool {
+    cfg!(windows) && matches!(code, Some(4551) | Some(1260) | Some(225))
+}
+/// STATUS_INVALID_IMAGE_HASH: a DLL the program loads was refused by policy.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+pub fn app_control_exit(code: Option<i32>) -> bool {
+    cfg!(windows) && code.map(|c| c as u32) == Some(0xC000_0428)
+}
 pub fn verify(envelope: &[u8], helper: &Path) -> Result<Release> {
     if envelope.len() > 131072 {
         return Err("Release envelope exceeds its bound".into());
@@ -321,8 +336,12 @@ pub fn verify(envelope: &[u8], helper: &Path) -> Result<Release> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|_| {
-            "The installed signature verifier is unavailable. Reinstall the verified companion."
+        .map_err(|error| {
+            if app_control_refusal(error.raw_os_error()) {
+                APP_CONTROL_BLOCK.to_owned()
+            } else {
+                "The installed signature verifier is unavailable. Reinstall the verified companion.".to_owned()
+            }
         })?;
     let input = child
         .stdin

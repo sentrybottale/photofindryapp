@@ -99,6 +99,122 @@ fn package(root: &Path, build: u64) -> PathBuf {
 fn executable(root: &Path, build: u64) -> PathBuf {
     package(root, build).join("bin").join(EXE)
 }
+/// `<root>\current` is a directory junction to the active version's package.
+/// It is repointed only while the companion service is stopped or being started.
+/// Command, arguments and logon-trigger enablement of a task definition, with
+/// XML entities decoded and whitespace outside the arguments ignored.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn task_fields(xml: &str) -> Option<(String, String, bool)> {
+    let text: String = xml.chars().filter(|c| *c != '\0').collect();
+    let part = |text: &str, open: &str, close: &str| text.split_once(open).and_then(|(_, rest)| rest.split_once(close)).map(|(inside, _)| inside.to_owned());
+    let decode = |s: String| s.replace("&quot;", "\"").replace("&apos;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&");
+    let trigger = part(&text, "<LogonTrigger>", "</LogonTrigger>")?;
+    let enabled = !trigger.split_whitespace().collect::<String>().contains("<Enabled>false</Enabled>");
+    Some((decode(part(&text, "<Command>", "</Command>")?.trim().to_owned()), decode(part(&text, "<Arguments>", "</Arguments>")?.trim().to_owned()), enabled))
+}
+/// Windows starts the service through `<root>\\launcher\\photofindry.exe lifecycle
+/// run`, a copy of the companion that reads the verified installation state and
+/// starts the current version. The logon task therefore names no version and is
+/// not re-registered when updates, rollback or recovery switch versions.
+#[cfg(windows)]
+const LAUNCHER: &str = "launcher";
+/// Bump only when `lifecycle run` itself changes; the launcher is otherwise kept.
+#[cfg(windows)]
+const LAUNCHER_PROTOCOL: u64 = 1;
+#[cfg(windows)]
+const TASK_RECORD: &str = "logon-task.json";
+#[cfg(windows)]
+fn launcher_executable(root: &Path) -> PathBuf {
+    root.join(LAUNCHER).join(EXE)
+}
+/// Keep an intact launcher of this protocol; otherwise copy the companion and its
+/// DLLs from the installed version running this command (never an older target
+/// of a rollback, which may not know `lifecycle run`), or from the version being
+/// installed when setup runs from its extracted archive. Called only while the
+/// service is stopped or not yet started from the launcher.
+#[cfg(windows)]
+fn ensure_launcher(root: &Path, current: u64) -> Result<()> {
+    let dir = root.join(LAUNCHER);
+    let intact = (|| -> Option<bool> {
+        let record: Value = serde_json::from_slice(&release::read(&dir.join("launcher.json"), 8192).ok()?).ok()?;
+        if record["protocol"].as_u64()? != LAUNCHER_PROTOCOL {
+            return Some(false);
+        }
+        let files = record["files"].as_object()?;
+        Some(!files.is_empty() && files.contains_key(EXE) && files.iter().all(|(name, digest)| {
+            fs::read(dir.join(name)).ok().is_some_and(|bytes| Some(release::digest(&bytes).as_str()) == digest.as_str())
+        }))
+    })()
+    .unwrap_or(false);
+    if intact {
+        return Ok(());
+    }
+    let own = self_executable().ok().and_then(|exe| {
+        let installed = installed_root(&exe)?;
+        let same = fs::canonicalize(&installed).ok()? == fs::canonicalize(root).ok()?;
+        let build = exe.parent()?.parent()?.parent()?.file_name()?.to_str()?.parse::<u64>().ok()?;
+        same.then(|| (exe.parent().map(Path::to_path_buf), build)).and_then(|(bin, build)| Some((bin?, build)))
+    });
+    let (bin, build) = own.unwrap_or_else(|| (package(root, current).join("bin"), current));
+    let staged = root.join(format!(".launcher-{}", nonce()?));
+    private_dir(&staged, true)?;
+    let copied = (|| -> Result<Value> {
+        let mut files = serde_json::Map::new();
+        for entry in fs::read_dir(&bin).map_err(|_| "Cannot read the program directory")? {
+            let source = entry.map_err(|_| "Cannot read the program directory")?.path();
+            let name = source.file_name().and_then(|n| n.to_str()).ok_or("Invalid program file")?.to_owned();
+            let lower = name.to_ascii_lowercase();
+            if !source.is_file() || !(name == EXE || lower.ends_with(".dll")) {
+                continue;
+            }
+            let bytes = fs::read(&source).map_err(|_| "Cannot read the companion program")?;
+            write_private(&staged.join(&name), &bytes)?;
+            files.insert(name, Value::String(release::digest(&bytes)));
+        }
+        if !files.contains_key(EXE) {
+            return Err("The current version has no companion program".into());
+        }
+        Ok(json!({"protocol": LAUNCHER_PROTOCOL, "build": build, "files": files}))
+    })();
+    let record = match copied {
+        Ok(record) => record,
+        Err(reason) => {
+            let _ = fs::remove_dir_all(&staged);
+            return Err(reason);
+        }
+    };
+    write_private(&staged.join("launcher.json"), &serde_json::to_vec_pretty(&record).map_err(|_| "Cannot encode the launcher record")?)?;
+    let aside = root.join(format!(".launcher-old-{}", nonce()?));
+    if dir.exists() && fs::rename(&dir, &aside).is_err() {
+        let _ = fs::remove_dir_all(&staged);
+        return Err("Cannot replace the PhotoFindry launcher while it is running. Stop the companion and retry; your library is kept.".into());
+    }
+    if fs::rename(&staged, &dir).is_err() {
+        let _ = fs::rename(&aside, &dir);
+        let _ = fs::remove_dir_all(&staged);
+        return Err("Cannot publish the PhotoFindry launcher. Your library is kept.".into());
+    }
+    let _ = fs::remove_dir_all(&aside);
+    Ok(())
+}
+/// `lifecycle run`: start the installed current version as the service and wait.
+#[cfg(windows)]
+fn run_service(root: &Path) -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    private_dir(root, false)?;
+    let cfg = read_state(root)?;
+    let exe = executable(root, cfg.current);
+    if !exe.is_file() {
+        return Err("The current PhotoFindry version is missing. Run lifecycle recover or reinstall; your library is kept.".into());
+    }
+    let status = Command::new(&exe)
+        .args(service_arguments(root, &cfg))
+        .stdin(Stdio::null())
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .status()
+        .map_err(|_| "Windows could not start the current PhotoFindry version.")?;
+    if status.success() { Ok(()) } else { Err(format!("The PhotoFindry companion stopped (exit {}).", status.code().unwrap_or(-1))) }
+}
 fn verifier(exe: &Path) -> Result<PathBuf> {
     release::canonical(&exe.parent().ok_or("Missing companion directory")?.join(VERIFIER), false)
 }
@@ -423,8 +539,13 @@ mod service {
     pub fn render(root: &Path, cfg: &Installation) -> Result<String> {
         let user = xml(&user()?)?;
         // conhost --headless keeps the console companion from opening a window.
-        let mut arguments = vec!["--headless".to_owned(), argument(&executable(root, cfg.current).to_string_lossy())];
-        arguments.extend(service_arguments(root, cfg).iter().map(|a| argument(a)));
+        // The launcher passes these paths on; reject the same unsafe values here.
+        xml(&cfg.data.to_string_lossy())?;
+        xml(&cfg.launch_state.to_string_lossy())?;
+        // The action names only the fixed launcher, which starts the current
+        // version itself, so switching versions leaves the logon task unchanged.
+        let arguments = ["--headless".to_owned(), argument(&launcher_executable(root).to_string_lossy()), "lifecycle".into(), "run".into(),
+            "--install-root".into(), argument(&root.to_string_lossy())];
         Ok(format!(
             r#"<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -452,19 +573,38 @@ mod service {
         ))
     }
     pub fn install(root: &Path, cfg: &Installation) -> Result<()> {
-        let path = root.join(format!("task-{}.xml", nonce()?));
-        let mut bytes = vec![0xff, 0xfe];
-        for unit in render(root, cfg)?.encode_utf16() {
-            bytes.extend_from_slice(&unit.to_le_bytes());
+        ensure_launcher(root, cfg.current)?;
+        let rendered = render(root, cfg)?;
+        // Register only when Windows holds a different definition (older builds
+        // write version paths). Microsoft Defender can treat an unsigned program
+        // that re-registers a logon task as persistence.
+        if !registered(root, &rendered)? {
+            let path = root.join(format!("task-{}.xml", nonce()?));
+            let mut bytes = vec![0xff, 0xfe];
+            for unit in rendered.encode_utf16() {
+                bytes.extend_from_slice(&unit.to_le_bytes());
+            }
+            write_private(&path, &bytes)?;
+            let name = unit(root)?;
+            let result = require(SCHTASKS, &["/Create", "/TN", name.as_str(), "/XML", &path.to_string_lossy(), "/F"], "Task Scheduler refused the per-user logon task.");
+            let _ = fs::remove_file(&path);
+            result?;
+            save(root, TASK_RECORD, &json!({"sha256": release::digest(rendered.as_bytes()), "registeredAt": now()}))?;
         }
-        write_private(&path, &bytes)?;
-        let name = unit(root)?;
-        let result = require(SCHTASKS, &["/Create", "/TN", name.as_str(), "/XML", &path.to_string_lossy(), "/F"], "Task Scheduler refused the per-user logon task.");
-        let _ = fs::remove_file(&path);
-        result?;desktop(root,cfg,false)
+        desktop(root,cfg,false)
     }
     pub fn start(root: &Path) -> Result<()> {
         require(SCHTASKS, &["/Run", "/TN", unit(root)?.as_str()], "Task Scheduler could not start the companion.")
+    }
+    /// Compare the action and logon-trigger state Windows actually holds with the
+    /// rendered definition. Windows prints quotes literally and omits a default
+    /// `<Enabled>true</Enabled>`; anything unreadable means re-register.
+    fn registered(root: &Path, rendered: &str) -> Result<bool> {
+        let output = run(SCHTASKS, &["/Query", "/TN", unit(root)?.as_str(), "/XML"])?;
+        if !output.status.success() || !rendered.is_ascii() {
+            return Ok(false);
+        }
+        Ok(task_fields(&String::from_utf8_lossy(&output.stdout)).is_some_and(|held| Some(held) == task_fields(rendered)))
     }
     fn present(root: &Path) -> Result<bool> {
         Ok(run(SCHTASKS, &["/Query", "/TN", unit(root)?.as_str()])?.status.success())
@@ -487,7 +627,7 @@ mod service {
         if present(root)? {
             require(SCHTASKS, &["/Delete", "/TN", unit(root)?.as_str(), "/F"], "Task Scheduler could not remove the logon task.")?;
         }
-        Ok(())
+        clear(root, TASK_RECORD)
     }
     pub fn schedule(root: &Path, action: &str) -> Result<()> {
         let cfg=read_state(root)?;
@@ -622,6 +762,7 @@ impl Drop for Stage {
 /// identical verified version is reused; a damaged one is set aside, never deleted.
 fn commit(root: &Path, staged: &Stage, signed: &release::Release, envelope: &[u8], current: Option<u64>) -> Result<()> {
     release::verify_package(&staged.0.join("package"), signed)?;
+    preflight(&staged.0.join("package"))?;
     write_private(&staged.0.join("release.json"), envelope)?;
     let target = root.join("versions").join(signed.build.to_string());
     if target.exists() {
@@ -636,6 +777,62 @@ fn commit(root: &Path, staged: &Stage, signed: &release::Release, envelope: &[u8
         fs::rename(&target, aside).map_err(|_| "Cannot set aside a damaged program version")?;
     }
     fs::rename(&staged.0, &target).map_err(|_| "Cannot publish the verified program version; current software is kept")?;
+    Ok(())
+}
+/// Start each staged program once before its version is published. Windows
+/// application control can refuse unsigned files (or a DLL they load) at load
+/// time even though their signed checksums match; a refused build must never
+/// replace working software. Probes are read-only: `--version` or empty input.
+#[cfg(windows)]
+const PROBES: &[(&str, &[&str])] = &[
+    ("bin/CompanionReleaseVerify.exe", &[]),
+    ("runtime/PhotoWorker.exe", &["--version"]),
+    ("runtime/PhotoEngine.exe", &["--version"]),
+    ("runtime/PhotoHelper.exe", &["--version"]),
+    ("runtime/llama/llama-server.exe", &["--version"]),
+];
+#[cfg(not(windows))]
+const PROBES: &[(&str, &[&str])] = &[];
+fn preflight(package: &Path) -> Result<()> {
+    for (relative, args) in PROBES {
+        probe(&package.join(relative), relative, args)?;
+    }
+    Ok(())
+}
+fn probe(path: &Path, name: &str, args: &[&str]) -> Result<()> {
+    let mut command = Command::new(path);
+    command.args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = command.spawn().map_err(|error| {
+        if release::app_control_refusal(error.raw_os_error()) {
+            release::APP_CONTROL_BLOCK.to_owned()
+        } else {
+            format!("Windows could not start {name} from the verified update. Current software is kept and your library is unchanged.")
+        }
+    })?;
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if std::time::Instant::now() < deadline => std::thread::sleep(Duration::from_millis(50)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{name} did not finish its start check. Current software is kept and your library is unchanged."));
+            }
+        }
+    };
+    if release::app_control_exit(status.code()) {
+        return Err(release::APP_CONTROL_BLOCK.into());
+    }
+    // NTSTATUS failures (loader errors, crashes) mean the program cannot run here.
+    if let Some(code) = status.code().map(|c| c as u32).filter(|c| *c >= 0xC000_0000) {
+        return Err(format!("Windows could not start {name} (status 0x{code:08X}). Current software is kept and your library is unchanged."));
+    }
     Ok(())
 }
 async fn switch(root: &Path, before: Installation, signed: &release::Release, rollback: bool) -> Result<()> {
@@ -1144,6 +1341,8 @@ pub async fn command(args: &[String]) -> Result<()> {
             start(&root, &cfg).await?;
             print(status(&root).await?)
         }
+        #[cfg(windows)]
+        "run" => run_service(&root)?,
         "stop" => {
             let _lock = operation_lock(&root)?;
             service::stop(&root).await?;
@@ -1170,6 +1369,38 @@ const USAGE: &str = "Use lifecycle install --release FILE [--data-dir DIR] [--la
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn held_task_definition_matches_the_rendered_one_as_windows_prints_it() {
+        let rendered = "<Triggers><LogonTrigger><Enabled>true</Enabled><UserId>S-1</UserId></LogonTrigger></Triggers>\n<Actions><Exec><Command>C:\\Windows\\System32\\conhost.exe</Command><Arguments>--headless &quot;C:\\P &amp; Q\\current\\bin\\photofindry.exe&quot; &quot;serve&quot;</Arguments></Exec></Actions>";
+        // schtasks /Query /XML: literal quotes/ampersands, default Enabled omitted, indentation.
+        let held = "<Triggers>\r\n    <LogonTrigger>\r\n      <UserId>S-1</UserId>\r\n    </LogonTrigger>\r\n  </Triggers>\r\n    <Exec>\r\n      <Command>C:\\Windows\\System32\\conhost.exe</Command>\r\n      <Arguments>--headless \"C:\\P & Q\\current\\bin\\photofindry.exe\" \"serve\"</Arguments>";
+        assert_eq!(task_fields(held), task_fields(rendered));
+        assert!(task_fields(rendered).unwrap().2);
+        let disabled = held.replace("<UserId>", "<Enabled>false</Enabled><UserId>");
+        assert!(!task_fields(&disabled).unwrap().2);
+        let older = held.replace("current", "versions\\132\\package");
+        assert_ne!(task_fields(&older), task_fields(rendered));
+        assert_eq!(task_fields("<Actions></Actions>"), None);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn preflight_refuses_a_program_windows_cannot_start() {
+        let temp=std::env::temp_dir().join(format!("pf-preflight-{}-{}",std::process::id(),nonce().unwrap()));
+        fs::create_dir_all(temp.join("bin")).unwrap();
+        // Not an executable image: CreateProcess fails as it does for a refused file.
+        fs::write(temp.join("bin/CompanionReleaseVerify.exe"),b"not a program").unwrap();
+        let error=preflight(&temp).unwrap_err();
+        assert!(error.contains("could not start bin/CompanionReleaseVerify.exe")&&error.contains("Current software is kept"),"{error}");
+        assert!(release::app_control_refusal(Some(4551))&&release::app_control_exit(Some(0xC000_0428u32 as i32)));
+        assert!(!release::app_control_refusal(Some(2))&&!release::app_control_exit(Some(1)));
+        let _=fs::remove_dir_all(&temp);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn preflight_accepts_programs_that_start() {
+        // The test binary itself lists its tests and exits normally.
+        probe(&std::env::current_exe().unwrap(),"test program",&["--list"]).unwrap();
+    }
     #[cfg(target_os = "linux")]
     #[test]
     fn maintenance_child_can_lock_before_dispatch_returns_and_excludes_other_operations() {
@@ -1260,11 +1491,20 @@ mod tests {
         let root = root();
         let text = service::render(&root, &sample(&root)).unwrap();
         let runtime = package(&root, 132).join("runtime");
-        assert!(text.contains("serve") && text.contains("--no-stdin") && text.contains("--launch-state"));
         assert!(!text.contains(&package(&root, 131).to_string_lossy().into_owned()));
+        if !cfg!(windows) {
+            assert!(text.contains("serve") && text.contains("--no-stdin") && text.contains("--launch-state"));
+        }
         if cfg!(windows) {
             assert!(text.contains("<LogonTrigger><Enabled>true</Enabled>") && text.contains("<RunLevel>LeastPrivilege</RunLevel>") && text.contains("InteractiveToken"));
-            assert!(text.contains(&format!("&quot;{}&quot;", runtime.display())));
+            // The task names only the fixed launcher; it never names a version,
+            // so switching versions does not re-register it.
+            let launcher = root.join("launcher").join(EXE);
+            assert!(text.contains(&format!("&quot;{}&quot; lifecycle run --install-root &quot;{}&quot;", launcher.display(), root.display())), "{text}");
+            assert!(!text.contains("versions") && !text.contains("serve"));
+            // The launcher starts the current version with the explicit paths.
+            let started = service_arguments(&root, &sample(&root));
+            assert!(started.contains(&runtime.to_string_lossy().into_owned()) && started.contains(&"--no-stdin".to_owned()));
         } else {
             assert!(text.contains(&format!("\"{}\"", runtime.display())) && text.contains("WantedBy=default.target"));
         }
@@ -1283,9 +1523,13 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn task_xml_escapes_markup_in_paths() {
-        let mut cfg = sample(&root());
+        // The task names only the install root (through the launcher); markup in
+        // it must be escaped. The library path is validated but not written.
+        let root = PathBuf::from(r"C:\Users\x\A&B <prog>");
+        let mut cfg = sample(&root);
         cfg.data = PathBuf::from(r"C:\Users\x\A&B <lib>");
-        let text = service::render(&root(), &cfg).unwrap();
-        assert!(text.contains("A&amp;B &lt;lib&gt;") && !text.contains("A&B <lib>"));
+        let text = service::render(&root, &cfg).unwrap();
+        assert!(text.contains("A&amp;B &lt;prog&gt;") && !text.contains("A&B <prog>"), "{text}");
+        assert!(!text.contains("lib&gt;") && !text.contains("A&B <lib>"));
     }
 }

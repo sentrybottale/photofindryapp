@@ -847,6 +847,12 @@
     if (detail.canUndo) sourceOptions.append(button('Undo last source relocation', async () => {
       if (await confirmation('Undo source relocation?', ['Restore the preceding saved original locations. Saved tags and human names are preserved.'], 'Undo relocation')) { await command('undoSourceRelink', { sourceId: source.id }); view.sourceChecks.delete(source.id); await renderSourcesFresh(); }
     }));
+    const compaction = view.historyCompaction;
+    if (compaction?.sourceId === source.id) {
+      const progress = el('p', 'pfp-note', historyCompactionText(compaction)); progress.setAttribute('role', 'status'); compaction.status = progress;
+      sourceOptions.append(progress, button('Stop compacting', () => { compaction.stop = true; }));
+    } else if (detail.compactHistory === true && !compaction) sourceOptions.append(button('Compact location history…', () => compactSourceHistory(source)));
+    if (Number(detail.catalogFreeBytes) >= 64 * 1048576 && !compaction) sourceOptions.append(button(`Reclaim ${largeSize(detail.catalogFreeBytes)} of catalog space…`, () => reclaimCatalogSpace(detail.catalogFreeBytes)));
     if (list(detail.candidates).length) {
       const candidates = disclosure('Review individual original locations', el('p', 'pfp-muted', 'Review uncertain candidates individually. Matching folder names alone do not prove that a photograph is the same original.'));
       for (const group of detail.candidates) {
@@ -862,6 +868,48 @@
       }
       pager(candidates, detail.offset || 0, detail.totalCount || 0, 100, async (offset) => { view.sourceOffset = offset; await renderSourcesFresh(); }, detail.candidates.length); body.append(candidates);
     }
+  }
+  const largeSize = (value) => { const n = Number(value) || 0; return n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : size(n); };
+  function historyCompactionText(run) {
+    const share = run.last > 0 ? Math.min(100, Math.floor(100 * run.cursor / run.last)) : 0;
+    return `Compacting location history… ${share}% checked · ${count(run.removed)} repeated entries removed. You can stop; completed parts are kept.`;
+  }
+  // Earlier builds saved one history entry per photograph on every cloud-drive
+  // remount. The worker removes only those same-location re-verifications in
+  // short committed slices; Stop, navigation or a refused slice keeps them.
+  async function compactSourceHistory(source) {
+    if (view.historyCompaction) return;
+    if (!await confirmation('Compact location history?', [
+      'Earlier versions saved a history entry for every photograph each time a cloud drive such as pCloud reconnected, even when nothing moved. This removes only those repeated entries for this source.',
+      'Folder moves, renames, confirmations and Undo last source relocation are kept. Saved tags, names, previews and originals are not changed.',
+      'Pause processing first. You can stop at any time; completed parts are kept.'], 'Compact history')) return;
+    const run = { sourceId: source.id, stop: false, cursor: 0, last: 0, removed: 0, checked: 0, status: null };
+    view.historyCompaction = run; await renderSourcesFresh();
+    let outcome = null;
+    try {
+      while (!run.stop && view.name === 'sources') {
+        const slice = await bridge().action('compactSourceHistory', { sourceId: source.id, offset: run.cursor, confirmed: true });
+        run.cursor = Number(slice.cursor) || run.cursor; run.last = Number(slice.lastEntry) || run.last;
+        run.removed += Number(slice.removed) || 0; run.checked += Number(slice.checked) || 0;
+        if (run.status?.isConnected) run.status.textContent = historyCompactionText(run);
+        if (slice.done) { outcome = 'done'; break; }
+      }
+    } finally {
+      view.historyCompaction = null;
+      const removed = `${count(run.removed)} repeated history ${run.removed === 1 ? 'entry' : 'entries'} removed`;
+      const message = outcome === 'done' ? `Location history compacted: ${removed}.` : `Compaction stopped: ${removed}. Run it again to continue.`;
+      if (run.removed || outcome === 'done') bridge().showNotice(message);
+      if (view.name === 'sources') await renderSourcesFresh();
+    }
+  }
+  async function reclaimCatalogSpace(bytes) {
+    if (!await confirmation('Reclaim catalog space?', [
+      `The library catalog holds ${largeSize(bytes)} of free space left by removed entries. Rewriting the catalog returns it to the disk.`,
+      'This needs free disk space about the size of the remaining catalog and can take a minute. Pause processing first. Saved photographs, tags and names are not changed.'], 'Reclaim space')) return;
+    await command('reclaimCatalogSpace', { confirmed: true }, (value) => Number(value?.reclaimed) > 0
+      ? `Catalog space reclaimed: ${largeSize(value.reclaimed)} returned to the disk.`
+      : 'The catalog was rewritten. Its free space returns to the disk at the next checkpoint.');
+    await renderSourcesFresh();
   }
   function sourceArchiveLabels() {
     const archiveID = input('', 128); archiveID.placeholder = 'Full archive UUID or PhotoFindry QR link';

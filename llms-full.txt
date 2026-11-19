@@ -6,7 +6,7 @@ PhotoFindry tags and searches photographs locally on Apple-silicon Mac, Linux x8
 
 ## Install the current beta
 
-**Mac and Linux: 0.3.0-beta.8 · build 142** — [release notes and downloads](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8). **Windows: 0.3.0-beta.2 · build 132** remains available from its signed platform feed.
+**Mac: 0.3.0-beta.9 · build 145** — [release notes and downloads](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.9). **Linux: 0.3.0-beta.8 · build 142** ([release](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8)). **Windows: 0.3.0-beta.2 · build 132** remains available from its signed platform feed.
 
 Choose the instructions for the computer where you will run PhotoFindry:
 
@@ -47,7 +47,7 @@ The clean [client snapshot](client/) is MIT, covering the browser UI, native lau
 
 # Install PhotoFindry
 
-**Mac and Linux: 0.3.0-beta.8 · build 142. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 9 November 2026.
+**Mac: 0.3.0-beta.9 · build 145. Linux: 0.3.0-beta.8 · build 142. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 19 November 2026.
 
 PhotoFindry installs a local background companion and opens a browser workspace. The public website does not receive your photos or library session. You do not need a PhotoFindry account, a subscription, a compiler, or a checkout of this repository.
 
@@ -177,7 +177,7 @@ Linux build 142 installation, update and real-model checks were performed on an 
 3. **Add a small source folder in Files.** Choose the existing originals folder with the platform picker. Original photographs stay in place. Cloud-backed originals need to be available locally when processing reads them.
 4. **Start tagging.** Adding a folder alone does not establish that it has accepted tags. Follow progress in Jobs. Saved jobs may reopen paused; choose Resume when you want them to continue.
 5. **Try ordinary search, then Local AI Search.** Ordinary search uses saved information. Local AI Search is an explicit model-assisted action.
-6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.8 / build 142** on Mac and Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
+6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.9 / build 145** on Mac, **0.3.0-beta.8 / build 142** on Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
 
 See [Getting started](https://github.com/sentrybottale/photofindryapp/blob/main/docs/getting-started.md) and [Search](https://github.com/sentrybottale/photofindryapp/blob/main/docs/search.md) for the full workflow.
 
@@ -189,7 +189,7 @@ The current program archives are:
 
 | Platform | Program archive | Download size, excluding your vision model |
 | --- | --- | --- |
-| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.8-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8) | 399,608,642 bytes (about 400 MB) |
+| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.9-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.9) | 399,617,940 bytes (about 400 MB) |
 | Linux x86-64 | [`PhotoFindry-0.3.0-beta.8-linux-x86_64-companion.tar.gz`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8) | 365,548,972 bytes (about 366 MB) |
 | Windows x64 | [`PhotoFindry-0.3.0-beta.2-windows-x86_64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2) | 87,222,087 bytes (about 87 MB) |
 
@@ -256,21 +256,17 @@ macOS 14 is the declared minimum; Showcase lenses need macOS 15 or later. macOS 
 
 ---
 
-# PhotoFindry 0.3.0-beta.8 · build 142
+# PhotoFindry 0.3.0-beta.9 · build 145
 
-This release adds household tagging for members, measured parallel tagging, faster related-search coverage and lens-builder fixes. Mac build 142 was published on 8 November 2026; Linux x86-64 build 142 followed on 9 November 2026. Windows keeps 0.3.0-beta.2 / build 132: in testing, Windows 11 Smart App Control blocked parts of the unsigned build 142, and Microsoft Defender flagged its update recovery, so it was not published.
+This Mac release makes failed photos easy to retry, keeps automatic background review out of your way, and stops cloud-drive remounts from growing the library catalog. Mac build 145 was published on 19 November 2026. Linux keeps 0.3.0-beta.8 / build 142 and Windows keeps 0.3.0-beta.2 / build 132; both stay on their own signed feeds. Build numbers 143 and 144 were used only for unpublished Windows test builds.
 
-**Household tagging (members).** Your other computers can tag this library with you. Pair a computer once under Settings → Household tagging; only reduced previews travel, only to computers you paired, over an encrypted connection on your home network. Originals, tags and the library stay on the library computer. Household tagging is part of the optional PhotoFindry membership: it needs an active membership key on every computer taking part, and it is the only members-only feature. Everything else stays free, and tags made with household tagging stay yours to search and export after a membership ends. Helping was tested between Apple-silicon Macs on build 142; the Linux build includes the same household code, but helping between a Mac and a Linux computer was not tested.
+**Retry everything in Needs attention.** Choose the Needs attention filter and a new **Retry tagging for these photos…** action queues every photo whose tagging failed in the current source or folder, in one job, regardless of the page you are on or the search text. Photos whose earlier retag failed keep their current tags if the retry fails again. Photos listed only because an automatic improvement review failed keep their tags and are not retagged. Photos whose originals are offline wait in Jobs and continue by themselves when their folder returns, while the others are tagged.
 
-**Parallel tagging where it is faster.** Check performance now also measures how many photos this computer can tag at a time. New tagging jobs use more than one only when it was clearly faster with every sample accepted; otherwise tagging stays one photo at a time.
+**Automatic improvement stays quiet.** When the automatic "Improve saved photograph details" review cannot improve some photos, the batch no longer appears as a failed job in your queue and no longer adds a notification. The affected photos still show their issue in Needs attention, and the job stays in history with Retry available. Failed automatic batches left by earlier versions leave the queue after the update. If automatic review fails as a whole, for example because the review model keeps failing, it waits six hours before trying again instead of reloading the model for another batch. Improvement you start yourself is unaffected and reports failures as before.
 
-**Faster related searches on large libraries.** The search index now keeps exact per-photo vector counts, so related searches and background search indexing no longer recount the whole vector table. Existing indexes are counted once in the background by the queued Build semantic search job; until it finishes, coverage is measured the old way.
+**Cloud drives no longer grow the catalog.** Cloud drives such as pCloud present a new disk identity every time they reconnect. Earlier versions recorded a location-history entry for every photo on each reconnect even though nothing moved, which could grow a large library's catalog by hundreds of megabytes per reconnect and made Undo last source relocation point at a no-op. Reconnects now refresh location proof without adding history; real moves, renames and confirmations are still recorded and undoable.
 
-**Lens builder.** Find photos like… offers only photos a lens build can measure, counts the ones without a saved preview and offers to prepare their previews. Searches in the lens builder are no longer cancelled by gallery refreshes while the main search box holds a query.
-
-**Removed photos.** Finder metadata files no longer block emptying Removed.
-
-**Linux.** Build 142 brings household tagging, parallel tagging, exact vector counts and the Removed fix to Linux, with refreshed third-party notices. Showcase lenses remain Mac-only.
+**Clean up existing history and space.** In Files, a source with a large location history offers **Compact location history…**, which removes only those repeated reconnect entries in short, stoppable steps; moves, renames, confirmations and Undo are kept. When the catalog holds at least 64 MB of free space, **Reclaim … of catalog space…** rewrites it to return that space to the disk. Both ask for confirmation and change no originals, tags, names or previews.
 
 Updates preserve the library, originals, model paths, saved lenses and saved work. All inference remains local. The MIT client excludes proprietary engine source and private development history. The beta 16 Mac-app migration channel is unchanged.
 
