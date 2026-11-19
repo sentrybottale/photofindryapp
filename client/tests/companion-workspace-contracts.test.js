@@ -26,6 +26,10 @@ function harness(overrides = {}) {
     click() { return this.disabled ? Promise.resolve() : this.fire('click'); }
     focus() { document.activeElement = this; }
     select() {} scrollIntoView() {} after() {}
+    before(...nodes) {
+      const siblings = this.parentNode?.children; if (!siblings) return;
+      siblings.splice(siblings.indexOf(this), 0, ...nodes); for (const node of nodes) node.parentNode = this.parentNode;
+    }
     showModal() { this.open = true; }
     close() { if (!this.open) return; this.open = false; queueMicrotask(() => this.fire('close')); }
     remove() { this.isConnected = false; if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((node) => node !== this); }
@@ -124,6 +128,23 @@ test('retag freezes a nonempty explicit selection across its confirmation', asyn
     const submissions = ui.calls.filter((call) => call.name === 'enqueueJob');
     assert.deepEqual(submissions, [{ name: 'enqueueJob', params: { kind: 'tagging', params: { photoIds: ['photo-a', 'photo-b'], force: true } } }]);
     ui.select([]); assert.equal(ui.ids.get('selection-actions').hidden, true);
+    assert.deepEqual(ui.errors, []);
+  } finally { await ui.close(); }
+});
+
+test('Needs attention offers one scoped retry for every failed tagging attempt', async () => {
+  const ui = harness({ responses: { enqueueJob: () => ({ id: 'retry-job', total: 11937 }) } });
+  try {
+    const bar = ui.all().find(node => node.className.includes('attention-retry'));
+    assert(bar, 'retry bar is attached beside the library notices'); assert.equal(bar.hidden, true);
+    ui.scope.status = 'needsAttention'; ui.emit('scope'); assert.equal(bar.hidden, false);
+    await ui.findButton('Retry tagging for these photos…').click();
+    const dialog = ui.all().find(node => node.tagName === 'DIALOG' && node.open);
+    assert.match(dialog.textContent, /this source/); assert.match(dialog.textContent, /improvement issue keep their tags/);
+    await ui.findButton('Retry tagging').click();
+    assert.deepEqual(ui.calls.filter(call => call.name === 'enqueueJob'), [{ name: 'enqueueJob', params: { kind: 'tagging', params: { sourceId: 'source-a', retryFailed: true } } }]);
+    assert.match(ui.notices.at(-1), /Queued 11,937 photographs/);
+    ui.scope.status = 'all'; ui.emit('scope'); assert.equal(bar.hidden, true);
     assert.deepEqual(ui.errors, []);
   } finally { await ui.close(); }
 });

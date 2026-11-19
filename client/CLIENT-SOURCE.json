@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "bc3a19805a5de77c11cabb844ce41d1dccbe80fe19bee57c84de88ec0985e45e",
+  "exportManifestSHA256": "87f2a684d2510e1e2742aa5f630bafe31d575f586d95fa94bff950abb9fac87d",
   "files": [
     {
       "bytes": 1182,
@@ -177,9 +177,9 @@
       "sha256": "5f73e2af54fe323a56a63044c7a34cf8d78c443908edba3f20e96355cfb5f8da"
     },
     {
-      "bytes": 36172,
+      "bytes": 37375,
       "path": "engine/companion/src/cli_release.rs",
-      "sha256": "3359282727a80a3832f8ec1e1d4c3584cdcd62f4e3c18902b9f8618cae1c2237"
+      "sha256": "251db9cfaf26f62c4f449961200b477e12667136a8127e7a40ac2d312ec5e66a"
     },
     {
       "bytes": 4740,
@@ -277,14 +277,14 @@
       "sha256": "2abf2724d3730b739476a95c036fe7ead4bff7c9b3cbe372fcee337480905b23"
     },
     {
-      "bytes": 46998,
+      "bytes": 48365,
       "path": "engine/companion/src/operations.rs",
-      "sha256": "939fb1fb6bc6a759922d0ed9cbc41e28031f80874e062a1d32ee79b91ff98cfd"
+      "sha256": "8496d5a1f957d103cef3450b5380fe89c12c28bcb53ebb30c522229726763dd0"
     },
     {
-      "bytes": 64570,
+      "bytes": 78325,
       "path": "engine/companion/src/platform_lifecycle.rs",
-      "sha256": "76be7b9d88fc0261dbbde217ec2925b16d1217f77e7d8adbf3844d0a1c08c4aa"
+      "sha256": "3fe18692b40a9cd2e105ea6f1748ecb15aafdb75aff49aed2765f2ab46f085b9"
     },
     {
       "bytes": 4029,
@@ -562,9 +562,9 @@
       "sha256": "243f2fce2595879bbcc9213b4f4891e337f35a31795b498e52b2b609b4ec4ed2"
     },
     {
-      "bytes": 108316,
+      "bytes": 111702,
       "path": "tests/companion-panel-contracts.test.js",
-      "sha256": "51db0144ad2a40819512a2376bda21cd7415f3264579a2ced3ecfb06733d7334"
+      "sha256": "5cb87f2fd356c47843dfa51da00dcbb23587909a123d5e9976a53f2aec8dc368"
     },
     {
       "bytes": 3594,
@@ -587,9 +587,9 @@
       "sha256": "cc02bd63416f6ad6975c606897087e29ae7332222840082de55f39674ab31010"
     },
     {
-      "bytes": 83476,
+      "bytes": 84903,
       "path": "tests/companion-workspace-contracts.test.js",
-      "sha256": "f9cbfd99217cdf197a39761083a2a3c4a822c973c424ae7cafcb032a327598b9"
+      "sha256": "5f72620dfd796158fdbac37f4a21a0ab3617f6c5aca32d2ec24945a2ab2be813"
     },
     {
       "bytes": 5931,
@@ -782,9 +782,9 @@
       "sha256": "5a6d638da933b855508d5d8ce31b9fdb064abc0907016caebd82f270e1a70d76"
     },
     {
-      "bytes": 168886,
+      "bytes": 172859,
       "path": "web-companion/panels.js",
-      "sha256": "cc6cc105b932b907fe660153b34fc2850b844b6246378c4ec687cd3fab898184"
+      "sha256": "803af64b3a2bcb25a0b151ffac378437b10a4669a6cb9319b64e622ac55f7cbd"
     },
     {
       "bytes": 9682,
@@ -827,18 +827,18 @@
       "sha256": "40d9c35d2520686f99c889c54ba86aa04896e5bc73df0d0a7a46a13496da1e78"
     },
     {
-      "bytes": 12076,
+      "bytes": 12231,
       "path": "web-companion/workspace.css",
-      "sha256": "0c76414f38e948071721183d617d1c7217261cd53887e7000d13064ace4520f8"
+      "sha256": "1f528617037d4fb36e1c66fed98bfe559502730e8b4c721e1dda7d82c13152ca"
     },
     {
-      "bytes": 168090,
+      "bytes": 169624,
       "path": "web-companion/workspace.js",
-      "sha256": "a3e17de9793ba78798c8f13cc2bda52e64faaeaadb1ae8743cbd4d81af6e39bc"
+      "sha256": "7c0c2514ed9e9b87283cc93eb0fbb4048c0d3ad83d83e9b6a211ff18e6aac548"
     }
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "ff64eb29677ba245b23cce5a91f3b4e5097f9693",
+  "privateBuildRevision": "164369f592f22a910050c8653abcf41498782d07",
   "schema": 1
 }

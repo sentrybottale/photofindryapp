@@ -789,6 +789,23 @@
   statusChoice.addEventListener('change', () => run(() => P.setScope({ status: statusChoice.value })));
   sortChoice.addEventListener('change', () => run(() => P.setScope({ sort: sortChoice.value })));
   relatedChoice.node.addEventListener('change', () => run(() => P.setScope({ includeRelated: relatedChoice.node.checked })));
+  // Needs attention can hold thousands of failed tagging attempts. One explicit
+  // action queues them all again for the current source/folder scope.
+  const attentionRetry = el('div', 'notice attention-retry'); attentionRetry.hidden = true;
+  attentionRetry.append(el('span', '', 'Photographs whose tagging failed can be queued again together. Unavailable originals wait in Jobs and continue when their folder returns. '),
+    button('Retry tagging for these photos…', openAttentionRetry, true));
+  $('query-notice')?.before(attentionRetry);
+  function openAttentionRetry() {
+    const { sourceId, scopeId } = P.getScope();
+    const where = scopeId ? 'this folder and its subfolders' : sourceId ? 'this source' : 'the whole library';
+    confirmAction('Retry tagging for photos that need attention?',
+      `Queues every photograph in ${where} whose tagging attempt failed, independently of the current page and search text. Failed retags keep their current tags if the retry fails again. Photos listed only for an improvement issue keep their tags and are not retagged.`,
+      'Retry tagging', async () => {
+        const result = await enqueue('tagging', { ...scopedParams(), retryFailed: true });
+        const total = Number(result?.total ?? result?.job?.total);
+        if (Number.isFinite(total) && total > 0) P.showNotice(`Queued ${fmt.format(total)} photographs for another tagging attempt. Progress is in Jobs.`);
+      });
+  }
   let scopeSignature = '';
   const knownFolders = new Map();
   function rememberFolders(folders) {
@@ -819,6 +836,7 @@
       folderChoice.value = scope.scopeId;
     }
     statusChoice.value = scope.status; relatedChoice.node.checked = scope.includeRelated;
+    attentionRetry.hidden = scope.status !== 'needsAttention' || Boolean(P.getAIJobId());
     const filterCount = Object.values(scope.metadataFilters).filter((value) => String(value).trim()).length;
     metadataButton.textContent = `Camera, place & time${filterCount ? ` · ${filterCount}` : ''}`;
     sortChoice.value = P.getAIJobId() ? P.getPage()?.sort || 'relevance' : scope.sort;
