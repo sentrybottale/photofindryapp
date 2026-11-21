@@ -1983,21 +1983,45 @@ async fn open_local_browser_in(executable:&Path,target:&launch::LaunchTarget,bro
     Ok(())
 }
 
+/// Current openers exit once LaunchServices has accepted the fixed URL, within
+/// a few seconds even while a browser that was not running starts. An older
+/// opener selected by rollback waits for that whole cold browser launch, which
+/// can exceed the former five-second limit, so allow it a longer bounded wait.
+const BROWSER_OPENER_LIMIT:Duration=Duration::from_secs(30);
+const BROWSER_OPENER_PROGRESS:Duration=Duration::from_secs(5);
+
 async fn run_browser_opener(helper:&Path,request:&serde_json::Value)->Result<bool,String> {
+    run_browser_opener_within(helper,request,BROWSER_OPENER_LIMIT).await
+}
+
+async fn run_browser_opener_within(helper:&Path,request:&serde_json::Value,limit:Duration)->Result<bool,String> {
     // Transfer the one-use capability only over the trusted helper's stdin.
     let mut browser=launch::desktop_command(helper).arg("--open-local")
         .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null()).kill_on_drop(true).spawn()
         .map_err(|_| "The installed PhotoFindry browser opener is unavailable.")?;
     let bytes=serde_json::to_vec(request).map_err(|_| "Cannot prepare local browser opening.")?;
-    let status=tokio::time::timeout(Duration::from_secs(5),async {
+    let status=tokio::time::timeout(limit,async {
         use tokio::io::AsyncWriteExt;
         let mut input=browser.stdin.take().ok_or("Cannot contact the local browser opener.")?;
         input.write_all(&bytes).await.map_err(|_| "Cannot contact the local browser opener.")?;
         input.shutdown().await.map_err(|_| "Cannot complete local browser opening.")?;
         drop(input);
-        browser.wait().await.map_err(|_| "Cannot open the local workspace in your browser.")
-    }).await.map_err(|_| "The local browser opener did not respond.")??;
+        let waiting=browser.wait();
+        tokio::pin!(waiting);
+        tokio::select! {
+            status=&mut waiting=>status,
+            _=tokio::time::sleep(BROWSER_OPENER_PROGRESS.min(limit))=>{
+                // Only a person at a terminal sees this. The native launcher
+                // shows captured stderr as its error, so it stays clean there.
+                use std::io::IsTerminal;
+                if std::io::stderr().is_terminal() {
+                    eprintln!("Waiting for your browser to finish starting (up to {} seconds)…",limit.as_secs());
+                }
+                waiting.await
+            },
+        }.map_err(|_| "Cannot open the local workspace in your browser.")
+    }).await.map_err(|_| format!("Your browser did not confirm opening PhotoFindry within {} seconds.",limit.as_secs()))??;
     Ok(status.success())
 }
 
@@ -2106,6 +2130,48 @@ pub async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn browser_opening_outlasts_a_cold_browser_start_but_stays_bounded() {
+        use std::os::unix::fs::PermissionsExt;
+        let nonce=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let base=PathBuf::from("/private/tmp").join(format!("pf-cold-browser-{}-{nonce}",std::process::id()));
+        let bin=base.join("bin");
+        for directory in [&base,&bin] {std::fs::create_dir(directory).unwrap();std::fs::set_permissions(directory,std::fs::Permissions::from_mode(0o700)).unwrap();}
+        let executable=bin.join("photofindry");let opener=bin.join("CompanionLauncher");
+        let opened=base.join("browser-target.json");let pid=base.join("opener.pid");
+        let install=|script:String|{std::fs::write(&opener,script).unwrap();std::fs::set_permissions(&opener,std::fs::Permissions::from_mode(0o700)).unwrap();};
+        std::fs::write(&executable,b"not executed").unwrap();std::fs::set_permissions(&executable,std::fs::Permissions::from_mode(0o700)).unwrap();
+        // Build 145 failed here: an opener that only exits once a browser that
+        // was not running has finished starting (as an older, synchronous opener
+        // still does after rollback) outlasted the former five-second wait.
+        install(format!("#!/bin/sh\n[ \"$1\" = --open-local ] || exit 3\n/bin/sleep 6\nexec /bin/cat > '{}'\n",opened.display()));
+        let target=launch::LaunchTarget{port:4321,ticket:"a".repeat(64),archive_id:None};
+        let started=std::time::Instant::now();
+        open_local_browser_in(&executable,&target,None).await.unwrap();
+        assert!(started.elapsed()>=Duration::from_secs(6));
+        let delivered:Value=serde_json::from_slice(&std::fs::read(&opened).unwrap()).unwrap();
+        assert_eq!(delivered,json!({"port":4321,"ticket":"a".repeat(64)}),"Only the fixed record reaches the opener, once");
+        // An opener that never finishes is still bounded: a specific error, and
+        // the helper itself is stopped rather than left running.
+        install(format!("#!/bin/sh\n[ \"$1\" = --open-local ] || exit 3\necho $$ > '{}'\n/bin/cat > /dev/null\nexec /bin/sleep 60\n",pid.display()));
+        let helper=launch::browser_opener(&executable).unwrap();
+        let request=serde_json::to_value(&target).unwrap();
+        let started=std::time::Instant::now();
+        let error=run_browser_opener_within(&helper,&request,Duration::from_secs(1)).await.unwrap_err();
+        assert!(started.elapsed()<Duration::from_secs(3),"The wait must stay bounded");
+        assert!(error.contains("did not confirm opening PhotoFindry within 1 seconds"),"{error}");
+        let pid=std::fs::read_to_string(&pid).unwrap().trim().to_owned();
+        let deadline=std::time::Instant::now()+Duration::from_secs(3);
+        loop {
+            let state=std::process::Command::new("/bin/ps").args(["-o","stat=","-p",&pid]).output().unwrap();
+            let state=String::from_utf8_lossy(&state.stdout).trim().to_owned();
+            if state.is_empty()||state.starts_with('Z') {break}
+            assert!(std::time::Instant::now()<deadline,"A timed-out opener must be stopped, not left running ({state})");
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert_eq!(BROWSER_OPENER_LIMIT,Duration::from_secs(30));
+        std::fs::remove_dir_all(&base).unwrap();
+    }
     #[test]
     fn startup_timeout_names_the_stage_and_preserved_recovery_path() {
         let error = startup_timeout_error("checking the photo catalog");

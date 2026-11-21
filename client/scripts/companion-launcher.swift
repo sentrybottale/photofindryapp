@@ -427,24 +427,49 @@ func openLocalWorkspaceFromInput() -> Bool {
         }
     } catch { return false }
     guard let request=localWorkspaceRequest(input) else {return false}
-    if let browser=request.browser {
-        // The caller retries without the field if this opener is too old to
-        // accept it; here an unavailable browser falls back to the default.
-        if let application=webBrowserApplication(browser,handlers:loopbackBrowsers()) {
-            let finished=LinkRegistrationResult()
-            NSWorkspace.shared.open([request.url],withApplicationAt:application,configuration:NSWorkspace.OpenConfiguration()) {_,error in
-                finished.finish(error==nil)
-            }
-            let deadline=ProcessInfo.processInfo.systemUptime+3
-            while finished.value()==nil && ProcessInfo.processInfo.systemUptime<deadline {
-                if !RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.025)) {Thread.sleep(forTimeInterval:0.005)}
-            }
-            // Still pending means LaunchServices accepted it; a second opening
-            // would only spend the one-use ticket in another browser.
-            if finished.value() != false {return true}
-        }
+    return openLocalWorkspace(request)
+}
+
+// LaunchServices reports an open only after the browser has launched and
+// checked in. A browser that is not already running can take longer than its
+// caller waits (companions up to build 145 allow this helper five seconds), and
+// the former synchronous NSWorkspace.open blocked for that whole launch. Once
+// LaunchServices holds the request it still delivers the fixed URL when this
+// helper exits or is stopped, so a request pending at the end of its acceptance
+// window has been handed off. A running browser confirms in milliseconds and an
+// explicit rejection still fails. Never open twice: a second opening would only
+// spend the one-use ticket in another browser.
+typealias LocalWorkspaceOpen = (URL, URL?, @escaping @Sendable (Bool)->Void) -> Void
+func systemLocalWorkspaceOpen(_ url: URL, _ application: URL?, _ finished: @escaping @Sendable (Bool)->Void) {
+    let configuration=NSWorkspace.OpenConfiguration()
+    if let application {
+        NSWorkspace.shared.open([url],withApplicationAt:application,configuration:configuration) {_,error in finished(error==nil)}
+    } else {
+        NSWorkspace.shared.open(url,configuration:configuration) {_,error in finished(error==nil)}
     }
-    return NSWorkspace.shared.open(request.url)
+}
+// Worst case (a requesting browser rejected at the end of its window, then the
+// default still launching) stays inside the five-second wait of older callers.
+func openLocalWorkspace(_ request: LocalWorkspaceRequest, handlers: () -> [URL] = loopbackBrowsers,
+                        acceptance: TimeInterval = 2.5, fallbackAcceptance: TimeInterval = 1.5,
+                        open: LocalWorkspaceOpen = systemLocalWorkspaceOpen) -> Bool {
+    func handedOff(_ application: URL?, within window: TimeInterval) -> Bool {
+        let finished=LinkRegistrationResult()
+        open(request.url,application) {finished.finish($0)}
+        let deadline=ProcessInfo.processInfo.systemUptime+max(0,window)
+        while finished.value()==nil && ProcessInfo.processInfo.systemUptime<deadline {
+            if !RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.025)) {Thread.sleep(forTimeInterval:0.005)}
+        }
+        // Still pending: LaunchServices accepted it and is starting the browser.
+        return finished.value() != false
+    }
+    // The caller retries without the field if this opener is too old to
+    // accept it; here an unavailable or rejecting browser falls back to the default.
+    if let browser=request.browser, let application=webBrowserApplication(browser,handlers:handlers()) {
+        if handedOff(application,within:acceptance) {return true}
+        return handedOff(nil,within:fallbackAcceptance)
+    }
+    return handedOff(nil,within:acceptance)
 }
 
 final class LinkRegistrationResult: @unchecked Sendable {
