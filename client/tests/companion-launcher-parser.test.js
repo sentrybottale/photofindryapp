@@ -186,6 +186,67 @@ print("Native launch parsers passed; no browser or registration was invoked.")
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('native browser opener hands a cold browser start to LaunchServices without waiting for it or opening twice', { skip: process.platform !== 'darwin' }, () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pf-cold-browser-')));
+  try {
+    const original = fs.readFileSync(path.join(__dirname, '../scripts/companion-launcher.swift'), 'utf8');
+    const marker = '// Native launcher entry point.';
+    assert.equal(original.split(marker).length, 2);
+    // Every LaunchServices call is injected: no browser opens and no
+    // registration or default-handler preference is read or changed.
+    const driver = String.raw`
+let root=URL(fileURLWithPath:CommandLine.arguments[1])
+let browserApp=root.appendingPathComponent("Fixture Browser.app")
+try! FileManager.default.createDirectory(at:browserApp.appendingPathComponent("Contents"),withIntermediateDirectories:true)
+try! PropertyListSerialization.data(fromPropertyList:["CFBundleIdentifier":"com.example.photofindry-fixture-browser","CFBundlePackageType":"APPL"],format:.xml,options:0)
+    .write(to:browserApp.appendingPathComponent("Contents/Info.plist"))
+let ticket=String(repeating:"a",count:64)
+let plain=localWorkspaceRequest(try! JSONSerialization.data(withJSONObject:["port":23456,"ticket":ticket]))!
+let chosen=localWorkspaceRequest(try! JSONSerialization.data(withJSONObject:["port":23456,"ticket":ticket,"browser":"com.example.photofindry-fixture-browser"]))!
+var calls=[URL?]()
+func timed(_ body:()->Bool)->(Bool,TimeInterval) {let start=ProcessInfo.processInfo.systemUptime;let result=body();return (result,ProcessInfo.processInfo.systemUptime-start)}
+// Cold default browser: LaunchServices accepted the request but calls back only
+// once the browser has started. Return after the acceptance window, open once.
+var (opened,elapsed)=timed{openLocalWorkspace(plain,handlers:{assertionFailure("No browser was requested");return []},acceptance:0.3,open:{url,application,_ in
+    assert(url==plain.url);calls.append(application)})}
+assert(opened && elapsed>=0.3 && elapsed<1.5 && calls==[nil])
+// A running browser confirms quickly; the helper does not wait out its window.
+calls=[];(opened,elapsed)=timed{openLocalWorkspace(plain,acceptance:5,open:{_,application,finished in
+    calls.append(application);DispatchQueue.global().asyncAfter(deadline:.now()+0.05){finished(true)}})}
+assert(opened && elapsed<1 && calls==[nil])
+// An explicit rejection still fails, without a second attempt.
+calls=[];(opened,elapsed)=timed{openLocalWorkspace(plain,acceptance:5,open:{_,application,finished in calls.append(application);finished(false)})}
+assert(!opened && elapsed<1 && calls==[nil])
+// The requesting browser is still starting: never follow it with a default
+// open, which would spend the one-use ticket in another browser.
+calls=[];(opened,_)=timed{openLocalWorkspace(chosen,handlers:{[browserApp]},acceptance:0.3,fallbackAcceptance:0.3,open:{_,application,_ in calls.append(application)})}
+assert(opened && calls==[browserApp])
+// A rejecting requested browser falls back once to the default, which may itself be starting.
+calls=[];(opened,_)=timed{openLocalWorkspace(chosen,handlers:{[browserApp]},acceptance:5,fallbackAcceptance:0.3,open:{_,application,finished in
+    calls.append(application);if application != nil {finished(false)}})}
+assert(opened && calls==[browserApp,nil])
+calls=[];(opened,_)=timed{openLocalWorkspace(chosen,handlers:{[browserApp]},open:{_,application,finished in calls.append(application);finished(false)})}
+assert(!opened && calls==[browserApp,nil])
+// An unregistered browser identifier opens the default directly.
+calls=[];(opened,_)=timed{openLocalWorkspace(chosen,handlers:{[]},acceptance:0.1,open:{_,application,_ in calls.append(application)})}
+assert(opened && calls==[nil])
+// Production windows: the worst case (requested browser rejected at the end of
+// its window, then a cold default) must finish inside build 145's five-second wait.
+calls=[];(opened,elapsed)=timed{openLocalWorkspace(chosen,handlers:{[browserApp]},open:{_,application,finished in
+    calls.append(application);if application != nil {DispatchQueue.global().asyncAfter(deadline:.now()+2.4){finished(false)}}})}
+assert(opened && calls==[browserApp,nil] && elapsed>=3.5 && elapsed<4.5, "worst case took \(elapsed)s")
+print("Cold browser hand-off checks passed; no browser was opened.")
+`;
+    const source = path.join(root, 'main.swift'), binary = path.join(root, 'cold-browser');
+    fs.writeFileSync(source, original.slice(0, original.indexOf(marker)) + driver);
+    const compiled = spawnSync('/usr/bin/xcrun', ['swiftc', '-framework', 'AppKit', '-framework', 'CoreServices', source, '-o', binary], { encoding: 'utf8', timeout: 60000 });
+    assert.equal(compiled.status, 0, compiled.stderr);
+    const result = spawnSync(binary, [root], { encoding: 'utf8', timeout: 15000 });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), 'Cold browser hand-off checks passed; no browser was opened.');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('native uninstall requires its own package, explicit confirmation and a revalidated Trash target', { skip: process.platform !== 'darwin' }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pf-uninstall-parser-'));
   try {
