@@ -1,6 +1,6 @@
 # Install PhotoFindry
 
-**Mac: 0.3.0-beta.10 · build 146. Linux: 0.3.0-beta.8 · build 142. Windows: 0.3.0-beta.2 · build 132.** Installation guide updated 21 November 2026.
+**Mac: 0.3.0-beta.11 · build 149. Linux: 0.3.0-beta.8 · build 142. Windows: 0.3.0-beta.11 · build 149.** Installation guide updated 27 November 2026.
 
 PhotoFindry installs a local background companion and opens a browser workspace. The public website does not receive your photos or library session. You do not need a PhotoFindry account, a subscription, a compiler, or a checkout of this repository.
 
@@ -130,7 +130,7 @@ Linux build 142 installation, update and real-model checks were performed on an 
 3. **Add a small source folder in Files.** Choose the existing originals folder with the platform picker. Original photographs stay in place. Cloud-backed originals need to be available locally when processing reads them.
 4. **Start tagging.** Adding a folder alone does not establish that it has accepted tags. Follow progress in Jobs. Saved jobs may reopen paused; choose Resume when you want them to continue.
 5. **Try ordinary search, then Local AI Search.** Ordinary search uses saved information. Local AI Search is an explicit model-assisted action.
-6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.10 / build 146** on Mac, **0.3.0-beta.8 / build 142** on Linux or **0.3.0-beta.2 / build 132** on Windows; a later signed release may be installed by the same setup command.
+6. **Check Settings/About** for the installed version and background companion status. For the current release, expect **0.3.0-beta.11 / build 149** on Mac, **0.3.0-beta.8 / build 142** on Linux or **0.3.0-beta.11 / build 149** on Windows; a later signed release may be installed by the same setup command.
 
 See [Getting started](https://github.com/sentrybottale/photofindryapp/blob/main/docs/getting-started.md) and [Search](https://github.com/sentrybottale/photofindryapp/blob/main/docs/search.md) for the full workflow.
 
@@ -142,9 +142,9 @@ The current program archives are:
 
 | Platform | Program archive | Download size, excluding your vision model |
 | --- | --- | --- |
-| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.10-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.10) | 399,628,769 bytes (about 400 MB) |
+| Apple-silicon Mac | [`PhotoFindry-0.3.0-beta.11-arm64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.11) | 399,738,906 bytes (about 400 MB) |
 | Linux x86-64 | [`PhotoFindry-0.3.0-beta.8-linux-x86_64-companion.tar.gz`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.8) | 365,548,972 bytes (about 366 MB) |
-| Windows x64 | [`PhotoFindry-0.3.0-beta.2-windows-x86_64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.2) | 87,222,087 bytes (about 87 MB) |
+| Windows x64 | [`PhotoFindry-0.3.0-beta.11-windows-x86_64-companion.zip`](https://github.com/sentrybottale/photofindryapp/releases/tag/v0.3.0-beta.11) | 88,567,275 bytes (about 89 MB) |
 
 Other assets have different purposes:
 
@@ -189,7 +189,7 @@ This section is only for users of the older native Mac application. Fresh Mac us
 | Publisher/signature verification failed | Keep the installed library and software. Check your connection and the official instructions; do not accept a different key to get past the error. |
 | Windows reports a missing Microsoft runtime DLL | Install or repair Microsoft's Visual C++ v14 **x64** runtime, then rerun the complete setup block. Do not download individual DLLs from third-party sites. |
 | Windows setup says to use a normal user | Close the elevated PowerShell window and reopen Windows PowerShell normally. |
-| Windows says the signature verifier is unavailable, or Local AI reports that the native command failed | PhotoFindry's Windows program files are not yet code-signed. With Windows 11 **Smart App Control** turned on, Windows can block them (**Event Viewer → Applications and Services Logs → Microsoft → Windows → CodeIntegrity → Operational** lists the blocked files). Your library is not changed. Signed Windows builds are not yet available. |
+| Windows says the signature verifier is unavailable, or Local AI reports that the native command failed | PhotoFindry's Windows program files are not yet code-signed. With Windows 11 **Smart App Control** turned on, Windows can block them (**Event Viewer → Applications and Services Logs → Microsoft → Windows → CodeIntegrity → Operational** lists the blocked files). Microsoft Defender can also report `Behavior:Win32/Persistence.A!ml` and remove a PhotoFindry program file; rerun the setup block to restore verified files. Your library is not changed. Signed Windows builds are not yet available. |
 | Microsoft Defender reports **Behavior:Win32/Persistence.A!ml** for `photofindry.exe` | PhotoFindry starts its companion through a per-user logon task in Task Scheduler. Defender can treat an unsigned program that registers such a task as suspicious and quarantine it; your library and originals are not changed. In testing this happened when a build re-registered the task during update recovery. You can report the file to Microsoft as an incorrect detection at microsoft.com/wdsi/filesubmission. PhotoFindry does not change Defender settings. |
 | Linux reports a missing tool or user manager | Install the named dependency, or log in to a session where `systemctl --user show-environment` works. Rerun as your normal user. |
 | Linux has no folder chooser | Install `zenity` and use a desktop session. |

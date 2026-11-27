@@ -45,6 +45,95 @@ func configureNativeOpenPanel(_ panel: NSOpenPanel, kind: String) {
     }
 }
 
+// macOS 14 and later may refuse to activate an app that the companion starts
+// in the background. A chooser shown at once then stays in an inactive window:
+// macOS draws its contents in a separate panel service, so clicks select rows
+// only in some places. macOS does consider activating an app that has its own
+// window, so this helper first runs one: invisible at first, and when macOS
+// activates it the chooser opens focused straight away. If activation has not
+// happened after a moment, the window appears with a Choose button; the
+// person's click on it activates this helper (the button accepts that first
+// click), and the chooser then opens focused and fully usable.
+final class FocusFirstClickButton: NSButton {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+final class FocusPromptTarget: NSObject, NSWindowDelegate {
+    @objc func choose(_ sender: Any?) { NSApp.stopModal(withCode: .OK) }
+    @objc func cancel(_ sender: Any?) { NSApp.stopModal(withCode: .cancel) }
+    func windowWillClose(_ notification: Notification) { NSApp.stopModal(withCode: .cancel) }
+}
+func focusSettle(_ app: NSApplication, seconds: TimeInterval) {
+    let until = Date().addingTimeInterval(seconds)
+    while !app.isActive && Date() < until { _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05)) }
+}
+/// Returns false when the person cancelled the prompt.
+func focusBeforeChooser(title: String, action: String) -> Bool {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    app.finishLaunching()
+    app.activate()
+    focusSettle(app, seconds: 0.4)
+    if app.isActive { return true }
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 132), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    window.title = "PhotoFindry"
+    window.level = .floating
+    window.isReleasedWhenClosed = false
+    let target = FocusPromptTarget()
+    window.delegate = target
+    let heading = NSTextField(wrappingLabelWithString: title)
+    heading.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
+    let note = NSTextField(wrappingLabelWithString: "Your Mac opens its chooser after this click.")
+    note.textColor = .secondaryLabelColor
+    let cancel = FocusFirstClickButton(title: "Cancel", target: target, action: #selector(FocusPromptTarget.cancel(_:)))
+    cancel.keyEquivalent = "\u{1b}"
+    let choose = FocusFirstClickButton(title: action, target: target, action: #selector(FocusPromptTarget.choose(_:)))
+    choose.keyEquivalent = "\r"
+    choose.setAccessibilityIdentifier("photofindry-focus-choose")
+    let buttons = NSStackView(views: [NSView(), cancel, choose])
+    buttons.orientation = .horizontal
+    let stack = NSStackView(views: [heading, note, buttons])
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = 8
+    stack.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 16, right: 20)
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    let content = NSView()
+    content.addSubview(stack)
+    NSLayoutConstraint.activate([
+        stack.leadingAnchor.constraint(equalTo: content.leadingAnchor), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+        stack.topAnchor.constraint(equalTo: content.topAnchor), stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+        buttons.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40), heading.widthAnchor.constraint(lessThanOrEqualToConstant: 400)
+    ])
+    window.contentView = content
+    window.center()
+    window.alphaValue = 0
+    window.orderFrontRegardless()
+    let shown = Date()
+    let watcher = Timer(timeInterval: 0.05, repeats: true) { timer in
+        if app.isActive && window.isKeyWindow && window.alphaValue == 0 {
+            timer.invalidate()
+            app.stopModal(withCode: .OK)
+        } else if window.alphaValue == 0 && Date().timeIntervalSince(shown) > 0.6 {
+            window.alphaValue = 1
+        }
+    }
+    RunLoop.main.add(watcher, forMode: .modalPanel)
+    RunLoop.main.add(watcher, forMode: .common)
+    #if FOCUS_PROMPT_TESTS
+    // Qualification builds only: report what the person would see, then
+    // answer as if they chose. Release builds never answer for the person.
+    focusPromptTestHook(window: window, active: app.isActive, choose: choose)
+    #endif
+    let answer = app.runModal(for: window)
+    watcher.invalidate()
+    window.delegate = nil
+    window.orderOut(nil)
+    guard answer == .OK else { return false }
+    app.activate()
+    focusSettle(app, seconds: 1)
+    return true
+}
+
 // Native picker entry point.
 if CommandLine.arguments.count == 3, ["reveal", "openPhoto"].contains(CommandLine.arguments[1]) {
     let url = URL(fileURLWithPath: CommandLine.arguments[2])
@@ -63,10 +152,6 @@ guard CommandLine.arguments.count == 2, kinds.contains(CommandLine.arguments[1])
     finish(["error": "Unknown picker kind."], code: 2)
 }
 let kind = CommandLine.arguments[1]
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
-app.finishLaunching()
-app.activate(ignoringOtherApps: true)
 
 let titles = [
     "folder": "Choose a photo folder", "sourceFolder": "Choose originals folder", "model": "Choose your local vision model",
@@ -78,6 +163,7 @@ let titles = [
     "archiveSave": "Export a source archive", "photoExportSave": "Save a copy of this cached preview", "screenshot": "Choose a feedback screenshot"
 ]
 
+guard focusBeforeChooser(title: titles[kind]!, action: kind.hasSuffix("Save") ? "Choose where to save…" : "Choose…") else { finish(["cancelled": true]) }
 let selected: URL?
 if kind.hasSuffix("Save") {
     let panel = NSSavePanel()
