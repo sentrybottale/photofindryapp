@@ -780,6 +780,11 @@ async fn prefer_installed_at(root: &Path, directory: &Path) -> Result<()> {
     repair_registration(root,&cfg)?;
     register_links(root,&cfg).await
 }
+/// Both the retained build and the interrupted update failed verification:
+/// report each one's reason, not only the last.
+fn recovery_unverified(prior: u64, prior_error: &str, current: u64, current_error: &str) -> String {
+    format!("Recovery found no intact signed companion. Build {prior}: {prior_error} Build {current}: {current_error} Run verified setup again; your library is kept.")
+}
 async fn restore(
     root: &Path,
     tx: &Transaction,
@@ -796,14 +801,17 @@ async fn restore(
         stop_agent(root).await?;
     }
     if let Some(before) = &tx.before {
-        let mut before = if checked_release(root, before.current, helper).is_ok() {
-            before.clone()
-        } else {
+        let mut before = match checked_release(root, before.current, helper) {
+            Ok(_) => before.clone(),
             // An explicit corrupt-current recovery cannot restore the broken
             // executable it is replacing. Complete its independently verified
             // recovery target while retaining the same library and watermark.
-            checked_release(root, tx.after.current, helper)?;
-            tx.after.clone()
+            Err(prior) => {
+                checked_release(root, tx.after.current, helper).map_err(|current| {
+                    recovery_unverified(before.current, &prior, tx.after.current, &current)
+                })?;
+                tx.after.clone()
+            }
         };
         before.highest = before.highest.max(tx.after.highest);
         let before = &before;
@@ -2320,6 +2328,14 @@ pub async fn command(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recovery_without_an_intact_build_reports_both_reasons() {
+        let message = recovery_unverified(142, "Cannot read package file photofindry.exe. It is missing; security software may have removed it. (system error 2)",
+            144, "Package checksum mismatch. Current software is unchanged.");
+        assert!(message.contains("Build 142: Cannot read package file photofindry.exe. It is missing"), "{message}");
+        assert!(message.contains("Build 144: Package checksum mismatch."), "{message}");
+        assert!(message.ends_with("Run verified setup again; your library is kept."), "{message}");
+    }
     fn source_startup_fixture()->(PathBuf,PathBuf,PathBuf,PathBuf,Installation) {
         use base64::{Engine as _,engine::general_purpose::STANDARD};
         let root=private_fixture("successor-startup");let data=private_fixture("successor-library");let state=private_fixture("successor-launch");

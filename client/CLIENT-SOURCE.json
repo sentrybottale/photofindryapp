@@ -1,5 +1,5 @@
 {
-  "exportManifestSHA256": "e0d099c3e5b43c0bd93a068e2d0a6b9bc8cd9887fd80062d1af4e6d3cb5568e2",
+  "exportManifestSHA256": "ee6bd1e470def95c30d844bf8a5735fea04dfde9e7224e525371f734e3586919",
   "files": [
     {
       "bytes": 1182,
@@ -177,9 +177,9 @@
       "sha256": "5f73e2af54fe323a56a63044c7a34cf8d78c443908edba3f20e96355cfb5f8da"
     },
     {
-      "bytes": 37375,
+      "bytes": 39559,
       "path": "engine/companion/src/cli_release.rs",
-      "sha256": "251db9cfaf26f62c4f449961200b477e12667136a8127e7a40ac2d312ec5e66a"
+      "sha256": "060a6bfeb7dfd66e5191c10d67ff684ed699464d6f1f3a862b2fa20e5d47c39a"
     },
     {
       "bytes": 4740,
@@ -222,9 +222,9 @@
       "sha256": "ae073edadcfb4b801903b252eab48a322066d5ad44b9b0a4a629c7b3bb8ca640"
     },
     {
-      "bytes": 155598,
+      "bytes": 156795,
       "path": "engine/companion/src/lifecycle.rs",
-      "sha256": "14ffd5d30bd048dc8fed0f5960335db931040f8370c02ed95f6ae762a5f6e65c"
+      "sha256": "ea53fa1ba802edbaf031a2b23d388f8abed0c7cea62724341390aefcaf933904"
     },
     {
       "bytes": 77238,
@@ -477,9 +477,9 @@
       "sha256": "fcb1d2e19243acba3475b3bfe5c322606bd78cbb691eee257adcded2ab8987e7"
     },
     {
-      "bytes": 6444,
+      "bytes": 11096,
       "path": "scripts/companion-picker.swift",
-      "sha256": "0296880aa4d082498c5a44d521189705a0ea658b87431626cac4ad485c419ba8"
+      "sha256": "584adefc1b8e7064323276aa7c7da1a3d9886ed7915f0c6415b529ecb07172db"
     },
     {
       "bytes": 1127,
@@ -487,9 +487,9 @@
       "sha256": "be330e19203922ca877ffb9014eefa7e4b3a374de55aef63e215b0a4b1b29625"
     },
     {
-      "bytes": 28958,
+      "bytes": 33549,
       "path": "scripts/companion-source-access.swift",
-      "sha256": "409d6b2e9695a7d36389805da29ddab1a1bf53f68288b3f08e40bfb452e930a1"
+      "sha256": "2cd14a32eb2e96856e558651a4a3a7648ebbb4b17b1d98c3e6e1016fbc42b287"
     },
     {
       "bytes": 6371,
@@ -839,6 +839,6 @@
   ],
   "kind": "photofindry-client-source",
   "license": "MIT",
-  "privateBuildRevision": "c3e07ed93e1fa1a03873baec94d712c16057816d",
+  "privateBuildRevision": "039b9c172bc4209baf6c5544c8c161dc97c96951",
   "schema": 1
 }

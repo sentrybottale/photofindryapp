@@ -174,6 +174,26 @@ fn open_unlinked(path: &Path) -> std::io::Result<File> {
     }
     options.open(path)
 }
+/// Names an unreadable package file and the reason, without the private folder
+/// it lives in. Build 144's PC recovery only said "Cannot read package file"
+/// after Microsoft Defender had removed a retained program.
+pub fn unreadable(path: &Path, error: &std::io::Error) -> String {
+    let name = path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+    let reason = match error.raw_os_error() {
+        // ERROR_VIRUS_INFECTED, ERROR_VIRUS_DELETED
+        #[cfg(windows)]
+        Some(225) | Some(226) => " Windows security software blocked it.",
+        // ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION
+        #[cfg(windows)]
+        Some(32) | Some(33) => " Another program is holding it open.",
+        _ if error.kind() == std::io::ErrorKind::NotFound => {
+            " It is missing; security software may have removed it."
+        }
+        _ => "",
+    };
+    let code = error.raw_os_error().map(|code| format!(" (system error {code})")).unwrap_or_default();
+    format!("Cannot read package file {name}.{reason}{code}")
+}
 fn create_private(path: &Path, executable: bool) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
@@ -493,7 +513,7 @@ pub fn verify_package(root: &Path, release: &Release) -> Result<()> {
     Ok(())
 }
 pub fn file_hash(path: &Path, limit: u64) -> Result<String> {
-    let mut f = open_unlinked(path).map_err(|_| "Cannot read package file")?;
+    let mut f = open_unlinked(path).map_err(|error| unreadable(path, &error))?;
     let m = f.metadata().map_err(|_| "Cannot inspect package file")?;
     if !safe_file(&m) || m.len() > limit {
         return Err("Invalid package file".into());
@@ -756,6 +776,22 @@ pub fn extract(archive: &Path, target: &Path, release: &Release) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unreadable_package_file_names_the_file_and_cause_without_its_folder() {
+        let base = std::env::temp_dir().join(format!("pf-cli-unreadable-{}", std::process::id()));
+        let missing = base.join("private-user-folder").join("photofindry.exe");
+        let message = file_hash(&missing, 1024).unwrap_err();
+        assert!(message.starts_with("Cannot read package file photofindry.exe."), "{message}");
+        assert!(message.contains("It is missing; security software may have removed it."), "{message}");
+        assert!(message.contains("(system error 2)") || message.contains("(system error 3)"), "{message}");
+        assert!(!message.contains("private-user-folder"), "{message}");
+        let blocked = std::io::Error::from_raw_os_error(225);
+        let message = unreadable(&missing, &blocked);
+        #[cfg(windows)]
+        assert_eq!(message, "Cannot read package file photofindry.exe. Windows security software blocked it. (system error 225)");
+        #[cfg(not(windows))]
+        assert_eq!(message, "Cannot read package file photofindry.exe. (system error 225)");
+    }
     #[test]
     #[cfg(target_os = "macos")]
     fn archive_links_traversal_and_duplicates_never_escape_staging() {
