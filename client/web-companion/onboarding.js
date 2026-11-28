@@ -579,13 +579,13 @@
       el('p', '', modelLabels.length ? `Selected model files: ${modelLabels.join(' · ')}.` : localText('No model files have been selected on this Mac.')),
       el('p', '', preview ? 'Your saved library, model settings and original photographs are kept. Backup export is not available in this preview.' : 'Portable backups carry saved evidence and selected managed assets. They omit original photographs, model weights and this Mac’s private jobs and guide preferences.'),
       actionRow(guideAction('Open Files', 'sources'), guideAction('Backups & archives', 'portability')));
-    const remove = button('Remove source from gallery…', async () => {
+    const remove = button('Remove source…', async () => {
       if (!connected(id, ticket)) return;
       closeInfo();
       await window.PhotoFindryPanels?.removeSource?.();
     });
-    remove.disabled = !(Array.isArray(state.sources) && state.sources.some((source) => source.mode !== 'archived'));
-    body.append(note('Remove a photo source after saving a verified, restorable archive. Its originals stay in their folders.'), actionRow(remove));
+    remove.disabled = !(Array.isArray(state.sources) && state.sources.some((source) => source.mode !== 'archived' && source.removing !== true));
+    body.append(note('Remove a photo source. You choose whether to keep a restorable archive first. Its originals stay in their folders.'), actionRow(remove));
     dialog.append(head, body);
     document.body.append(dialog);
     infoDialog = dialog;

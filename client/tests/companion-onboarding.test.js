@@ -261,8 +261,8 @@ test('This library opens the reviewed source-removal flow and Files keeps its in
   const ui=harness({state:{sources:[{id:'source-a',label:'My photographs',mode:'connected'}]}});await ui.ready();
   let opened=0;ui.window.PhotoFindryPanels={async removeSource(){opened++;}};
   await ui.findButton('This library').click();
-  const dialog=ui.dialog('pf-library-dialog');assert.match(dialog.textContent,/verified, restorable archive/);
-  await ui.findButton('Remove source from gallery…').click();assert.equal(opened,1);assert.equal(ui.dialog('pf-library-dialog'),undefined);
+  const dialog=ui.dialog('pf-library-dialog');assert.match(dialog.textContent,/whether to keep a restorable archive first/);
+  await ui.findButton('Remove source…').click();assert.equal(opened,1);assert.equal(ui.dialog('pf-library-dialog'),undefined);
   assert(!ui.calls.some(call=>call.route.startsWith('action:')));
   const destinations=[];ui.window.addEventListener('photofindry:guide-destination',event=>destinations.push(event.detail.panel));
   await ui.findButton('Getting started').click();await ui.findButton('3. Photo folders').click();await ui.findButton('Open Files').click();
@@ -273,8 +273,8 @@ test('This library cannot remove an absent or already archived source', async ()
   for(const sources of [[],[{id:'archived-source',mode:'archived'}]]) {
     const ui=harness({state:{sources}});await ui.ready();
     ui.window.PhotoFindryPanels={async removeSource(){assert.fail('No active source should be removable.');}};
-    await ui.findButton('This library').click();assert.equal(ui.findButton('Remove source from gallery…').disabled,true);
-    await ui.findButton('Remove source from gallery…').click();assert.deepEqual(ui.errors,[]);
+    await ui.findButton('This library').click();assert.equal(ui.findButton('Remove source…').disabled,true);
+    await ui.findButton('Remove source…').click();assert.deepEqual(ui.errors,[]);
   }
 });
 

@@ -538,6 +538,18 @@
       document.body.append(dialog); dialog.showModal();
     });
   }
+  // One decision among explicit options; Cancel or Escape resolves to null.
+  function choice(heading, content, options) {
+    return new Promise((resolve) => {
+      const dialog = el('dialog', 'pfp-dialog'); view.confirmation = dialog; let chosen = null;
+      dialog.append(el('h2', '', heading));
+      for (const message of list(content)) dialog.append(typeof message === 'string' ? el('p', '', message) : message);
+      const actions = options.map(([value, label, tone]) => button(label, () => { chosen = value; dialog.close(); }, tone));
+      dialog.append(row(button('Cancel', () => dialog.close()), ...actions));
+      dialog.addEventListener('close', () => { if (view.confirmation === dialog) view.confirmation = null; dialog.remove(); resolve(chosen); }, { once: true });
+      document.body.append(dialog); dialog.showModal();
+    });
+  }
   function preview(photoId, parent, faceId, label = 'Saved preview') {
     const signal = view.controller.signal;
     const placeholder = el('div', 'pfp-image-placeholder', 'Loading saved preview…'); parent.append(placeholder);
@@ -729,12 +741,18 @@
     const source = sources().find((item) => item.id === view.sourceId);
     const roots = list(source.roots);
     const summary = card(source.label, automaticSource(source) ? 'Folder availability is managed automatically.' : text(source.statusLabel, text(source.status)));
+    if (source.removing === true) {
+      summary.append(notice('This source is being removed permanently. Its photographs leave the gallery while the removal job runs. Original photographs are not touched.'));
+      body.append(summary);
+      for (const job of jobs().filter((job) => job.kind === 'libraryCleanup' && job.sourceId === source.id && !terminal(job)).slice(0, 2)) body.append(jobCard(job));
+      body.append(libraryActions); return;
+    }
     if (source.mode === 'archived') {
       summary.append(notice('This source is archived and is not part of the searchable library. Attach its verified archive to bring it back; an originals folder alone does not restore its saved work.'),
         button('Inspect & attach archive…', inspectArchive));
       for (const rootInfo of roots) summary.append(el('p', 'pfp-muted', `Archived location: ${sourceLocation(rootInfo)}`));
       summary.append(disclosure('Archive options', button('Archive QR label…', () => showArchiveLabel(source))));
-      if (sources().some(item => item.mode !== 'archived')) libraryActions.append(button('Remove source from gallery…', removeSourceFromGallery));
+      if (sources().some(item => item.mode !== 'archived' && item.removing !== true)) libraryActions.append(button('Remove source…', removeSourceFromGallery));
       body.append(summary, libraryActions, sourceArchiveLabels()); return;
     }
     const rootInfo = roots.find(item => item.id === view.sourceRoots.get(source.id)) || (roots.length === 1 ? roots[0]
@@ -818,7 +836,8 @@
       }));
     }
     if (supports('backupTransfer')) sourceOptions.append(row(button('Export source archive…', () => archivePlan(source, false)), button('Archive & disconnect…', () => archivePlan(source, true)),
-      button('Remove source from gallery…', removeSourceFromGallery), button('Archive QR label…', () => showArchiveLabel(source))));
+      button('Archive QR label…', () => showArchiveLabel(source))));
+    if (supports('backupTransfer') || supports('sourceRemoval')) sourceOptions.append(row(button('Remove source…', removeSourceFromGallery, 'danger')));
     if (snapshot().sourceTransfer?.phase === 'cleanupPending') sourceOptions.append(button('Retry interrupted transfer', () => command('retrySourceTransfer')));
     if (supports('metadata') && source.mode !== 'metadata' && source.accessOriginals !== false) sourceOptions.append(button('Read camera & location metadata', () => command('enqueueJob', { kind: 'metadata', params: { sourceId: source.id, force: true } }, 'Metadata read queued for this source. Originals are never changed.')));
     if (view.recoveryJobId && (!automaticSource(source) || sourceConflict(source) || source.status === 'permission')) {
@@ -917,7 +936,7 @@
       button('Read QR image…', () => scanArchiveCode('image')), button('Scan with camera…', () => scanArchiveCode('camera'))));
     // Removal remains available when every source is archived, with its native
     // active-source selection and refusal contract unchanged.
-    if (sources().every(source => source.mode === 'archived')) labels.append(button('Remove source from gallery…', removeSourceFromGallery));
+    if (sources().every(source => source.mode === 'archived')) labels.append(button('Remove source…', removeSourceFromGallery));
     return labels;
   }
   async function renderSourcesFresh(preserveName = false) {
@@ -1487,21 +1506,77 @@
     if (result.restartRequired) bridge().showNotice('The verified attachment was staged. The companion reconnects to the updated library automatically.');
     if (view.name === 'sources') await renderSourcesFresh(); await bridge().refreshLibrary();
   }
+  // Owner direction, 2026-11-27: removing a source asks once whether to keep an
+  // archive. Archive → export, verify, then remove. No archive → exactly one
+  // irreversible warning, then a direct permanent removal job. Library cleanup
+  // review is never a prerequisite. Original photographs are never touched.
   async function removeSourceFromGallery() {
     const generation = view.generation;
-    const available = sources().filter((source) => source.mode !== 'archived');
+    const available = sources().filter((source) => source.mode !== 'archived' && source.removing !== true);
     if (!available.length) throw Error('No active source remains in the gallery. Attach an archive or add a photo folder in Files.');
     let id = available.some((source) => source.id === view.sourceId) ? view.sourceId : available[0].id;
     if (available.length > 1) {
       const chooser = select(available.map((source) => [source.id, `${source.label || 'Untitled source'} · ${count(source.photoCount)} photos`]), id);
-      if (!await confirmation('Choose a source to remove from the gallery', [field('Source to remove', chooser),
-        'A restorable archive is saved and verified before this source leaves the gallery. Other sources and original photographs stay in place.'], 'Review source removal')) return;
+      if (!await confirmation('Choose a source to remove', [field('Source to remove', chooser),
+        'Other sources and original photographs stay in place.'], 'Continue')) return;
       id = chooser.value;
     }
     if (generation !== view.generation) return;
-    const source = sources().find((item) => item.id === id && item.mode !== 'archived');
+    const source = sources().find((item) => item.id === id && item.mode !== 'archived' && item.removing !== true);
     if (!source || !available.some((item) => item.id === id)) throw Error('The selected source changed. Review it again in Files.');
-    await archivePlan(source, true, true);
+    const archives = supports('backupTransfer'), direct = supports('sourceRemoval');
+    if (!archives && !direct) throw Error('Removing a source is not available in this preview. Your saved library and originals are kept.');
+    const decision = await choice(`Remove “${text(source.label, 'this source')}”?`, [
+      `${count(source.photoCount)} photographs leave this library with their tags, People details and cached previews. Original photographs in the folder are never changed or deleted.`,
+      archives ? 'Keep an archive to bring this source and its saved work back later. Without an archive, the removal is permanent.' : 'This removal is permanent.',
+    ], [...(archives ? [['archive', 'Archive, then remove…', 'primary']] : []), ...(direct ? [['remove', 'Remove without archive…', 'danger']] : [])]);
+    if (!decision || generation !== view.generation) return;
+    if (decision === 'archive') return archivePlan(source, true, true);
+    return removeWithoutArchive(source, generation);
+  }
+  // Removal owns the processing lane exactly like Cleanup: pause it safely,
+  // keep that hold while the approved job runs, then release it once.
+  async function holdProcessing(generation) {
+    let result = await bridge().api('/api/action', { action: 'beginCleanupSession', params: {} });
+    const started = Date.now();
+    while (result.active && !result.ready && generation === view.generation) {
+      if (Date.now() - started > 120000) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      result = await bridge().api('/api/action', { action: 'cleanupSession', params: {} });
+    }
+    if (!result.active || !result.ready) throw Error('Processing is still stopping. Nothing was removed; try again in a moment.');
+    return generation === view.generation;
+  }
+  const releaseProcessing = () => bridge().api('/api/action', { action: 'endCleanupSession', params: {} }).catch(() => {});
+  function releaseAfter(jobId) {
+    const started = Date.now(); let seen = false;
+    const timer = setInterval(() => {
+      const job = jobs().find((item) => item.id === jobId);
+      if (job) { seen = true; if (!terminal(job)) return; } else if (!seen && Date.now() - started < 15000) return;
+      clearInterval(timer); void releaseProcessing();
+      if (view.name === 'sources' && !root.hidden) renderSourcesFresh().catch(() => {});
+    }, 1000);
+  }
+  async function removeWithoutArchive(source, generation) {
+    const current = () => generation === view.generation && sources().some((item) => item.id === source.id && item.mode !== 'archived' && item.removing !== true);
+    let queued = null;
+    try {
+      if (!await holdProcessing(generation) || !current()) return;
+      const plan = await read('prepareSourceRemoval', { sourceId: source.id });
+      if (!current()) return;
+      const entries = `${count(plan.photos)} photographs${plan.removedEntries ? ` and ${count(plan.removedEntries)} entries in Removed` : ''}`;
+      if (!await confirmation('This cannot be undone', [
+        `${entries} from “${text(plan.label, text(source.label, 'this source'))}” will be permanently deleted from PhotoFindry with their tags, ${count(plan.faces)} People faces and unshared cached previews. There is no archive and no Undo.`,
+        'Original photographs in the folder are not touched, and other sources are not affected.',
+      ], 'Remove permanently', { destructive: true })) return;
+      if (!current() || (plan.expiresAt && Date.parse(plan.expiresAt) <= Date.now())) throw Error('The source changed or this review expired. Start the removal again.');
+      queued = await command('removeSource', { removalId: plan.id, confirmed: true }, 'Removing the source. Its photographs leave the gallery while the job runs; follow it here or in Jobs.');
+    } finally {
+      const jobId = queued?.id || queued?.jobId || queued?.submittedJob?.id;
+      if (jobId) releaseAfter(jobId); else void releaseProcessing();
+    }
+    if (view.name === 'sources') await renderSourcesFresh();
+    await bridge().refreshLibrary();
   }
   async function openSourceRemoval() {
     const opening = show('sources');
@@ -1530,9 +1605,10 @@
       `${count(plan.missingImages)} photographs have no recorded preview.`, ...list(plan.warnings),
       disconnect ? 'Only after verifying the archive will PhotoFindry clear proved unshared cached images. Shared or unverified files are retained. A preview may be your only remaining image; keep the archive somewhere safe.' : 'The source remains connected. Subsequent edits are not synchronized into this exported snapshot.',
     ];
-    if (removeFromGallery) summary.push('PhotoFindry saves and verifies a restorable source archive before removing this source’s active entries and verified unshared cached copies from the gallery. Other sources and original files are unchanged. Attach the archive in Files to bring this source back.');
-    if (!await confirmation(removeFromGallery ? 'Remove this source from the gallery?' : disconnect ? 'Export and disconnect this source?' : 'Export this source archive?', summary,
-      removeFromGallery ? 'Save archive & remove source' : disconnect ? 'Choose destination & disconnect' : 'Choose destination & export',
+    // Removal already chose “Archive, then remove”: go straight to the save
+    // location. The verified archive keeps everything that leaves the gallery.
+    if (!removeFromGallery && !await confirmation(disconnect ? 'Export and disconnect this source?' : 'Export this source archive?', summary,
+      disconnect ? 'Choose destination & disconnect' : 'Choose destination & export',
       { destructive: disconnect, acknowledgement: disconnect ? 'I understand which saved images and active records this mode removes.' : null })) return;
     if (!current()) return;
     const destination = await choose('archiveSave'); if (!destination) return;

@@ -326,23 +326,61 @@ test('Files and Backups both import whole-library folders through the backup gra
   }
 });
 
-test('easy source removal requires a frozen archive review, acknowledgement and native destination', async () => {
+const openDialog=ui=>ui.all().find(node=>node.tagName==='DIALOG'&&node.open);
+const settle=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('source removal asks whether to archive; archiving exports and removes without a second review', async () => {
   const ui=harness({}, {prepareSourceArchive:{planId:'frozen-source-plan',photos:1,removedPhotos:0,people:1,faces:1,previews:1,bytes:100,includeImageCaches:true,missingImages:0}});
   const kinds=[];ui.window.PhotoFindry.pick=async kind=>{kinds.push(kind);return{grantId:'archive-destination-grant'};};
   try {
     await ui.window.PhotoFindryPanels.show('sources');
-    const removing=ui.findButton('Remove source from gallery…').click();await new Promise(resolve=>setImmediate(resolve));
+    const removing=ui.findButton('Remove source…').click();await settle();
+    const dialog=openDialog(ui);
+    assert.match(dialog.textContent,/Remove “Test source”\?/);assert.match(dialog.textContent,/never changed or deleted/);assert.match(dialog.textContent,/Without an archive, the removal is permanent/);
+    assert(!ui.calls.some(call=>['prepareSourceArchive','prepareSourceRemoval','beginCleanupSession'].includes(call.action)),'choosing prepares nothing');
+    await ui.findButton('Archive, then remove…').click();await removing;
     assert.deepEqual(ui.calls.filter(call=>call.action==='prepareSourceArchive'),[{action:'prepareSourceArchive',params:{sourceId:ui.state.sources[0].id,mode:'detach',includeImageCaches:true}}]);
-    const dialog=ui.all().find(node=>node.tagName==='DIALOG'&&node.open);
-    assert.match(dialog.textContent,/Test source/);assert.match(dialog.textContent,/restorable source archive/);assert.match(dialog.textContent,/Other sources and original files are unchanged/);
-    const approve=ui.findButton('Save archive & remove source');assert.equal(approve.disabled,true);
-    assert.deepEqual(kinds,[]);assert(!ui.calls.some(call=>call.action==='exportSourceArchive'));
-    const acknowledgement=dialog.children.find(node=>node.tagName==='LABEL'&&node.textContent.includes('I understand'));acknowledgement.children[0].checked=true;await acknowledgement.children[0].fire('change');
-    await approve.click();await removing;
     assert.deepEqual(kinds,['archiveSave']);
     assert.deepEqual(ui.calls.filter(call=>call.action==='exportSourceArchive'),[{action:'exportSourceArchive',params:{planId:'frozen-source-plan',destinationGrant:'archive-destination-grant',disconnect:true,confirmClearImages:true}}]);
-    assert(!ui.calls.some(call=>['removeFolder','purgeSource','restoreLibrary','enqueueJob','startModel'].includes(call.action)));
-    assert.deepEqual(ui.errors,[]);
+    assert(!ui.calls.some(call=>['removeFolder','purgeSource','removeSource','prepareSourceRemoval','prepareCleanup','removeLibraryEntries','restoreLibrary','enqueueJob','startModel'].includes(call.action)));
+    assert.equal(openDialog(ui),undefined);assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('removing without an archive shows exactly one irreversible warning and starts the removal job directly', async () => {
+  const ui=harness({}, {prepareSourceRemoval:{id:'frozen-removal',count:3,photos:2,removedEntries:1,faces:4,label:'Test source',expiresAt:new Date(Date.now()+3600000).toISOString()},removeSource:{id:'removal-job',kind:'libraryCleanup',state:'queued'}});
+  ui.window.PhotoFindry.pick=async()=>assert.fail('Removing without an archive never chooses a destination.');
+  const dialogs=[];
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const removing=ui.findButton('Remove source…').click();await settle();
+    dialogs.push(openDialog(ui).children[0].textContent);
+    await ui.findButton('Remove without archive…').click();await settle();await settle();
+    assert.deepEqual(ui.calls.filter(call=>call.action==='prepareSourceRemoval'),[{action:'prepareSourceRemoval',params:{sourceId:ui.state.sources[0].id}}]);
+    assert(ui.calls.findIndex(call=>call.action==='beginCleanupSession')<ui.calls.findIndex(call=>call.action==='prepareSourceRemoval'),'processing pauses before the frozen review');
+    const warning=openDialog(ui);dialogs.push(warning.children[0].textContent);
+    assert.match(warning.textContent,/This cannot be undone/);assert.match(warning.textContent,/2 photographs and 1 entries in Removed/);assert.match(warning.textContent,/4 People faces/);
+    assert.match(warning.textContent,/no archive and no Undo/);assert.match(warning.textContent,/Original photographs in the folder are not touched/);
+    assert(!warning.children.some(node=>node.tagName==='LABEL'),'one warning, no extra acknowledgement step');
+    assert(!ui.calls.some(call=>call.action==='removeSource'));
+    await ui.findButton('Remove permanently').click();await removing;
+    assert.deepEqual(ui.calls.filter(call=>call.action==='removeSource'),[{action:'removeSource',params:{removalId:'frozen-removal',confirmed:true}}]);
+    assert.deepEqual(dialogs,['Remove “Test source”?','This cannot be undone']);
+    assert(!ui.calls.some(call=>['prepareSourceArchive','exportSourceArchive','prepareCleanup','removeLibraryEntries','prepareRemovedDeletion','deleteRemovedEntries','removeFolder'].includes(call.action)),'no cleanup review or archive is required');
+    assert.equal(openDialog(ui),undefined);assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
+});
+
+test('cancelling the irreversible warning removes nothing and releases processing', async () => {
+  const ui=harness({}, {prepareSourceRemoval:{id:'frozen-removal',count:1,photos:1,removedEntries:0,faces:0,label:'Test source'}});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const removing=ui.findButton('Remove source…').click();await settle();
+    await ui.findButton('Remove without archive…').click();await settle();await settle();
+    await ui.findButton('Cancel').click();await removing;
+    assert(!ui.calls.some(call=>call.action==='removeSource'));
+    assert(ui.calls.some(call=>call.action==='endCleanupSession'),'the processing hold ends');
+    assert.equal(ui.state.sources.length,1);assert.deepEqual(ui.errors,[]);
   } finally {await ui.close();}
 });
 
@@ -351,46 +389,55 @@ test('cancelled source removal leaves the gallery intact and does not choose or 
   ui.window.PhotoFindry.pick=async()=>assert.fail('Cancelling the review must not open a destination chooser.');
   try {
     await ui.window.PhotoFindryPanels.show('sources');
-    const removing=ui.findButton('Remove source from gallery…').click();await new Promise(resolve=>setImmediate(resolve));
+    const removing=ui.findButton('Remove source…').click();await settle();
     await ui.findButton('Cancel').click();await removing;
-    assert(!ui.calls.some(call=>call.action==='exportSourceArchive'));assert.equal(ui.state.sources.length,1);
+    assert(!ui.calls.some(call=>['prepareSourceArchive','exportSourceArchive','prepareSourceRemoval','removeSource','beginCleanupSession'].includes(call.action)));assert.equal(ui.state.sources.length,1);
     assert.deepEqual(ui.errors,[]);
   } finally {await ui.close();}
 });
 
 test('source removal chooses only active sources and never silently removes the other gallery sources', async () => {
-  const ui=harness({sources:[{id:'a',label:'Archive already removed',mode:'archived'},{id:'b',label:'Current source',photoCount:2},{id:'c',label:'Other source',photoCount:3}]},{prepareSourceArchive:{planId:'chosen-c',photos:3}});
+  const ui=harness({sources:[{id:'a',label:'Archive already removed',mode:'archived'},{id:'b',label:'Current source',photoCount:2},{id:'c',label:'Other source',photoCount:3},{id:'d',label:'Already removing',photoCount:4,removing:true}]},{prepareSourceArchive:{planId:'chosen-c',photos:3}});
+  ui.window.PhotoFindry.pick=async()=>({cancelled:true});
   try {
     await ui.window.PhotoFindryPanels.show('sources');
-    const removing=ui.findButton('Remove source from gallery…').click();await new Promise(resolve=>setImmediate(resolve));
-    const chooser=ui.field('Source to remove');assert.equal(chooser.value,'b');assert.equal(chooser.children.length,2);assert(!chooser.children.some(node=>node.value==='a'));
+    const removing=ui.findButton('Remove source…').click();await settle();
+    const chooser=ui.field('Source to remove');assert.equal(chooser.value,'b');assert.deepEqual(chooser.children.map(node=>node.value),['b','c']);
     assert(!ui.calls.some(call=>call.action==='prepareSourceArchive'));
-    chooser.value='c';await ui.findButton('Review source removal').click();await new Promise(resolve=>setImmediate(resolve));
+    chooser.value='c';await ui.findButton('Continue').click();await settle();
+    assert.match(openDialog(ui).textContent,/Remove “Other source”\?/);
+    await ui.findButton('Archive, then remove…').click();await removing;
     assert.deepEqual(ui.calls.filter(call=>call.action==='prepareSourceArchive'),[{action:'prepareSourceArchive',params:{sourceId:'c',mode:'detach',includeImageCaches:true}}]);
-    await ui.findButton('Cancel').click();await removing;
-    assert(!ui.calls.some(call=>call.action==='exportSourceArchive'));assert.deepEqual(ui.errors,[]);
+    assert(!ui.calls.some(call=>call.action==='exportSourceArchive'),'a cancelled destination writes nothing');assert.deepEqual(ui.errors,[]);
   } finally {await ui.close();}
 });
 
 test('a library replacement discards an old source removal preparation and destination grant', async () => {
-  for(const phase of ['preparation','destination']) {
+  for(const phase of ['preparation','destination','direct']) {
     let release;const waiting=new Promise(resolve=>{release=resolve;});
     const plan={planId:'old-plan',photos:1};
-    const ui=harness({}, {prepareSourceArchive:phase==='preparation'?()=>waiting:plan});
+    const ui=harness({}, {prepareSourceArchive:phase==='preparation'?()=>waiting:plan,prepareSourceRemoval:phase==='direct'?()=>waiting:{id:'x'}});
     ui.window.PhotoFindry.pick=async()=>waiting;
     try {
       await ui.window.PhotoFindryPanels.show('sources');
-      const removing=ui.findButton('Remove source from gallery…').click();await new Promise(resolve=>setImmediate(resolve));
-      if(phase==='destination') {
-        const dialog=ui.all().find(node=>node.tagName==='DIALOG'&&node.open);
-        const acknowledgement=dialog.children.find(node=>node.tagName==='LABEL'&&node.textContent.includes('I understand'));acknowledgement.children[0].checked=true;await acknowledgement.children[0].fire('change');
-        void ui.findButton('Save archive & remove source').click();await new Promise(resolve=>setImmediate(resolve));
-      }
-      ui.emit('photofindry:library-restored');release(phase==='preparation'?plan:{grantId:'old-destination'});await removing;
-      assert(!ui.all().some(node=>node.tagName==='DIALOG'&&node.open));assert(!ui.calls.some(call=>call.action==='exportSourceArchive'));
+      const removing=ui.findButton('Remove source…').click();await settle();
+      void ui.findButton(phase==='direct'?'Remove without archive…':'Archive, then remove…').click();await settle();await settle();
+      ui.emit('photofindry:library-restored');release(phase==='destination'?{grantId:'old-destination'}:phase==='direct'?{id:'old-removal',photos:1}:plan);await removing;
+      assert(!ui.all().some(node=>node.tagName==='DIALOG'&&node.open));assert(!ui.calls.some(call=>['exportSourceArchive','removeSource'].includes(call.action)));
       assert.deepEqual(ui.errors,[]);
     } finally {await ui.close();}
   }
+});
+
+test('a source being removed shows its job and offers no further source actions', async () => {
+  const ui=harness({sources:[{id:'gone',label:'Work',photoCount:60978,status:'available',removing:true,roots:[]}],jobs:{jobs:[{id:'removal-job',kind:'libraryCleanup',sourceId:'gone',state:'running',title:'Remove source “Work”'}]}});
+  try {
+    await ui.window.PhotoFindryPanels.show('sources');
+    const text=ui.all().find(node=>node.className==='pfp-body').textContent;
+    assert.match(text,/being removed permanently/);assert.match(text,/Remove source “Work”/);
+    for(const label of ['Remove source…','Choose originals folder…','Export source archive…','Archive & disconnect…']) assert(!ui.all().some(node=>node.tagName==='BUTTON'&&node.textContent===label),label);
+    assert.deepEqual(ui.errors,[]);
+  } finally {await ui.close();}
 });
 
 test('archived source export reports the native attach-first requirement instead of silently doing nothing', async () => {
@@ -807,7 +854,7 @@ test('imported Files prioritizes choosing this Mac’s original folder, shows th
     assert.match(ui.all().find(node => node.className === 'pfp-body').textContent, /\/Users\/other-mac\/pCloud Drive\/Automatic Upload/);
     const visible = visiblePanelButtons(ui);
     assert(visible.includes('Choose originals folder…'));
-    for (const label of ['Save name', 'Review originals', 'Import library backup…', 'Attach source archive…', 'Remove source from gallery…', 'Read QR image…', 'Scan with camera…']) assert(!visible.includes(label), label);
+    for (const label of ['Save name', 'Review originals', 'Import library backup…', 'Attach source archive…', 'Remove source…', 'Read QR image…', 'Scan with camera…']) assert(!visible.includes(label), label);
     assert(ui.all().filter(node => node.tagName === 'DETAILS').every(node => !node.open));
     assert(!ui.calls.some(call => ['prepareSourceConnection', 'locateSource', 'checkSources', 'enqueueJob', 'ensurePreview'].includes(call.action)));
     assert.deepEqual(ui.errors, []);

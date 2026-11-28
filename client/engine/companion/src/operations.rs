@@ -865,6 +865,21 @@ pub fn prepare(
             object(&params, &["sourceId", "photoIds"])?;
             "prepareRemovedDeletion"
         }
+        "prepareSourceRemoval" => {
+            object(&params, &["sourceId"])?;
+            required(&params, &["sourceId"])?;
+            "prepareSourceRemoval"
+        }
+        // Removing without an archive is the user's second, irreversible
+        // confirmation of a frozen source selection; nothing else authorizes it.
+        "removeSource" => {
+            object(&params, &["removalId", "confirmed"])?;
+            required(&params, &["removalId"])?;
+            if params["confirmed"] != true {
+                return Err("Confirm permanently removing this source.".into());
+            }
+            "removeSource"
+        }
         "deleteRemovedEntries" => {
             object(&params, &["deletionId", "confirmed"])?;
             required(&params, &["deletionId"])?;
@@ -1056,6 +1071,12 @@ mod tests {
             )
             .is_err()
         );
+        for bad in [json!({"removalId":"x","confirmed":false}), json!({"removalId":"x"}), json!({"confirmed":true}), json!({"removalId":"x","confirmed":true,"archive":false})] {
+            assert!(prepare("removeSource", bad.clone(), &scopes, &picker).is_err(), "{bad}");
+        }
+        assert_eq!(prepare("removeSource", json!({"removalId":"x","confirmed":true}), &scopes, &picker).unwrap().0, "removeSource");
+        assert!(prepare("prepareSourceRemoval", json!({}), &scopes, &picker).is_err());
+        assert_eq!(prepare("prepareSourceRemoval", json!({"sourceId":"s"}), &scopes, &picker).unwrap().0, "prepareSourceRemoval");
         assert!(prepare("aiSearchPage", json!({"id":"unbound"}), &scopes, &picker).is_err());
         assert!(
             prepare(
