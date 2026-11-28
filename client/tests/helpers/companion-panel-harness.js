@@ -61,7 +61,7 @@ function harness(initial = {}, overrides = {}) {
     },
     addEventListener: (name, listener) => { (events[name] ||= []).push(listener); },
   };
-  const context = { window, document, AbortController, Blob, URL, Intl, Date, Map, Set, Promise, Number, String, Object, JSON, Array, Error, Uint8Array, atob, setTimeout, clearTimeout };
+  const context = { window, document, AbortController, Blob, URL, Intl, Date, Map, Set, Promise, Number, String, Object, JSON, Array, Error, Uint8Array, atob, setTimeout, clearTimeout, setInterval, clearInterval };
   vm.runInNewContext(source, context, { filename: 'panels.js' });
   const all = () => descendants(document.body);
   const findButton = (label) => { const node = all().find((node) => node.tagName === 'BUTTON' && node.textContent === label); assert(node, `Missing button: ${label}`); return node; };

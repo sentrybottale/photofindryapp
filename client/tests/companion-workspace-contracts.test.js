@@ -83,7 +83,7 @@ function harness(overrides = {}) {
   };
   class CustomEvent { constructor(type, { detail } = {}) { this.type = type; this.detail = detail; } }
   const window = {
-    PhotoFindry: bridge, PhotoFindryPanels: { show() {} },
+    PhotoFindry: bridge, PhotoFindryPanels: { show() {} }, PhotoFindryExtensions: overrides.extensions,
     addEventListener(name, handler) { if (!events.has(name)) events.set(name, []); events.get(name).push(handler); },
     dispatchEvent(event) { for (const handler of events.get(event.type) || []) handler(event); },
     matchMedia: () => ({ matches: true, addEventListener() {} }),
@@ -237,10 +237,12 @@ test('saved optimization comparison shows bounded sample, quality and memory fac
     improved: true, qualityChecked: true, memoryMeasured: true, peakMemoryBytes: 5 * 1024 ** 3,
     reports: [{ label: 'Baseline', accepted: false, secondsPerPhoto: 15.0, reason: 'Slower.' },
       { label: 'Compact', accepted: true, secondsPerPhoto: 11.2, reason: 'Retained details.' }],
+    parallelTagging: { slots: 3, candidates: [{ slots: 1, photosPerSecond: 0.1 }, { slots: 3, photosPerSecond: 0.2 }] },
   } } } });
   try {
     await ui.findButton('Settings').click();
     assert.match(ui.all().map((node) => node.textContent).join(' '), /3 sample photos checked.*11\.2 s\/photo.*1\.30× measured speed.*Saved detail retention checked.*Peak 5\.00 GB/);
+    assert.match(ui.all().map((node) => node.textContent).join(' '), /Parallel tagging: 3 photos at a time for new tagging jobs · 1 at a time 6\.0 photos\/min · 3 at a time 12\.0 photos\/min.*already running keeps its saved count; Stop it and choose Tag again/);
     assert(ui.findButton('Recheck performance'));
     assert(!ui.calls.some((call) => call.name === 'optimizeModel'));
     ui.state.modelOptimization = { running: true, completed: 2, total: 3, message: 'Checking sample.' };
@@ -605,6 +607,33 @@ test('terminal activity summary stays visible until dismissed and never exposes 
     ui.state.jobs.activeJobId = 'new'; ui.emit('state', ui.state);
     assert.equal(strip.hidden, false); assert.match(strip.textContent, /New review/); assert.doesNotMatch(strip.textContent, /Old batch|Latest batch/);
   } finally { await ui.close(); }
+});
+
+test('the tagging strip offers an inert activity slot that mounts per strip and gets only its own job timing', async () => {
+  const job = { id: 'tag', kind: 'tagging', title: 'Tag pending', state: 'running', completed: 3, total: 40 };
+  const mounts = [], updates = [];
+  const extension = ({ signal }) => { const node = { tagName: 'DIV', children: [], textContent: 'extension line', hidden: false, parentNode: null, isConnected: true, remove() {} }; mounts.push(signal); return { node, update: (value) => updates.push(value) }; };
+  const broken = () => { throw new Error('broken extension'); };
+  const brokenUpdate = () => ({ node: { tagName: 'DIV', children: [], textContent: '', remove() {} }, update: () => { throw new Error('broken update'); } });
+  const timing = { jobId: 'tag', running: true, estimateState: 'ready', remainingSeconds: 120, averagePhotoSeconds: 10, opaque: { kept: true } };
+  const ui = harness({ extensions: { activity: [broken, extension, brokenUpdate] }, state: { jobs: { activeJobId: 'tag', jobs: [job], notifications: [] }, job: { jobId: 'tag', running: true }, monitor: { jobTiming: timing } } });
+  try {
+    assert.equal(mounts.length, 1, 'one mount per strip identity');
+    assert.match(ui.ids.get('job-strip').textContent, /About 2 min left · 6\.0 photos\/min/, 'a failing extension leaves the timing line intact');
+    assert.deepEqual(JSON.parse(JSON.stringify(updates.at(-1))), { jobId: 'tag', kind: 'tagging', state: 'running', timing });
+    ui.state.monitor = { jobTiming: { ...timing, jobId: 'previous-job' } }; ui.emit('state', ui.state);
+    assert.equal(updates.at(-1).timing, null, 'timing left over from another job is never passed');
+    ui.state.monitor = { jobTiming: timing };
+    ui.state.job = { jobId: 'other-job', running: true }; ui.emit('state', ui.state);
+    assert.equal(updates.at(-1).timing, null, 'timing from another job is never passed');
+    assert.equal(mounts.length, 1, 'ordinary updates do not remount');
+    assert.equal(mounts[0].aborted, false);
+  } finally { await ui.close(); }
+  const plain = harness({ state: { jobs: { activeJobId: 'tag', jobs: [job], notifications: [] } } });
+  try {
+    const main = plain.all().find(node => node.id === 'activity-main');
+    assert.deepEqual(main.children.map(node => node.id), ['activity-heading', 'activity-stage', 'activity-meter', 'activity-pixel-meter', 'activity-count', 'activity-detail', 'activity-timing', 'activity-review'], 'public builds add nothing');
+  } finally { await plain.close(); }
 });
 
 test('calibration sample progress is independent of photo counts and manual checks remain visible with stop control', async () => {

@@ -252,7 +252,7 @@ fn unsupported() -> Reply {
     )
 }
 fn capabilities() -> Value {
-    preview_features::merge(json!({"platform":"windows","channel":"private-development","signedUpdates":true,"autostart":true,"desktopChooser":"windows-common-item-dialog","sourceObserver":"bounded-polling","fontStories":false,"libraryReplacement":false,"faceDetection":false,"photoReview":false,"modelDownloads":false,"powerInhibition":false,"nativeUninstall":false,"sourceLabels":false,"feedback":false,"backupTransfer":false,"openOriginal":false,"metadata":false,"modelOptimization":false,"managedDeletion":false}), preview_features::current())
+    preview_features::merge(json!({"platform":"windows","channel":"private-development","signedUpdates":true,"autostart":true,"desktopChooser":"windows-common-item-dialog","sourceObserver":"bounded-polling","fontStories":false,"libraryReplacement":false,"faceDetection":false,"photoReview":false,"modelDownloads":false,"powerInhibition":false,"nativeUninstall":false,"sourceLabels":false,"feedback":false,"backupTransfer":false,"sourceRemoval":false,"openOriginal":false,"metadata":false,"modelOptimization":false,"managedDeletion":false}), preview_features::current())
 }
 fn windows_method_supported(method: &str) -> bool {
     !matches!(

@@ -19,6 +19,7 @@
   let activityIdentity = '';
   const dismissedActivity = new Set();
   let activityController = null;
+  let activityParts = [];
   const activityURLs = new Set();
   let storyController = null;
   let storyIdentity = '';
@@ -1596,6 +1597,8 @@
           ].filter(Boolean).join(' ')).filter(Boolean);
           rows.push(el('p', 'settings-live', [chosen > 1 ? `Parallel tagging: ${chosen} photos at a time for new tagging jobs` : 'Parallel tagging: one photo at a time',
             ...measured, str(parallel.error).slice(0, 240)].filter(Boolean).join(' · ')));
+          // A job keeps the count it started with, so say how to use a new one.
+          if (chosen > 1) rows.push(el('p', 'settings-live', 'A tagging job that is already running keeps its saved count; Stop it and choose Tag again to use this. Saved tags are kept.'));
         }
         if (result.note) rows.push(el('p', 'settings-live', str(result.note).slice(0, 300)));
         optimizationReports.replaceChildren(...rows);
@@ -1623,7 +1626,7 @@
   }
 
   function clearActivity() {
-    activityController?.abort(); activityController = null; activityIdentity = '';
+    activityController?.abort(); activityController = null; activityIdentity = ''; activityParts = [];
     for (const url of activityURLs) URL.revokeObjectURL(url); activityURLs.clear();
     clearStory(); $('job-strip').replaceChildren(); $('job-strip').hidden = true;
   }
@@ -1715,6 +1718,15 @@
       const review = el('button', 'activity-review'); review.type = 'button'; review.id = 'activity-review';
       review.addEventListener('click', () => { if (lastId) run(() => P.showPhoto(lastId)); });
       main.append(heading, stage, meter, pixelMeter, count, detail, timing, review);
+      // Optional locally bundled extensions add their own activity lines below
+      // the timing line. Public builds register none; a failing one is skipped.
+      activityParts = (window.PhotoFindryExtensions?.activity ?? []).flatMap((mount) => {
+        try {
+          const part = mount({ signal: activityController.signal });
+          if (!part || typeof part.update !== 'function' || !part.node) return [];
+          main.append(part.node); return [part];
+        } catch { return []; }
+      });
       const controls = el('div', 'activity-controls'); controls.id = 'activity-controls'; strip.append(controls);
       if (photos) strip.append(activityPhoto(job.kind === 'improve' ? 'Last reviewed · saved details' : 'Last tagged · saved story', lastId, false, job.id, activityController.signal));
     }
@@ -1758,6 +1770,11 @@
       if (timing.running && Number.isFinite(timing.averagePhotoSeconds) && timing.averagePhotoSeconds > 0) estimate += ` · ${(60 / timing.averagePhotoSeconds).toFixed(1)} photos/min`;
     }
     set('activity-timing', estimate);
+    const jobTiming = snapshot.monitor?.jobTiming ?? null;
+    const partTiming = snapshot.job?.jobId === job.id && (jobTiming?.jobId == null || jobTiming.jobId === job.id) ? jobTiming : null;
+    for (const part of activityParts) {
+      try { part.update({ jobId: job.id, kind: job.kind, state: job.state, timing: partTiming }); } catch { /* never breaks the strip */ }
+    }
     const reviewText = job.kind === 'improve' ? reviewChangeSummary(story?.lastCompleted?.improvement) : '';
     set('activity-review', reviewText); $('activity-review').hidden = !lastId || !reviewText;
     const controls = $('activity-controls');
